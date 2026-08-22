@@ -1,0 +1,220 @@
+syntax = "proto3";
+
+package auth;
+option go_package = "./pb";
+
+// 用户状态。UNSPECIFIED 仅用于未指定的查询条件，不应保存到数据库。
+enum UserStatus {
+    USER_STATUS_UNSPECIFIED = 0;
+    USER_STATUS_NORMAL = 1;
+    USER_STATUS_DISABLED = 2;
+    USER_STATUS_BANNED = 3;
+    USER_STATUS_DELETED = 4;
+}
+
+// 用户角色。具体权限仍应由服务端校验，不能只信任 HTTP 层传入的角色。
+enum UserRole {
+    USER_ROLE_UNSPECIFIED = 0;
+    USER_ROLE_USER = 1;
+    USER_ROLE_ADMIN = 2;
+    USER_ROLE_SUPER_ADMIN = 3;
+}
+
+enum EmailCodePurpose {
+    EMAIL_CODE_PURPOSE_UNSPECIFIED = 0;
+    EMAIL_CODE_PURPOSE_REGISTER = 1;
+    EMAIL_CODE_PURPOSE_LOGIN = 2;
+    EMAIL_CODE_PURPOSE_CHANGE_EMAIL = 3;
+    EMAIL_CODE_PURPOSE_RESET_PASSWORD = 4;
+}
+
+message EmptyResp {}
+
+message UserInfo {
+    int64 user_id = 1;
+    string username = 2;
+    string email = 3;
+    UserRole role = 4;
+    UserStatus status = 5;
+    int64 school_id = 6;
+}
+
+// 鉴权结果只包含授权所需字段，避免向内部调用方泄露完整用户资料。
+message AuthClaims {
+    int64 user_id = 1;
+    UserRole role = 2;
+    UserStatus status = 3;
+    int64 school_id = 4;
+}
+
+message TokenPair {
+    string access_token = 1;
+    string refresh_token = 2;
+    int64 expires_in = 3;
+}
+
+//////////////////// 登录、注册与令牌 ////////////////////
+
+message UsernameLoginReq {
+    string username = 1;
+    string password = 2;
+}
+
+message EmailPasswordLoginReq {
+    string email = 1;
+    string password = 2;
+}
+
+message EmailCodeLoginReq {
+    string email = 1;
+    string code = 2;
+}
+
+message LoginResp {
+    TokenPair tokens = 1;
+    UserInfo user = 2;
+}
+
+message EmailRegisterReq {
+    string email = 1;
+    string username = 2;
+    string password = 3;
+    string code = 4;
+    int64 school_id = 5;
+}
+
+message RegisterResp {
+    UserInfo user = 1;
+}
+
+message SendEmailCodeReq {
+    string email = 1;
+    EmailCodePurpose purpose = 2;
+}
+
+// 验证码通过邮件发送，响应中绝不能返回验证码本身。
+message SendEmailCodeResp {
+    int32 expires_in = 1;
+    int32 retry_after = 2;
+}
+
+message ValidateTokenReq {
+    string access_token = 1;
+}
+
+message ValidateTokenResp {
+    AuthClaims claims = 1;
+}
+
+message RefreshTokenReq {
+    string refresh_token = 1;
+}
+
+message RefreshTokenResp {
+    TokenPair tokens = 1;
+}
+
+message LogoutReq {
+    string access_token = 1;
+    string refresh_token = 2;
+}
+
+message ChangePasswordReq {
+    string current_password = 1;
+    string new_password = 2;
+}
+
+message ResetPasswordReq {
+    string email = 1;
+    string code = 2;
+    string new_password = 3;
+}
+
+//////////////////// 用户资料与管理 ////////////////////
+
+// 当前用户 ID 应由鉴权中间件通过 gRPC metadata 传递。
+message GetCurrentUserReq {}
+
+message GetCurrentUserResp {
+    UserInfo user = 1;
+}
+
+message GetUserByIdReq {
+    int64 user_id = 1;
+}
+
+message GetUserByIdResp {
+    UserInfo user = 1;
+}
+
+message ListUsersReq {
+    int32 page = 1;
+    int32 page_size = 2;
+    UserStatus status = 3;
+    UserRole role = 4;
+    int64 school_id = 5;
+    string keyword = 6;
+}
+
+message ListUsersResp {
+    int64 total = 1;
+    repeated UserInfo users = 2;
+}
+
+// optional 用于区分“不修改该字段”和“将字段设置为空值”。
+message UpdateProfileReq {
+    optional string username = 1;
+    optional int64 school_id = 2;
+}
+
+message UpdateProfileResp {
+    UserInfo user = 1;
+}
+
+message ChangeEmailReq {
+    string new_email = 1;
+    string code = 2;
+}
+
+message ChangeEmailResp {
+    UserInfo user = 1;
+}
+
+// 管理员接口与普通用户资料修改分离，服务端必须再次校验管理员权限。
+message AdminUpdateUserReq {
+    int64 user_id = 1;
+    optional UserRole role = 2;
+    optional UserStatus status = 3;
+}
+
+message AdminUpdateUserResp {
+    UserInfo user = 1;
+}
+
+// 软删除用户。
+message DeleteUserReq {
+    int64 user_id = 1;
+}
+
+service AuthService {
+    rpc EmailRegister(EmailRegisterReq) returns (RegisterResp);
+    rpc UsernameLogin(UsernameLoginReq) returns (LoginResp);
+    rpc EmailPasswordLogin(EmailPasswordLoginReq) returns (LoginResp);
+    rpc EmailCodeLogin(EmailCodeLoginReq) returns (LoginResp);
+    rpc SendEmailCode(SendEmailCodeReq) returns (SendEmailCodeResp);
+    rpc ValidateToken(ValidateTokenReq) returns (ValidateTokenResp);
+    rpc RefreshToken(RefreshTokenReq) returns (RefreshTokenResp);
+    rpc Logout(LogoutReq) returns (EmptyResp);
+    rpc ChangePassword(ChangePasswordReq) returns (EmptyResp);
+    rpc ResetPassword(ResetPasswordReq) returns (EmptyResp);
+}
+
+service UserService {
+    rpc GetCurrentUser(GetCurrentUserReq) returns (GetCurrentUserResp);
+    rpc GetUserById(GetUserByIdReq) returns (GetUserByIdResp);
+    rpc ListUsers(ListUsersReq) returns (ListUsersResp);
+    rpc UpdateProfile(UpdateProfileReq) returns (UpdateProfileResp);
+    rpc ChangeEmail(ChangeEmailReq) returns (ChangeEmailResp);
+    rpc AdminUpdateUser(AdminUpdateUserReq) returns (AdminUpdateUserResp);
+    rpc DeleteUser(DeleteUserReq) returns (EmptyResp);
+}
