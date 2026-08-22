@@ -1,2 +1,6 @@
 # GoCompetitiveOnlineJudge
 GoCompetitiveOnlineJudge是一个基于Go为主的程序设计比赛在线提交评判系统，旨在利用Go的特性提高OJ服务以及系统稳定性
+
+
+服务HTTP Gateway
+
