@@ -11,10 +11,12 @@ RPC_ROOT := services/grpc
 RPC_PROTO_FILES := $(wildcard $(RPC_ROOT)/*/*.proto $(RPC_ROOT)/*/proto/*.proto)
 RPC_SERVICES := $(sort $(notdir $(basename $(RPC_PROTO_FILES))))
 RPC_MULTIPLE_SERVICES := auth
+PROTOBUF_INCLUDE ?= $(shell $(GO) list -m -f '{{.Dir}}/third_party' github.com/google/gnostic-models 2>/dev/null)
 
 .PHONY: help tools tools-rpc generate api rpc \
 	$(addprefix api-,$(API_SERVICES)) \
 	$(addprefix rpc-,$(RPC_SERVICES)) \
+	problem-rpc \
 	fmt vet test coverage build tidy clean \
 	tools-infra infra-env infra-up infra-down infra-reset infra-logs infra-ps \
 	mysql-shell redis-shell run-auth
@@ -28,6 +30,7 @@ help:
 		'  api-<service>    Generate one HTTP service (admin or app)' \
 		'  rpc              Generate all gRPC services' \
 		'  rpc-<service>    Generate one gRPC service ($(RPC_SERVICES))' \
+		'  problem-rpc      Generate the problem gRPC service' \
 		'  generate         Generate all HTTP and gRPC services' \
 		'' \
 		'Go workflow:' \
@@ -62,6 +65,7 @@ tools-rpc: tools
 	@command -v protoc >/dev/null || { echo 'error: protoc is not installed or not in PATH' >&2; exit 1; }
 	@command -v protoc-gen-go >/dev/null || { echo 'error: protoc-gen-go is not installed or not in PATH' >&2; exit 1; }
 	@command -v protoc-gen-go-grpc >/dev/null || { echo 'error: protoc-gen-go-grpc is not installed or not in PATH' >&2; exit 1; }
+	@test -f "$(PROTOBUF_INCLUDE)/google/protobuf/empty.proto" || { echo 'error: Google well-known protobuf definitions are unavailable' >&2; exit 1; }
 
 tools-infra:
 	@command -v docker >/dev/null || { echo 'error: docker is not installed' >&2; exit 1; }
@@ -153,12 +157,15 @@ $(addprefix rpc-,$(RPC_SERVICES)): rpc-%: tools-rpc
 	case " $(RPC_MULTIPLE_SERVICES) " in *" $* "*) multiple_flag="--multiple" ;; esac; \
 	echo "Generating gRPC service: $*"; \
 	cd "$$service_dir"; \
-	"$(GOCTL)" rpc protoc "$$proto_path" \
+	"$(GOCTL)" rpc protoc -I . -I "$(PROTOBUF_INCLUDE)" "$$proto_path" \
 		--go_out=. \
 		--go-grpc_out=. \
 		--zrpc_out=. \
 		--style "$(GOCTL_STYLE)" \
 		$$multiple_flag
+
+# Compatibility alias using the <service>-rpc naming style.
+problem-rpc: rpc-problem
 
 fmt:
 	@test -f go.mod || { echo 'error: go.mod does not exist' >&2; exit 1; }
