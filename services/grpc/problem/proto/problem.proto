@@ -1,0 +1,312 @@
+syntax = "proto3";
+
+package problem;
+option go_package = "./pb";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/timestamp.proto";
+
+// UNSPECIFIED 值只表示查询时未指定，不应保存到数据库。
+enum ProblemStatus {
+    PROBLEM_STATUS_UNSPECIFIED = 0;
+    PROBLEM_STATUS_DRAFT = 1;
+    PROBLEM_STATUS_PUBLISHED = 2;
+    PROBLEM_STATUS_ARCHIVED = 3;
+    PROBLEM_STATUS_DELETED = 4;
+}
+
+enum ProblemVisibility {
+    PROBLEM_VISIBILITY_UNSPECIFIED = 0;
+    PROBLEM_VISIBILITY_PRIVATE = 1;
+    PROBLEM_VISIBILITY_PUBLIC = 2;
+    PROBLEM_VISIBILITY_CONTEST_ONLY = 3;
+}
+
+enum ProblemDifficulty {
+    PROBLEM_DIFFICULTY_UNSPECIFIED = 0;
+    PROBLEM_DIFFICULTY_EASY = 1;
+    PROBLEM_DIFFICULTY_EASY_PLUS = 2;
+    PROBLEM_DIFFICULTY_MEDIUM = 3;
+    PROBLEM_DIFFICULTY_MEDIUM_PLUS = 4;
+    PROBLEM_DIFFICULTY_HARD = 5;
+}
+
+enum CheckerType {
+    CHECKER_TYPE_UNSPECIFIED = 0;
+    CHECKER_TYPE_STANDARD = 1;
+    CHECKER_TYPE_SPECIAL_JUDGE = 2;
+    CHECKER_TYPE_INTERACTIVE = 3;
+}
+
+// 公开样例，和私有测试数据相互独立。
+message ProblemSample {
+    string input = 1;
+    string output = 2;
+    string explanation = 3;
+}
+
+message ProblemStatement {
+    string title = 1;
+    string description = 2;
+    string input_description = 3;
+    string output_description = 4;
+    repeated ProblemSample samples = 5;
+    string hint = 6;
+}
+
+message ProblemMetadata {
+    ProblemDifficulty difficulty = 1;
+    repeated string tags = 2;
+    string source = 3;
+    int64 author_id = 4;
+}
+
+// 出题人可以修改的判题参数。
+message JudgeSettings {
+    int32 time_limit_ms = 1;
+    int32 memory_limit_mb = 2;
+    repeated string allowed_languages = 3;
+    CheckerType checker_type = 4;
+}
+
+// 该消息含有内部存储键，只能通过管理接口或内部接口返回。
+message JudgeConfig {
+    JudgeSettings settings = 1;
+    string test_data_version = 2;
+    string checker_file_key = 3;
+    string interactor_file_key = 4;
+}
+
+// 创建和修改题目时允许客户端提供的字段。
+// author_id、status、revision 和时间字段均由服务端维护。
+message ProblemEditableFields {
+    ProblemStatement statement = 1;
+    ProblemDifficulty difficulty = 2;
+    repeated string tags = 3;
+    string source = 4;
+    JudgeSettings judge_settings = 5;
+    ProblemVisibility visibility = 6;
+}
+
+// 完整题目，仅供出题人、管理员和内部服务使用。
+message Problem {
+    int64 problem_id = 1;
+    ProblemStatement statement = 2;
+    ProblemMetadata metadata = 3;
+    JudgeConfig judge_config = 4;
+    ProblemStatus status = 5;
+    ProblemVisibility visibility = 6;
+    int64 revision = 7;
+    google.protobuf.Timestamp created_at = 8;
+    google.protobuf.Timestamp updated_at = 9;
+    google.protobuf.Timestamp published_at = 10;
+}
+
+// 练习页可见信息，不包含测试数据和 checker 文件位置。
+message PracticeProblemInfo {
+    int64 problem_id = 1;
+    ProblemStatement statement = 2;
+    ProblemMetadata metadata = 3;
+    JudgeSettings judge_settings = 4;
+    int64 revision = 5;
+}
+
+// 列表页使用轻量消息，避免加载完整 Markdown 题面。
+message ProblemSummary {
+    int64 problem_id = 1;
+    string title = 2;
+    ProblemDifficulty difficulty = 3;
+    repeated string tags = 4;
+    ProblemStatus status = 5;
+    ProblemVisibility visibility = 6;
+    int64 author_id = 7;
+    google.protobuf.Timestamp updated_at = 8;
+    int64 revision = 9;
+}
+
+// 管理端可查看的测试点元数据，不包含输入和答案正文。
+message TestCaseInfo {
+    int64 test_case_id = 1;
+    string name = 2;
+    int32 score = 3;
+    int32 ordinal = 4;
+    bool enabled = 5;
+    string group_name = 6;
+}
+
+// submit-rpc 和 judge-worker 使用，严禁从公开 HTTP 接口透传。
+message JudgeProblemSpec {
+    int64 problem_id = 1;
+    int64 revision = 2;
+    JudgeConfig judge_config = 3;
+    string test_data_package_key = 4;
+    string test_data_checksum = 5;
+    repeated TestCaseInfo test_cases = 6;
+}
+
+//////////////////// 用户侧查询 ////////////////////
+
+message GetProblemReq {
+    int64 problem_id = 1;
+
+    // 读取 CONTEST_ONLY 题目时必须提供，服务端仍需向 contest-rpc 校验权限。
+    optional int64 contest_id = 2;
+}
+
+message GetProblemResp {
+    PracticeProblemInfo problem = 1;
+}
+
+message ListProblemsReq {
+    int32 page = 1;
+    int32 page_size = 2;
+    string keyword = 3;
+    repeated string tags = 4;
+    ProblemDifficulty difficulty = 5;
+    ProblemStatus status = 6;
+    ProblemVisibility visibility = 7;
+    optional int64 author_id = 8;
+}
+
+message ListProblemsResp {
+    int64 total = 1;
+    repeated ProblemSummary problems = 2;
+}
+
+//////////////////// 出题人与管理员 ////////////////////
+
+message CreateProblemReq {
+    ProblemEditableFields problem = 1;
+}
+
+message CreateProblemResp {
+    Problem problem = 1;
+}
+
+message GetProblemForEditReq {
+    int64 problem_id = 1;
+}
+
+message GetProblemForEditResp {
+    Problem problem = 1;
+    repeated TestCaseInfo test_cases = 2;
+}
+
+message UpdateProblemReq {
+    int64 problem_id = 1;
+    ProblemEditableFields problem = 2;
+
+    // 用于区分未修改字段和设置为空值。
+    google.protobuf.FieldMask update_mask = 3;
+
+    // 乐观锁：与当前 revision 不同时应返回 ABORTED。
+    int64 expected_revision = 4;
+}
+
+message UpdateProblemResp {
+    Problem problem = 1;
+}
+
+message PublishProblemReq {
+    int64 problem_id = 1;
+    int64 expected_revision = 2;
+}
+
+message PublishProblemResp {
+    Problem problem = 1;
+}
+
+message ArchiveProblemReq {
+    int64 problem_id = 1;
+    int64 expected_revision = 2;
+}
+
+message ArchiveProblemResp {
+    Problem problem = 1;
+}
+
+// 软删除题目。
+message DeleteProblemReq {
+    int64 problem_id = 1;
+    int64 expected_revision = 2;
+}
+
+message RestoreProblemReq {
+    int64 problem_id = 1;
+    int64 expected_revision = 2;
+}
+
+message RestoreProblemResp {
+    Problem problem = 1;
+}
+
+//////////////////// 测试数据上传 ////////////////////
+
+message CreateTestDataUploadReq {
+    int64 problem_id = 1;
+    string file_name = 2;
+    int64 content_length = 3;
+    string sha256 = 4;
+}
+
+message CreateTestDataUploadResp {
+    string upload_id = 1;
+    string upload_url = 2;
+    google.protobuf.Timestamp expires_at = 3;
+}
+
+message FinalizeTestDataUploadReq {
+    int64 problem_id = 1;
+    string upload_id = 2;
+    string sha256 = 3;
+    int64 expected_revision = 4;
+}
+
+message FinalizeTestDataUploadResp {
+    string test_data_version = 1;
+    int64 revision = 2;
+    repeated TestCaseInfo test_cases = 3;
+}
+
+//////////////////// 内部服务调用 ////////////////////
+
+message BatchGetProblemsReq {
+    repeated int64 problem_ids = 1;
+}
+
+message BatchGetProblemsResp {
+    repeated ProblemSummary problems = 1;
+}
+
+message GetJudgeProblemSpecReq {
+    int64 problem_id = 1;
+
+    // 传 0 表示使用当前已发布版本；提交重判时应传提交记录绑定的 revision。
+    int64 revision = 2;
+}
+
+message GetJudgeProblemSpecResp {
+    JudgeProblemSpec spec = 1;
+}
+
+service ProblemService {
+    // 普通用户接口。服务端必须根据题目状态、可见性和比赛权限过滤结果。
+    rpc GetProblem(GetProblemReq) returns (GetProblemResp);
+    rpc ListProblems(ListProblemsReq) returns (ListProblemsResp);
+
+    // 出题人或管理员接口，权限必须由 gRPC metadata 中的鉴权信息决定。
+    rpc CreateProblem(CreateProblemReq) returns (CreateProblemResp);
+    rpc GetProblemForEdit(GetProblemForEditReq) returns (GetProblemForEditResp);
+    rpc UpdateProblem(UpdateProblemReq) returns (UpdateProblemResp);
+    rpc PublishProblem(PublishProblemReq) returns (PublishProblemResp);
+    rpc ArchiveProblem(ArchiveProblemReq) returns (ArchiveProblemResp);
+    rpc DeleteProblem(DeleteProblemReq) returns (google.protobuf.Empty);
+    rpc RestoreProblem(RestoreProblemReq) returns (RestoreProblemResp);
+    rpc CreateTestDataUpload(CreateTestDataUploadReq) returns (CreateTestDataUploadResp);
+    rpc FinalizeTestDataUpload(FinalizeTestDataUploadReq) returns (FinalizeTestDataUploadResp);
+
+    // 仅允许受信任的内部服务调用。
+    rpc BatchGetProblems(BatchGetProblemsReq) returns (BatchGetProblemsResp);
+    rpc GetJudgeProblemSpec(GetJudgeProblemSpecReq) returns (GetJudgeProblemSpecResp);
+}

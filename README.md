@@ -30,7 +30,7 @@ GoCompetitiveOnlineJudge 是一个以 Go 为主要开发语言的
 |---|---:|---|
 | auth-rpc | 8003 | 鉴权模块 |
 | submit-rpc | 8004 | 提交模块 |
-| problem-rpc | 8006 | 题面模块 |
+| problem-rpc | 8006 | 题目模块 |
 | contest-rpc | 8007 | 比赛模块 |
 
 
