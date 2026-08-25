@@ -1,6 +1,55 @@
 Name: auth.rpc
-ListenOn: 0.0.0.0:8080
+ListenOn: 0.0.0.0:8003
 Etcd:
   Hosts:
   - 127.0.0.1:2379
   Key: auth.rpc
+
+# 邮件发送可能包含 DNS、TLS 和 SMTP 握手，单独放宽该方法的服务端超时。
+MethodTimeouts:
+- FullMethod: /auth.AuthService/SendEmailCode
+  Timeout: 20s
+
+Middlewares:
+  StatConf:
+    # 下列请求包含密码、验证码或 Token，禁止在 RPC 访问日志中记录请求体。
+    IgnoreContentMethods:
+    - /auth.AuthService/EmailRegister
+    - /auth.AuthService/UsernameLogin
+    - /auth.AuthService/EmailPasswordLogin
+    - /auth.AuthService/EmailCodeLogin
+    - /auth.AuthService/SendEmailCode
+    - /auth.AuthService/ValidateToken
+    - /auth.AuthService/RefreshToken
+    - /auth.AuthService/Logout
+    - /auth.AuthService/ChangePassword
+    - /auth.AuthService/ResetPassword
+    - /auth.UserService/ChangeEmail
+
+Mysql:
+  DSN: "${AUTH_MYSQL_DSN}"
+
+RedisDB:
+  Addr: "127.0.0.1:6379"
+  Password: "${AUTH_REDIS_PASSWORD}"
+  DB: 0
+
+Token:
+  Secret: "${AUTH_TOKEN_SECRET}"
+  Issuer: "auth.rpc"
+  Audience: "go-competitive-online-judge"
+  AccessExpireSeconds: 900
+  RefreshExpireSeconds: 2592000
+  LeewaySeconds: 5
+
+Mail:
+  Host: "smtp.qq.com"
+  Port: 465
+  Username: "${AUTH_MAIL_USERNAME}"
+  Password: "${AUTH_MAIL_PASSWORD}"
+  From: "${AUTH_MAIL_FROM}"
+  Security: "ssl"
+
+Session:
+  CleanupIntervalSeconds: 21600
+  RevokedRetentionSeconds: 2592000

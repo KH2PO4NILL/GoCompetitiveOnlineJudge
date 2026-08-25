@@ -3,12 +3,14 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 
-	"auth/internal/config"
-	authserviceServer "auth/internal/server/authservice"
-	userserviceServer "auth/internal/server/userservice"
-	"auth/internal/svc"
-	"auth/pb"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/config"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/interceptor"
+	authserviceServer "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/server/authservice"
+	userserviceServer "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/server/userservice"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/svc"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/pb"
 
 	"github.com/zeromicro/go-zero/core/conf"
 	"github.com/zeromicro/go-zero/core/service"
@@ -23,17 +25,28 @@ func main() {
 	flag.Parse()
 
 	var c config.Config
-	conf.MustLoad(*configFile, &c)
-	ctx := svc.NewServiceContext(c)
+	conf.MustLoad(*configFile, &c, conf.UseEnv())
+	svcCtx, err := svc.NewServiceContext(c)
+	if err != nil {
+		log.Fatalf("initialize service context: %v", err)
+	}
+	defer func() {
+		if err := svcCtx.Close(); err != nil {
+			log.Printf("close service context: %v", err)
+		}
+	}()
 
 	s := zrpc.MustNewServer(c.RpcServerConf, func(grpcServer *grpc.Server) {
-		pb.RegisterAuthServiceServer(grpcServer, authserviceServer.NewAuthServiceServer(ctx))
-		pb.RegisterUserServiceServer(grpcServer, userserviceServer.NewUserServiceServer(ctx))
+		pb.RegisterAuthServiceServer(grpcServer, authserviceServer.NewAuthServiceServer(svcCtx))
+		pb.RegisterUserServiceServer(grpcServer, userserviceServer.NewUserServiceServer(svcCtx))
 
 		if c.Mode == service.DevMode || c.Mode == service.TestMode {
 			reflection.Register(grpcServer)
 		}
 	})
+	s.AddUnaryInterceptors(
+		interceptor.NewAuthInterceptor(svcCtx),
+	)
 	defer s.Stop()
 
 	fmt.Printf("Starting rpc server at %s...\n", c.ListenOn)
