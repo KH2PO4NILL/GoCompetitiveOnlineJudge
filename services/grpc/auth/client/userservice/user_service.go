@@ -7,7 +7,7 @@ package userservice
 import (
 	"context"
 
-	"auth/pb"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/pb"
 
 	"github.com/zeromicro/go-zero/zrpc"
 	"google.golang.org/grpc"

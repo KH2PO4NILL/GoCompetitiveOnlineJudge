@@ -4,6 +4,7 @@ SHELL := /bin/sh
 GO ?= go
 GOCTL ?= goctl
 GOCTL_STYLE ?= go_zero
+COMPOSE ?= docker compose
 
 API_SERVICES := admin app
 RPC_ROOT := services/grpc
@@ -14,7 +15,9 @@ RPC_MULTIPLE_SERVICES := auth
 .PHONY: help tools tools-rpc generate api rpc \
 	$(addprefix api-,$(API_SERVICES)) \
 	$(addprefix rpc-,$(RPC_SERVICES)) \
-	fmt vet test coverage build tidy clean
+	fmt vet test coverage build tidy clean \
+	tools-infra infra-env infra-up infra-down infra-reset infra-logs infra-ps \
+	mysql-shell redis-shell run-auth
 
 help:
 	@printf '%s\n' \
@@ -36,9 +39,20 @@ help:
 		'  tidy             Update go.mod and go.sum' \
 		'  clean            Remove local build and coverage artifacts' \
 		'' \
+		'Local infrastructure:' \
+		'  infra-up         Start MySQL, Redis and etcd and wait until healthy' \
+		'  infra-down       Stop local infrastructure and keep its data' \
+		'  infra-reset      Stop infrastructure and delete all local data' \
+		'  infra-logs       Follow infrastructure logs' \
+		'  infra-ps         Show infrastructure status' \
+		'  mysql-shell      Open a MySQL shell as the application user' \
+		'  redis-shell      Open an authenticated Redis CLI' \
+		'  run-auth         Start infrastructure, then run the auth RPC service' \
+		'' \
 		'Checks:' \
 		'  tools            Check Go and goctl' \
-		'  tools-rpc        Check the protobuf toolchain'
+		'  tools-rpc        Check the protobuf toolchain' \
+		'  tools-infra      Check Docker Compose and OpenSSL'
 
 tools:
 	@command -v "$(GO)" >/dev/null || { echo 'error: go is not installed or not in PATH' >&2; exit 1; }
@@ -48,6 +62,62 @@ tools-rpc: tools
 	@command -v protoc >/dev/null || { echo 'error: protoc is not installed or not in PATH' >&2; exit 1; }
 	@command -v protoc-gen-go >/dev/null || { echo 'error: protoc-gen-go is not installed or not in PATH' >&2; exit 1; }
 	@command -v protoc-gen-go-grpc >/dev/null || { echo 'error: protoc-gen-go-grpc is not installed or not in PATH' >&2; exit 1; }
+
+tools-infra:
+	@command -v docker >/dev/null || { echo 'error: docker is not installed' >&2; exit 1; }
+	@docker compose version >/dev/null || { echo 'error: docker compose is not available' >&2; exit 1; }
+	@command -v openssl >/dev/null || { echo 'error: openssl is not installed' >&2; exit 1; }
+
+.env: | tools-infra
+	@umask 077; \
+	mysql_root_password=$$(openssl rand -hex 16); \
+	mysql_password=$$(openssl rand -hex 16); \
+	redis_password=$$(openssl rand -hex 16); \
+	token_secret=$$(openssl rand -hex 32); \
+	{ \
+		printf '%s\n' 'MYSQL_PORT=3307'; \
+		printf '%s\n' 'MYSQL_DATABASE=go_coj'; \
+		printf '%s\n' 'MYSQL_USER=go_coj'; \
+		printf '%s\n' "MYSQL_PASSWORD=$$mysql_password"; \
+		printf '%s\n' "MYSQL_ROOT_PASSWORD=$$mysql_root_password"; \
+		printf '%s\n' 'REDIS_PORT=6379'; \
+		printf '%s\n' "REDIS_PASSWORD=$$redis_password"; \
+		printf '%s\n' 'ETCD_PORT=2379'; \
+		printf '%s\n' "AUTH_MYSQL_DSN='go_coj:$$mysql_password@tcp(127.0.0.1:3307)/go_coj?charset=utf8mb4&parseTime=true&loc=UTC'"; \
+		printf '%s\n' "AUTH_REDIS_PASSWORD=$$redis_password"; \
+		printf '%s\n' "AUTH_TOKEN_SECRET=$$token_secret"; \
+	} > .env
+	@echo 'Created .env with random local-development secrets.'
+
+infra-env: .env
+
+infra-up: .env
+	$(COMPOSE) up -d --wait --wait-timeout 120
+
+infra-down:
+	$(COMPOSE) down
+
+infra-reset:
+	@printf '%s\n' 'Deleting MySQL, Redis and etcd local data volumes...'
+	$(COMPOSE) down --volumes --remove-orphans
+
+infra-logs:
+	$(COMPOSE) logs --follow
+
+infra-ps:
+	$(COMPOSE) ps
+
+mysql-shell: .env
+	@set -a; . ./.env; set +a; \
+	$(COMPOSE) exec mysql mysql -u"$$MYSQL_USER" -p"$$MYSQL_PASSWORD" "$$MYSQL_DATABASE"
+
+redis-shell: .env
+	@set -a; . ./.env; set +a; \
+	$(COMPOSE) exec redis redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning
+
+run-auth: infra-up
+	@set -a; . ./.env; set +a; \
+	"$(GO)" run ./services/grpc/auth -f services/grpc/auth/etc/auth.yaml
 
 generate: api rpc
 

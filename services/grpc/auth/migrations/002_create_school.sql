@@ -1,0 +1,15 @@
+CREATE TABLE schools (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    name VARCHAR(128) NOT NULL,
+    short_name VARCHAR(64) NULL,
+    country VARCHAR(64) NULL,
+    province VARCHAR(64) NULL,
+    city VARCHAR(64) NULL,
+    status TINYINT NOT NULL DEFAULT 1,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_schools_name (name)
+);

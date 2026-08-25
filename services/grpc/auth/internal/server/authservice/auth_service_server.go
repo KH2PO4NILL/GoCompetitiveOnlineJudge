@@ -7,9 +7,9 @@ package server
 import (
 	"context"
 
-	"auth/internal/logic/authservice"
-	"auth/internal/svc"
-	"auth/pb"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/logic/authservice"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/svc"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/pb"
 )
 
 type AuthServiceServer struct {
