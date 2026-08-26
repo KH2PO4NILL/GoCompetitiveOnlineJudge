@@ -24,6 +24,7 @@ func NewBatchGetProblemsLogic(ctx context.Context, svcCtx *svc.ServiceContext) *
 }
 
 // 仅允许受信任的内部服务调用。
+
 func (l *BatchGetProblemsLogic) BatchGetProblems(in *pb.BatchGetProblemsReq) (*pb.BatchGetProblemsResp, error) {
 	// todo: add your logic here and delete this line
 

@@ -27,6 +27,8 @@ func NewDeleteProblemLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Del
 	}
 }
 
+//软删除题目也需要metadata的鉴权，仍需修改,软删除权限应为管理员级别
+
 func (l *DeleteProblemLogic) DeleteProblem(in *pb.DeleteProblemReq) (*pb.DeleteProblemResp, error) {
 	if in == nil || in.ProblemId <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "problem_id must be positive")
@@ -49,6 +51,5 @@ func (l *DeleteProblemLogic) DeleteProblem(in *pb.DeleteProblemReq) (*pb.DeleteP
 			return nil, status.Error(codes.Internal, "failed to delete problem")
 		}
 	}
-
 	return &pb.DeleteProblemResp{Revision: revision}, nil
 }

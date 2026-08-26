@@ -24,7 +24,6 @@ func NewArchiveProblemLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Ar
 }
 
 func (l *ArchiveProblemLogic) ArchiveProblem(in *pb.ArchiveProblemReq) (*pb.ArchiveProblemResp, error) {
-	// todo: add your logic here and delete this line
-
+	
 	return &pb.ArchiveProblemResp{}, nil
 }

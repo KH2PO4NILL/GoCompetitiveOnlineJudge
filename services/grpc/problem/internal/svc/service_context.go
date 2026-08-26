@@ -9,10 +9,12 @@ import (
 	"os"
 	"time"
 
+	authservice "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/client/authservice"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/config"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/model"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/zeromicro/go-zero/zrpc"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -22,10 +24,12 @@ type ServiceContext struct {
 	Config config.Config
 
 	ProblemModel model.ProblemModel
+	AuthClient   authservice.AuthService
 
-	db    *gorm.DB
-	redis *redis.Client
-	sqlDB *sql.DB
+	authRPC zrpc.Client
+	db      *gorm.DB
+	redis   *redis.Client
+	sqlDB   *sql.DB
 }
 
 func NewServiceContext(c config.Config) (*ServiceContext, error) {
@@ -74,9 +78,18 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 		return nil, fmt.Errorf("ping redis: %w", err)
 	}
 
+	authRPC, err := zrpc.NewClient(c.Auth)
+	if err != nil {
+		_ = redisClient.Close()
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("create auth rpc client: %w", err)
+	}
+
 	return &ServiceContext{
 		Config:       c,
 		ProblemModel: model.NewProblemModel(db),
+		AuthClient:   authservice.NewAuthService(authRPC),
+		authRPC:      authRPC,
 		db:           db,
 		redis:        redisClient,
 		sqlDB:        sqlDB,
@@ -84,6 +97,10 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 }
 
 func (s *ServiceContext) Close() error {
+	var authErr error
+	if s.authRPC != nil && s.authRPC.Conn() != nil {
+		authErr = s.authRPC.Conn().Close()
+	}
 	var redisErr error
 	if s.redis != nil {
 		redisErr = s.redis.Close()
@@ -92,5 +109,5 @@ func (s *ServiceContext) Close() error {
 	if s.sqlDB != nil {
 		sqlErr = s.sqlDB.Close()
 	}
-	return errors.Join(redisErr, sqlErr)
+	return errors.Join(authErr, redisErr, sqlErr)
 }

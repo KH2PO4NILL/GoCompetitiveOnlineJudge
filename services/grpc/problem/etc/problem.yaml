@@ -13,3 +13,9 @@ RedisDB:
   Addr: "127.0.0.1:6379"
   Password: "${PROBLEM_REDIS_PASSWORD}"
   DB: 0
+
+Auth:
+  Etcd:
+    Hosts:
+    - 127.0.0.1:2379
+    Key: auth.rpc

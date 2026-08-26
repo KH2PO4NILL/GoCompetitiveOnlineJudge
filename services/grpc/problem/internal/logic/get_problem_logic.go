@@ -24,8 +24,8 @@ func NewGetProblemLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetPro
 }
 
 // 普通用户接口。服务端必须根据题目状态、可见性和比赛权限过滤结果。
-func (l *GetProblemLogic) GetProblem(in *pb.GetProblemReq) (*pb.GetProblemResp, error) {
-	// todo: add your logic here and delete this line
 
+func (l *GetProblemLogic) GetProblem(in *pb.GetProblemReq) (*pb.GetProblemResp, error) {
+	
 	return &pb.GetProblemResp{}, nil
 }

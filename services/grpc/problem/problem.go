@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/config"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/server"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/svc"
@@ -41,6 +42,23 @@ func main() {
 			reflection.Register(grpcServer)
 		}
 	})
+
+	s.AddUnaryInterceptors(
+		interceptor.NewAuthInterceptor(
+			svcCtx.AuthClient,
+			interceptor.WithMethodAuthentication(
+				func(fullMethod string) interceptor.AuthenticationMode {
+					switch fullMethod {
+					case pb.ProblemService_GetProblem_FullMethodName,
+						pb.ProblemService_ListProblems_FullMethodName:
+						return interceptor.AuthenticationOptional
+					default:
+						return interceptor.AuthenticationRequired
+					}
+				},
+			),
+		),
+	)
 	defer s.Stop()
 
 	fmt.Printf("Starting rpc server at %s...\n", c.ListenOn)

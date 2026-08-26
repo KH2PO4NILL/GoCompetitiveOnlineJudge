@@ -15,6 +15,8 @@ type RedisConf struct {
 type Config struct {
 	zrpc.RpcServerConf
 
+	Auth zrpc.RpcClientConf
+
 	Mysql   MysqlConf
 	RedisDB RedisConf
 }
