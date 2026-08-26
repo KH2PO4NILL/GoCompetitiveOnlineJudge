@@ -1,0 +1,121 @@
+// Code scaffolded by goctl. Only init once, Safe to edit.
+// gorm
+
+package model
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"gorm.io/gorm"
+)
+
+type (
+	testDataVersionsModel interface {
+		CreateTable() error
+		Insert(ctx context.Context, data []*TestDataVersions) error
+		InsertOne(ctx context.Context, data *TestDataVersions) error
+
+		FindOne(ctx context.Context, id int64) (*TestDataVersions, error)
+		List(ctx context.Context, req TestDataVersionsListReq) ([]TestDataVersions, int64, error)
+		Update(ctx context.Context, data *TestDataVersions) error
+
+		Delete(ctx context.Context, id int64) error
+	}
+
+	defaultTestDataVersionsModel struct {
+		conn  *gorm.DB
+		table string
+	}
+
+	TestDataVersions struct {
+		Id int64 `json:"id" gorm:"column:id"`
+
+		ProblemId int64 `json:"problem_id" gorm:"column:problem_id"`
+
+		Version string `json:"version" gorm:"column:version"`
+
+		PackageKey string `json:"package_key" gorm:"column:package_key"`
+
+		Checksum string `json:"checksum" gorm:"column:checksum"`
+
+		CreatedAt time.Time `json:"created_at" gorm:"column:created_at"`
+	}
+)
+
+func newTestDataVersionsModel(conn *gorm.DB) *defaultTestDataVersionsModel {
+	return &defaultTestDataVersionsModel{
+		conn:  conn,
+		table: "`test_data_versions`",
+	}
+}
+
+func (m *defaultTestDataVersionsModel) Delete(ctx context.Context, id int64) error {
+	return m.conn.WithContext(ctx).Where("`id` = ?", id).Delete(&TestDataVersions{}).Error
+}
+
+func (m *defaultTestDataVersionsModel) FindOne(ctx context.Context, id int64) (*TestDataVersions, error) {
+	model := &TestDataVersions{}
+	err := m.conn.WithContext(ctx).Where("`id` = ?", id).First(model).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return model, nil
+}
+
+type TestDataVersionsListReq struct {
+	Page int `json:"page"` // Page number
+	Size int `json:"size"` // Number of items per page
+}
+
+func (m *defaultTestDataVersionsModel) List(ctx context.Context, req TestDataVersionsListReq) ([]TestDataVersions, int64, error) {
+	if req.Page <= 0 {
+		req.Page = 1
+	}
+	if req.Size <= 0 {
+		req.Size = 20
+	}
+	if req.Size > 100 {
+		req.Size = 100
+	}
+
+	total := int64(0)
+	list := make([]TestDataVersions, 0)
+	session := m.conn.WithContext(ctx).Model(&TestDataVersions{})
+	err := session.Count(&total).Error
+	if err != nil {
+		return list, total, err
+	}
+	if total == 0 {
+		return list, total, err
+	}
+
+	offset := (req.Page - 1) * req.Size
+	err = session.Order("`id` DESC").Limit(req.Size).Offset(offset).Find(&list).Error
+
+	return list, total, err
+}
+
+func (m *defaultTestDataVersionsModel) CreateTable() error {
+	return m.conn.AutoMigrate(&TestDataVersions{})
+}
+
+func (m *defaultTestDataVersionsModel) Insert(ctx context.Context, data []*TestDataVersions) error {
+	return m.conn.WithContext(ctx).Create(data).Error
+}
+
+func (m *defaultTestDataVersionsModel) InsertOne(ctx context.Context, data *TestDataVersions) error {
+	return m.conn.WithContext(ctx).Create(data).Error
+}
+
+func (m *defaultTestDataVersionsModel) Update(ctx context.Context, data *TestDataVersions) error {
+	return m.conn.WithContext(ctx).Model(&TestDataVersions{}).Where("`id` = ?", data.Id).Updates(data).Error
+}
+
+func (m *defaultTestDataVersionsModel) tableName() string {
+	return m.table
+}

@@ -1,6 +1,6 @@
 func (m *default{{.upperStartCamelObject}}Model) FindOne(ctx context.Context, {{.lowerStartCamelPrimaryKey}} {{.dataType}}) (*{{.upperStartCamelObject}}, error) {
 	model := &{{.upperStartCamelObject}}{}
-    err := m.conn.WithContext(ctx).Where("id = ?", {{.lowerStartCamelPrimaryKey}}).First(model).Error
+    err := m.conn.WithContext(ctx).Where("{{.originalPrimaryKey}} = ?", {{.lowerStartCamelPrimaryKey}}).First(model).Error
     if errors.Is(err, gorm.ErrRecordNotFound) {
         return nil, nil
     }
@@ -21,6 +21,9 @@ func (m *default{{.upperStartCamelObject}}Model) List(ctx context.Context, req {
 	if req.Size <= 0 {
 		req.Size = 20
 	}
+	if req.Size > 100 {
+		req.Size = 100
+	}
 
     total := int64(0)
     list := make([]{{.upperStartCamelObject}}, 0)
@@ -34,7 +37,7 @@ func (m *default{{.upperStartCamelObject}}Model) List(ctx context.Context, req {
 	}
 
 	offset := (req.Page - 1) * req.Size
-	err = session.Limit(req.Size).Offset(offset).Find(&list).Error
+	err = session.Order("{{.originalPrimaryKey}} DESC").Limit(req.Size).Offset(offset).Find(&list).Error
 
 	return list, total, err
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/config"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/server"
@@ -22,11 +23,19 @@ func main() {
 	flag.Parse()
 
 	var c config.Config
-	conf.MustLoad(*configFile, &c)
-	ctx := svc.NewServiceContext(c)
+	conf.MustLoad(*configFile, &c, conf.UseEnv())
+	svcCtx, err := svc.NewServiceContext(c)
+	if err != nil {
+		log.Fatalf("initialize service context: %v", err)
+	}
+	defer func() {
+		if err := svcCtx.Close(); err != nil {
+			log.Printf("close service context: %v", err)
+		}
+	}()
 
 	s := zrpc.MustNewServer(c.RpcServerConf, func(grpcServer *grpc.Server) {
-		pb.RegisterProblemServiceServer(grpcServer, server.NewProblemServiceServer(ctx))
+		pb.RegisterProblemServiceServer(grpcServer, server.NewProblemServiceServer(svcCtx))
 
 		if c.Mode == service.DevMode || c.Mode == service.TestMode {
 			reflection.Register(grpcServer)

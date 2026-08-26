@@ -11,7 +11,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -48,7 +47,7 @@ type ProblemServiceClient interface {
 	UpdateProblem(ctx context.Context, in *UpdateProblemReq, opts ...grpc.CallOption) (*UpdateProblemResp, error)
 	PublishProblem(ctx context.Context, in *PublishProblemReq, opts ...grpc.CallOption) (*PublishProblemResp, error)
 	ArchiveProblem(ctx context.Context, in *ArchiveProblemReq, opts ...grpc.CallOption) (*ArchiveProblemResp, error)
-	DeleteProblem(ctx context.Context, in *DeleteProblemReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	DeleteProblem(ctx context.Context, in *DeleteProblemReq, opts ...grpc.CallOption) (*DeleteProblemResp, error)
 	RestoreProblem(ctx context.Context, in *RestoreProblemReq, opts ...grpc.CallOption) (*RestoreProblemResp, error)
 	CreateTestDataUpload(ctx context.Context, in *CreateTestDataUploadReq, opts ...grpc.CallOption) (*CreateTestDataUploadResp, error)
 	FinalizeTestDataUpload(ctx context.Context, in *FinalizeTestDataUploadReq, opts ...grpc.CallOption) (*FinalizeTestDataUploadResp, error)
@@ -135,9 +134,9 @@ func (c *problemServiceClient) ArchiveProblem(ctx context.Context, in *ArchivePr
 	return out, nil
 }
 
-func (c *problemServiceClient) DeleteProblem(ctx context.Context, in *DeleteProblemReq, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (c *problemServiceClient) DeleteProblem(ctx context.Context, in *DeleteProblemReq, opts ...grpc.CallOption) (*DeleteProblemResp, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
+	out := new(DeleteProblemResp)
 	err := c.cc.Invoke(ctx, ProblemService_DeleteProblem_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
@@ -208,7 +207,7 @@ type ProblemServiceServer interface {
 	UpdateProblem(context.Context, *UpdateProblemReq) (*UpdateProblemResp, error)
 	PublishProblem(context.Context, *PublishProblemReq) (*PublishProblemResp, error)
 	ArchiveProblem(context.Context, *ArchiveProblemReq) (*ArchiveProblemResp, error)
-	DeleteProblem(context.Context, *DeleteProblemReq) (*emptypb.Empty, error)
+	DeleteProblem(context.Context, *DeleteProblemReq) (*DeleteProblemResp, error)
 	RestoreProblem(context.Context, *RestoreProblemReq) (*RestoreProblemResp, error)
 	CreateTestDataUpload(context.Context, *CreateTestDataUploadReq) (*CreateTestDataUploadResp, error)
 	FinalizeTestDataUpload(context.Context, *FinalizeTestDataUploadReq) (*FinalizeTestDataUploadResp, error)
@@ -246,7 +245,7 @@ func (UnimplementedProblemServiceServer) PublishProblem(context.Context, *Publis
 func (UnimplementedProblemServiceServer) ArchiveProblem(context.Context, *ArchiveProblemReq) (*ArchiveProblemResp, error) {
 	return nil, status.Error(codes.Unimplemented, "method ArchiveProblem not implemented")
 }
-func (UnimplementedProblemServiceServer) DeleteProblem(context.Context, *DeleteProblemReq) (*emptypb.Empty, error) {
+func (UnimplementedProblemServiceServer) DeleteProblem(context.Context, *DeleteProblemReq) (*DeleteProblemResp, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteProblem not implemented")
 }
 func (UnimplementedProblemServiceServer) RestoreProblem(context.Context, *RestoreProblemReq) (*RestoreProblemResp, error) {

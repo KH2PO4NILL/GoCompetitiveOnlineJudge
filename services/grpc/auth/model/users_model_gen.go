@@ -5,10 +5,9 @@ package model
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"time"
-
+	"database/sql"
 	"gorm.io/gorm"
 )
 
