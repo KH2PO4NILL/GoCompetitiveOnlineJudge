@@ -18,6 +18,9 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ./services/grpc/auth/migrations:/docker-entrypoint-initdb.d:ro
+      - ./services/grpc/problem/migrations/001_create_problem.sql:/docker-entrypoint-initdb.d/101_create_problem.sql:ro
+      - ./services/grpc/problem/migrations/002_align_problem_schema.sql:/docker-entrypoint-initdb.d/102_align_problem_schema.sql:ro
+      - ./services/grpc/problem/migrations/003_add_problem_revision_aggregate.sql:/docker-entrypoint-initdb.d/103_add_problem_revision_aggregate.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
       interval: 5s

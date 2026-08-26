@@ -1,5 +1,5 @@
 func (m *default{{.upperStartCamelObject}}Model) CreateTable() error {
-	return m.conn.AutoMigrate(&{{.upperStartCamelObject}}{})
+		return m.conn.AutoMigrate(&{{.upperStartCamelObject}}{})
 }
 
 func (m *default{{.upperStartCamelObject}}Model) Insert(ctx context.Context, data []*{{.upperStartCamelObject}}) error {

@@ -90,6 +90,8 @@ tools-infra:
 		printf '%s\n' "AUTH_MYSQL_DSN='go_coj:$$mysql_password@tcp(127.0.0.1:3307)/go_coj?charset=utf8mb4&parseTime=true&loc=UTC'"; \
 		printf '%s\n' "AUTH_REDIS_PASSWORD=$$redis_password"; \
 		printf '%s\n' "AUTH_TOKEN_SECRET=$$token_secret"; \
+		printf '%s\n' "PROBLEM_MYSQL_DSN='go_coj:$$mysql_password@tcp(127.0.0.1:3307)/go_coj?charset=utf8mb4&parseTime=true&loc=UTC'"; \
+		printf '%s\n' "PROBLEM_REDIS_PASSWORD=$$redis_password"; \
 	} > .env
 	@echo 'Created .env with random local-development secrets.'
 

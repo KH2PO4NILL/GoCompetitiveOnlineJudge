@@ -4,3 +4,12 @@ Etcd:
   Hosts:
   - 127.0.0.1:2379
   Key: problem.rpc
+
+
+Mysql:
+  DSN: "${PROBLEM_MYSQL_DSN}"
+
+RedisDB:
+  Addr: "127.0.0.1:6379"
+  Password: "${PROBLEM_REDIS_PASSWORD}"
+  DB: 0

@@ -9,8 +9,6 @@ import (
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/pb"
 
-	"google.golang.org/protobuf/types/known/emptypb"
-
 	"github.com/zeromicro/go-zero/zrpc"
 	"google.golang.org/grpc"
 )
@@ -25,6 +23,7 @@ type (
 	CreateTestDataUploadReq    = pb.CreateTestDataUploadReq
 	CreateTestDataUploadResp   = pb.CreateTestDataUploadResp
 	DeleteProblemReq           = pb.DeleteProblemReq
+	DeleteProblemResp          = pb.DeleteProblemResp
 	FinalizeTestDataUploadReq  = pb.FinalizeTestDataUploadReq
 	FinalizeTestDataUploadResp = pb.FinalizeTestDataUploadResp
 	GetJudgeProblemSpecReq     = pb.GetJudgeProblemSpecReq
@@ -63,7 +62,7 @@ type (
 		UpdateProblem(ctx context.Context, in *UpdateProblemReq, opts ...grpc.CallOption) (*UpdateProblemResp, error)
 		PublishProblem(ctx context.Context, in *PublishProblemReq, opts ...grpc.CallOption) (*PublishProblemResp, error)
 		ArchiveProblem(ctx context.Context, in *ArchiveProblemReq, opts ...grpc.CallOption) (*ArchiveProblemResp, error)
-		DeleteProblem(ctx context.Context, in *DeleteProblemReq, opts ...grpc.CallOption) (*emptypb.Empty, error)
+		DeleteProblem(ctx context.Context, in *DeleteProblemReq, opts ...grpc.CallOption) (*DeleteProblemResp, error)
 		RestoreProblem(ctx context.Context, in *RestoreProblemReq, opts ...grpc.CallOption) (*RestoreProblemResp, error)
 		CreateTestDataUpload(ctx context.Context, in *CreateTestDataUploadReq, opts ...grpc.CallOption) (*CreateTestDataUploadResp, error)
 		FinalizeTestDataUpload(ctx context.Context, in *FinalizeTestDataUploadReq, opts ...grpc.CallOption) (*FinalizeTestDataUploadResp, error)
@@ -120,7 +119,7 @@ func (m *defaultProblemService) ArchiveProblem(ctx context.Context, in *ArchiveP
 	return client.ArchiveProblem(ctx, in, opts...)
 }
 
-func (m *defaultProblemService) DeleteProblem(ctx context.Context, in *DeleteProblemReq, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+func (m *defaultProblemService) DeleteProblem(ctx context.Context, in *DeleteProblemReq, opts ...grpc.CallOption) (*DeleteProblemResp, error) {
 	client := pb.NewProblemServiceClient(m.cli.Conn())
 	return client.DeleteProblem(ctx, in, opts...)
 }

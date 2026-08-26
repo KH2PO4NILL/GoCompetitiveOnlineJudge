@@ -10,7 +10,6 @@ import (
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/logic"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/svc"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/pb"
-	"google.golang.org/protobuf/types/known/emptypb"
 )
 
 type ProblemServiceServer struct {
@@ -61,7 +60,7 @@ func (s *ProblemServiceServer) ArchiveProblem(ctx context.Context, in *pb.Archiv
 	return l.ArchiveProblem(in)
 }
 
-func (s *ProblemServiceServer) DeleteProblem(ctx context.Context, in *pb.DeleteProblemReq) (*emptypb.Empty, error) {
+func (s *ProblemServiceServer) DeleteProblem(ctx context.Context, in *pb.DeleteProblemReq) (*pb.DeleteProblemResp, error) {
 	l := logic.NewDeleteProblemLogic(ctx, s.svcCtx)
 	return l.DeleteProblem(in)
 }
