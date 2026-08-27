@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	authpb "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/pb"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/svc"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/model"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/pb"
@@ -21,21 +22,24 @@ type stubProblemModel struct {
 
 	gotProblemID        int64
 	gotExpectedRevision int64
+	gotActorID          int64
 }
 
 func (m *stubProblemModel) SoftDelete(
 	_ context.Context,
 	problemID int64,
 	expectedRevision int64,
+	actorID int64,
 ) (int64, error) {
 	m.gotProblemID = problemID
 	m.gotExpectedRevision = expectedRevision
+	m.gotActorID = actorID
 	return m.revision, m.err
 }
 
 func TestDeleteProblemReturnsNewRevision(t *testing.T) {
 	repository := &stubProblemModel{revision: 8}
-	logic := NewDeleteProblemLogic(context.Background(), &svc.ServiceContext{
+	logic := NewDeleteProblemLogic(principalContext(1, authpb.UserRole_USER_ROLE_ADMIN), &svc.ServiceContext{
 		ProblemModel: repository,
 	})
 
@@ -49,11 +53,12 @@ func TestDeleteProblemReturnsNewRevision(t *testing.T) {
 	if resp.Revision != 8 {
 		t.Fatalf("DeleteProblem() revision = %d, want 8", resp.Revision)
 	}
-	if repository.gotProblemID != 42 || repository.gotExpectedRevision != 7 {
+	if repository.gotProblemID != 42 || repository.gotExpectedRevision != 7 || repository.gotActorID != 1 {
 		t.Fatalf(
-			"SoftDelete() args = (%d, %d), want (42, 7)",
+			"SoftDelete() args = (%d, %d, %d), want (42, 7, 1)",
 			repository.gotProblemID,
 			repository.gotExpectedRevision,
+			repository.gotActorID,
 		)
 	}
 }
@@ -72,7 +77,7 @@ func TestDeleteProblemMapsModelErrors(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			logic := NewDeleteProblemLogic(context.Background(), &svc.ServiceContext{
+			logic := NewDeleteProblemLogic(principalContext(1, authpb.UserRole_USER_ROLE_ADMIN), &svc.ServiceContext{
 				ProblemModel: &stubProblemModel{err: test.modelErr},
 			})
 
@@ -84,6 +89,16 @@ func TestDeleteProblemMapsModelErrors(t *testing.T) {
 				t.Fatalf("DeleteProblem() code = %s, want %s", status.Code(err), test.wantCode)
 			}
 		})
+	}
+}
+
+func TestDeleteProblemRequiresAdministrator(t *testing.T) {
+	logic := NewDeleteProblemLogic(principalContext(42, authpb.UserRole_USER_ROLE_USER), &svc.ServiceContext{
+		ProblemModel: &stubProblemModel{},
+	})
+	_, err := logic.DeleteProblem(&pb.DeleteProblemReq{ProblemId: 1, ExpectedRevision: 1})
+	if status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("DeleteProblem() code = %s, want %s", status.Code(err), codes.PermissionDenied)
 	}
 }
 

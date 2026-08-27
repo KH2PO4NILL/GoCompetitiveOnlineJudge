@@ -18,8 +18,8 @@ PROTOBUF_INCLUDE ?= $(shell $(GO) list -m -f '{{.Dir}}/third_party' github.com/g
 	$(addprefix rpc-,$(RPC_SERVICES)) \
 	problem-rpc \
 	fmt vet test coverage build tidy clean \
-	tools-infra infra-env infra-up infra-down infra-reset infra-logs infra-ps \
-	mysql-shell redis-shell run-auth
+	tools-infra infra-env infra-up infra-migrate infra-down infra-reset infra-logs infra-ps \
+	mysql-shell redis-shell run-auth run-problem
 
 help:
 	@printf '%s\n' \
@@ -43,7 +43,8 @@ help:
 		'  clean            Remove local build and coverage artifacts' \
 		'' \
 		'Local infrastructure:' \
-		'  infra-up         Start MySQL, Redis and etcd and wait until healthy' \
+		'  infra-up         Start MySQL, Redis, etcd and MinIO and wait until healthy' \
+		'  infra-migrate    Apply pending Auth and Problem MySQL migrations' \
 		'  infra-down       Stop local infrastructure and keep its data' \
 		'  infra-reset      Stop infrastructure and delete all local data' \
 		'  infra-logs       Follow infrastructure logs' \
@@ -51,6 +52,7 @@ help:
 		'  mysql-shell      Open a MySQL shell as the application user' \
 		'  redis-shell      Open an authenticated Redis CLI' \
 		'  run-auth         Start infrastructure, then run the auth RPC service' \
+		'  run-problem      Start infrastructure, then run the problem RPC service' \
 		'' \
 		'Checks:' \
 		'  tools            Check Go and goctl' \
@@ -78,6 +80,9 @@ tools-infra:
 	mysql_password=$$(openssl rand -hex 16); \
 	redis_password=$$(openssl rand -hex 16); \
 	token_secret=$$(openssl rand -hex 32); \
+	minio_password=$$(openssl rand -hex 16); \
+	submit_service_token=$$(openssl rand -hex 32); \
+	judge_service_token=$$(openssl rand -hex 32); \
 	{ \
 		printf '%s\n' 'MYSQL_PORT=3307'; \
 		printf '%s\n' 'MYSQL_DATABASE=go_coj'; \
@@ -87,24 +92,42 @@ tools-infra:
 		printf '%s\n' 'REDIS_PORT=6379'; \
 		printf '%s\n' "REDIS_PASSWORD=$$redis_password"; \
 		printf '%s\n' 'ETCD_PORT=2379'; \
+		printf '%s\n' 'MINIO_PORT=9000'; \
+		printf '%s\n' 'MINIO_CONSOLE_PORT=9001'; \
+		printf '%s\n' 'MINIO_ROOT_USER=localadmin'; \
+		printf '%s\n' "MINIO_ROOT_PASSWORD=$$minio_password"; \
+		printf '%s\n' 'MINIO_BUCKET=problem-test-data'; \
 		printf '%s\n' "AUTH_MYSQL_DSN='go_coj:$$mysql_password@tcp(127.0.0.1:3307)/go_coj?charset=utf8mb4&parseTime=true&loc=UTC'"; \
 		printf '%s\n' "AUTH_REDIS_PASSWORD=$$redis_password"; \
 		printf '%s\n' "AUTH_TOKEN_SECRET=$$token_secret"; \
 		printf '%s\n' "PROBLEM_MYSQL_DSN='go_coj:$$mysql_password@tcp(127.0.0.1:3307)/go_coj?charset=utf8mb4&parseTime=true&loc=UTC'"; \
 		printf '%s\n' "PROBLEM_REDIS_PASSWORD=$$redis_password"; \
+		printf '%s\n' 'PROBLEM_OBJECT_STORAGE_ENDPOINT=http://127.0.0.1:9000'; \
+		printf '%s\n' 'PROBLEM_OBJECT_STORAGE_REGION=us-east-1'; \
+		printf '%s\n' 'PROBLEM_OBJECT_STORAGE_BUCKET=problem-test-data'; \
+		printf '%s\n' 'PROBLEM_OBJECT_STORAGE_ACCESS_KEY=localadmin'; \
+		printf '%s\n' "PROBLEM_OBJECT_STORAGE_SECRET_KEY=$$minio_password"; \
+		printf '%s\n' "PROBLEM_INTERNAL_SUBMIT_TOKEN=$$submit_service_token"; \
+		printf '%s\n' "PROBLEM_INTERNAL_JUDGE_TOKEN=$$judge_service_token"; \
 	} > .env
 	@echo 'Created .env with random local-development secrets.'
 
 infra-env: .env
 
 infra-up: .env
-	$(COMPOSE) up -d --wait --wait-timeout 120
+	$(COMPOSE) up -d --wait --wait-timeout 120 mysql redis etcd minio
+	$(COMPOSE) run --rm mysql-migrate
+	$(COMPOSE) run --rm minio-init
+
+infra-migrate: .env
+	$(COMPOSE) up -d --wait --wait-timeout 120 mysql
+	$(COMPOSE) run --rm mysql-migrate
 
 infra-down:
 	$(COMPOSE) down
 
 infra-reset:
-	@printf '%s\n' 'Deleting MySQL, Redis and etcd local data volumes...'
+	@printf '%s\n' 'Deleting MySQL, Redis, etcd and MinIO local data volumes...'
 	$(COMPOSE) down --volumes --remove-orphans
 
 infra-logs:
@@ -124,6 +147,10 @@ redis-shell: .env
 run-auth: infra-up
 	@set -a; . ./.env; set +a; \
 	"$(GO)" run ./services/grpc/auth -f services/grpc/auth/etc/auth.yaml
+
+run-problem: infra-up
+	@set -a; . ./.env; set +a; \
+	"$(GO)" run ./services/grpc/problem -f services/grpc/problem/etc/problem.yaml
 
 generate: api rpc
 

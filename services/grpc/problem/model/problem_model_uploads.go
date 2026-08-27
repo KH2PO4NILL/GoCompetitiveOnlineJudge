@@ -54,6 +54,22 @@ func (m *defaultProblemModel) CreateTestDataUpload(ctx context.Context, input Cr
 	return uploadFromRow(row), nil
 }
 
+func (m *defaultProblemModel) GetTestDataUpload(ctx context.Context, uploadID string) (*TestDataUpload, error) {
+	uploadID = strings.TrimSpace(uploadID)
+	if uploadID == "" {
+		return nil, fmt.Errorf("%w: upload id is required", ErrInvalidProblemInput)
+	}
+	row := new(testDataUploadRow)
+	err := m.db.WithContext(ctx).Where("upload_id = ?", uploadID).Take(row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrTestDataUploadNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get test data upload: %w", err)
+	}
+	return uploadFromRow(row), nil
+}
+
 func (m *defaultProblemModel) FinalizeTestDataUpload(ctx context.Context, input FinalizeTestDataUploadInput) (*FinalizeTestDataUploadResult, error) {
 	if input.ProblemID <= 0 || input.ContentLength < 0 || input.ExpectedRevision <= 0 || input.ActorID <= 0 || strings.TrimSpace(input.UploadID) == "" {
 		return nil, fmt.Errorf("%w: invalid finalize parameters", ErrInvalidProblemInput)
@@ -62,6 +78,7 @@ func (m *defaultProblemModel) FinalizeTestDataUpload(ctx context.Context, input 
 	if !validSHA256(checksum) {
 		return nil, fmt.Errorf("%w: invalid sha256", ErrInvalidProblemInput)
 	}
+	packageKey := strings.TrimSpace(input.PackageKey)
 	var result *FinalizeTestDataUploadResult
 	err := m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		upload := new(testDataUploadRow)
@@ -91,6 +108,9 @@ func (m *defaultProblemModel) FinalizeTestDataUpload(ctx context.Context, input 
 			var loadErr error
 			result, loadErr = loadFinalizeResult(tx, upload)
 			return loadErr
+		}
+		if packageKey == "" {
+			return fmt.Errorf("%w: immutable package key is required", ErrInvalidProblemInput)
 		}
 		if upload.Status != TestDataUploadStatusPending {
 			return ErrTestDataUploadConflict
@@ -124,7 +144,7 @@ func (m *defaultProblemModel) FinalizeTestDataUpload(ctx context.Context, input 
 		now := m.now()
 		version := &TestDataVersions{
 			ProblemId: problem.Id, Version: "upload-" + upload.UploadID,
-			PackageKey: upload.ObjectKey, Checksum: upload.Checksum, CreatedAt: now,
+			PackageKey: packageKey, Checksum: upload.Checksum, CreatedAt: now,
 		}
 		if err := tx.Create(version).Error; err != nil {
 			return fmt.Errorf("create test data version: %w", err)

@@ -17,16 +17,31 @@ services:
       - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-      - ./services/grpc/auth/migrations:/docker-entrypoint-initdb.d:ro
-      - ./services/grpc/problem/migrations/001_create_problem.sql:/docker-entrypoint-initdb.d/101_create_problem.sql:ro
-      - ./services/grpc/problem/migrations/002_align_problem_schema.sql:/docker-entrypoint-initdb.d/102_align_problem_schema.sql:ro
-      - ./services/grpc/problem/migrations/003_add_problem_revision_aggregate.sql:/docker-entrypoint-initdb.d/103_add_problem_revision_aggregate.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
       interval: 5s
       timeout: 5s
       retries: 30
       start_period: 30s
+
+  mysql-migrate:
+    image: mysql:8.4
+    profiles:
+      - init
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - ./infra/mysql/migrate.sh:/migrate.sh:ro
+      - ./services/grpc/auth/migrations:/migrations/auth:ro
+      - ./services/grpc/problem/migrations:/migrations/problem:ro
+    entrypoint:
+      - /bin/sh
+      - /migrate.sh
 
   redis:
     image: redis:8.4-alpine
@@ -72,7 +87,46 @@ services:
       timeout: 5s
       retries: 20
 
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command:
+      - server
+      - /data
+      - --console-address
+      - :9001
+    ports:
+      - "127.0.0.1:${MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio-init:
+    image: minio/mc:latest
+    profiles:
+      - init
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-problem-test-data}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" && mc mb --ignore-existing "local/$$MINIO_BUCKET"
+
 volumes:
   mysql_data:
   redis_data:
   etcd_data:
+  minio_data:

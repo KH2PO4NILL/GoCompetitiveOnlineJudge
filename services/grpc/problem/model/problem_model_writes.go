@@ -104,9 +104,9 @@ func (m *defaultProblemModel) Restore(ctx context.Context, problemID, expectedRe
 	return m.transition(ctx, problemID, expectedRevision, actorID, 0)
 }
 
-func (m *defaultProblemModel) SoftDelete(ctx context.Context, problemID, expectedRevision int64) (int64, error) {
-	if problemID <= 0 || expectedRevision <= 0 {
-		return 0, fmt.Errorf("%w: problem and revision ids must be positive", ErrInvalidProblemInput)
+func (m *defaultProblemModel) SoftDelete(ctx context.Context, problemID, expectedRevision, actorID int64) (int64, error) {
+	if problemID <= 0 || expectedRevision <= 0 || actorID <= 0 {
+		return 0, fmt.Errorf("%w: problem, revision and actor ids must be positive", ErrInvalidProblemInput)
 	}
 	var newRevision int64
 	err := m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -142,7 +142,7 @@ func (m *defaultProblemModel) SoftDelete(ctx context.Context, problemID, expecte
 		if err := conditionalProblemUpdate(tx, problem.Id, expectedRevision, false, updates); err != nil {
 			return err
 		}
-		if _, err := insertRevision(tx, problem, editable, problem.AuthorId, now); err != nil {
+		if _, err := insertRevision(tx, problem, editable, actorID, now); err != nil {
 			return err
 		}
 		newRevision = problem.Revision

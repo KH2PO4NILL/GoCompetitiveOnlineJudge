@@ -2,10 +2,8 @@ package logic
 
 import (
 	"context"
-	"errors"
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/svc"
-	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/model"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/pb"
 
 	"github.com/zeromicro/go-zero/core/logx"
@@ -27,29 +25,22 @@ func NewDeleteProblemLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Del
 	}
 }
 
-//软删除题目也需要metadata的鉴权，仍需修改,软删除权限应为管理员级别
-
+// DeleteProblem is intentionally administrator-only. Authors may archive their
+// own problems, while deletion changes global visibility and recovery state.
 func (l *DeleteProblemLogic) DeleteProblem(in *pb.DeleteProblemReq) (*pb.DeleteProblemResp, error) {
-	if in == nil || in.ProblemId <= 0 {
-		return nil, status.Error(codes.InvalidArgument, "problem_id must be positive")
+	if in == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is required")
 	}
-	if in.ExpectedRevision <= 0 {
-		return nil, status.Error(codes.InvalidArgument, "expected_revision must be positive")
+	if err := validatePositiveProblemRevision(in.ProblemId, in.ExpectedRevision); err != nil {
+		return nil, err
 	}
-
-	revision, err := l.svcCtx.ProblemModel.SoftDelete(l.ctx, in.ProblemId, in.ExpectedRevision)
+	principal, err := requireAdmin(l.ctx)
 	if err != nil {
-		switch {
-		case errors.Is(err, model.ErrProblemNotFound):
-			return nil, status.Error(codes.NotFound, "problem not found")
-		case errors.Is(err, model.ErrProblemRevisionConflict):
-			return nil, status.Error(codes.Aborted, "problem revision conflict")
-		case errors.Is(err, model.ErrProblemAlreadyDeleted):
-			return nil, status.Error(codes.FailedPrecondition, "problem is already deleted")
-		default:
-			l.Errorf("delete problem %d: %v", in.ProblemId, err)
-			return nil, status.Error(codes.Internal, "failed to delete problem")
-		}
+		return nil, err
+	}
+	revision, err := l.svcCtx.ProblemModel.SoftDelete(l.ctx, in.ProblemId, in.ExpectedRevision, principal.UserID)
+	if err != nil {
+		return nil, mapModelError(err)
 	}
 	return &pb.DeleteProblemResp{Revision: revision}, nil
 }

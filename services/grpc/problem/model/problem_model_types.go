@@ -166,6 +166,7 @@ type FinalizeTestDataUploadInput struct {
 	UploadID         string
 	SHA256           string
 	ContentLength    int64
+	PackageKey       string
 	ExpectedRevision int64
 	ActorID          int64
 	TestCases        []TestCaseInput

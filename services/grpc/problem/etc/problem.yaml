@@ -14,8 +14,44 @@ RedisDB:
   Password: "${PROBLEM_REDIS_PASSWORD}"
   DB: 0
 
-Auth:
+AuthRPC:
   Etcd:
     Hosts:
     - 127.0.0.1:2379
     Key: auth.rpc
+
+ContestRPC:
+  Etcd:
+    Hosts:
+    - 127.0.0.1:2379
+    Key: contest.rpc
+
+InternalAuth:
+  Callers:
+  - Name: submit.rpc
+    Token: "${PROBLEM_INTERNAL_SUBMIT_TOKEN}"
+    Methods:
+    - /problem.ProblemService/BatchGetProblems
+    - /problem.ProblemService/GetJudgeProblemSpec
+  - Name: judge.worker
+    Token: "${PROBLEM_INTERNAL_JUDGE_TOKEN}"
+    Methods:
+    - /problem.ProblemService/GetJudgeProblemSpec
+
+Upload:
+  URLTTLSeconds: 900
+  MaxUploadBytes: 536870912
+  AllowedExtensions:
+  - .zip
+  MaxUncompressedBytes: 2147483648
+  MaxFileCount: 20000
+  MaxManifestBytes: 2097152
+
+ObjectStorage:
+  Endpoint: "${PROBLEM_OBJECT_STORAGE_ENDPOINT}"
+  Region: "${PROBLEM_OBJECT_STORAGE_REGION}"
+  Bucket: "${PROBLEM_OBJECT_STORAGE_BUCKET}"
+  AccessKey: "${PROBLEM_OBJECT_STORAGE_ACCESS_KEY}"
+  SecretKey: "${PROBLEM_OBJECT_STORAGE_SECRET_KEY}"
+  UsePathStyle: true
+  RequestTimeoutSeconds: 60

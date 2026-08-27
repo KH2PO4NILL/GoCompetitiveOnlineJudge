@@ -44,11 +44,18 @@ func main() {
 	})
 
 	s.AddUnaryInterceptors(
+		interceptor.NewServiceAuthInterceptor(
+			svcCtx.InternalCredentials,
+			func(fullMethod string) []string { return svcCtx.InternalCallers[fullMethod] },
+		),
 		interceptor.NewAuthInterceptor(
 			svcCtx.AuthClient,
 			interceptor.WithMethodAuthentication(
 				func(fullMethod string) interceptor.AuthenticationMode {
 					switch fullMethod {
+					case pb.ProblemService_BatchGetProblems_FullMethodName,
+						pb.ProblemService_GetJudgeProblemSpec_FullMethodName:
+						return interceptor.AuthenticationSkipped
 					case pb.ProblemService_GetProblem_FullMethodName,
 						pb.ProblemService_ListProblems_FullMethodName:
 						return interceptor.AuthenticationOptional
