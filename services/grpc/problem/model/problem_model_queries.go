@@ -32,6 +32,14 @@ func (m *defaultProblemModel) GetForEdit(ctx context.Context, problemID int64) (
 }
 
 func (m *defaultProblemModel) GetPublic(ctx context.Context, problemID int64) (*ProblemAggregate, error) {
+	return m.getPublished(ctx, problemID, true)
+}
+
+func (m *defaultProblemModel) GetPublished(ctx context.Context, problemID int64) (*ProblemAggregate, error) {
+	return m.getPublished(ctx, problemID, false)
+}
+
+func (m *defaultProblemModel) getPublished(ctx context.Context, problemID int64, publicOnly bool) (*ProblemAggregate, error) {
 	if problemID <= 0 {
 		return nil, fmt.Errorf("%w: problem id must be positive", ErrInvalidProblemInput)
 	}
@@ -39,11 +47,14 @@ func (m *defaultProblemModel) GetPublic(ctx context.Context, problemID int64) (*
 		Problems
 		PublishedRevisionID int64 `gorm:"column:published_revision_id"`
 	}
-	err := m.db.WithContext(ctx).Table("problems AS p").
+	query := m.db.WithContext(ctx).Table("problems AS p").
 		Select("p.*, pr.id AS published_revision_id").
 		Joins("JOIN problem_revisions AS pr ON pr.problem_id = p.id AND pr.revision = p.latest_published_revision").
-		Where("p.id = ? AND p.status = ? AND p.deleted_at IS NULL AND pr.visibility = ?", problemID, ProblemStatusPublished, ProblemVisibilityPublic).
-		Take(&row).Error
+		Where("p.id = ? AND p.status = ? AND p.deleted_at IS NULL", problemID, ProblemStatusPublished)
+	if publicOnly {
+		query = query.Where("pr.visibility = ?", ProblemVisibilityPublic)
+	}
+	err := query.Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrProblemNotFound
 	}
@@ -171,6 +182,55 @@ func (m *defaultProblemModel) GetJudgeSpec(ctx context.Context, problemID, revis
 		TestDataVersion:   version.Version, TestDataPackageKey: version.PackageKey,
 		TestDataChecksum: version.Checksum, TestCases: records,
 	}, nil
+}
+
+func (m *defaultProblemModel) GetCurrentTestCases(ctx context.Context, problemID int64) ([]TestCaseRecord, error) {
+	if problemID <= 0 {
+		return nil, fmt.Errorf("%w: problem id must be positive", ErrInvalidProblemInput)
+	}
+	var current struct {
+		VersionID sql.NullInt64 `gorm:"column:current_test_data_version_id"`
+	}
+	result := m.db.WithContext(ctx).Table("problems").
+		Select("current_test_data_version_id").Where("id = ?", problemID).Take(&current)
+	if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+		return nil, ErrProblemNotFound
+	}
+	if result.Error != nil {
+		return nil, fmt.Errorf("get current test data version: %w", result.Error)
+	}
+	if !current.VersionID.Valid {
+		return []TestCaseRecord{}, nil
+	}
+	var rows []TestCases
+	if err := m.db.WithContext(ctx).Where("test_data_version_id = ?", current.VersionID.Int64).
+		Order("ordinal ASC, id ASC").Find(&rows).Error; err != nil {
+		return nil, fmt.Errorf("get current test cases: %w", err)
+	}
+	resultCases := make([]TestCaseRecord, 0, len(rows))
+	for _, row := range rows {
+		resultCases = append(resultCases, TestCaseRecord{ID: row.Id, TestCaseInput: TestCaseInput{
+			Name: row.Name, Score: row.Score, Ordinal: row.Ordinal,
+			Enabled: row.Enabled, GroupName: row.GroupName,
+		}})
+	}
+	return resultCases, nil
+}
+
+func (m *defaultProblemModel) GetTestDataVersion(ctx context.Context, problemID, versionID int64) (string, error) {
+	if problemID <= 0 || versionID <= 0 {
+		return "", fmt.Errorf("%w: problem and test data version ids must be positive", ErrInvalidProblemInput)
+	}
+	var version TestDataVersions
+	err := m.db.WithContext(ctx).Select("version").
+		Where("id = ? AND problem_id = ?", versionID, problemID).Take(&version).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", ErrProblemNotFound
+	}
+	if err != nil {
+		return "", fmt.Errorf("get test data version: %w", err)
+	}
+	return version.Version, nil
 }
 
 func (m *defaultProblemModel) ListPublic(ctx context.Context, filter ProblemListFilter) ([]ProblemSummary, int64, error) {

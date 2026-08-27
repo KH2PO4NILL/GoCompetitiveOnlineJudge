@@ -46,18 +46,22 @@ type ProblemModel interface {
 	Update(ctx context.Context, input UpdateProblemInput) (*ProblemAggregate, error)
 	Publish(ctx context.Context, problemID, expectedRevision, actorID int64) (*ProblemAggregate, error)
 	Archive(ctx context.Context, problemID, expectedRevision, actorID int64) (*ProblemAggregate, error)
-	SoftDelete(ctx context.Context, problemID, expectedRevision int64) (newRevision int64, err error)
+	SoftDelete(ctx context.Context, problemID, expectedRevision, actorID int64) (newRevision int64, err error)
 	Restore(ctx context.Context, problemID, expectedRevision, actorID int64) (*ProblemAggregate, error)
 
 	GetForEdit(ctx context.Context, problemID int64) (*ProblemAggregate, error)
 	GetPublic(ctx context.Context, problemID int64) (*ProblemAggregate, error)
+	GetPublished(ctx context.Context, problemID int64) (*ProblemAggregate, error)
 	GetRevision(ctx context.Context, problemID, revision int64) (*ProblemRevision, error)
 	GetJudgeSpec(ctx context.Context, problemID, revision int64) (*JudgeProblemSpec, error)
+	GetTestDataVersion(ctx context.Context, problemID, versionID int64) (string, error)
+	GetCurrentTestCases(ctx context.Context, problemID int64) ([]TestCaseRecord, error)
 	ListPublic(ctx context.Context, filter ProblemListFilter) ([]ProblemSummary, int64, error)
 	ListForManagement(ctx context.Context, filter ProblemListFilter) ([]ProblemSummary, int64, error)
 	BatchGetPublicSummaries(ctx context.Context, problemIDs []int64) ([]*ProblemSummary, error)
 
 	CreateTestDataUpload(ctx context.Context, input CreateTestDataUploadInput) (*TestDataUpload, error)
+	GetTestDataUpload(ctx context.Context, uploadID string) (*TestDataUpload, error)
 	FinalizeTestDataUpload(ctx context.Context, input FinalizeTestDataUploadInput) (*FinalizeTestDataUploadResult, error)
 }
 

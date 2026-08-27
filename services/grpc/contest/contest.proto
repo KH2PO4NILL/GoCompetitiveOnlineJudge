@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package contest;
+option go_package = "./pb";
+
+// Problem RPC uses this internal contract to verify both contest membership
+// and that the requested problem is assigned to the contest.
+message CanAccessProblemReq {
+    int64 contest_id = 1;
+    int64 problem_id = 2;
+    int64 user_id = 3;
+}
+
+message CanAccessProblemResp {
+    bool allowed = 1;
+}
+
+service ContestService {
+    rpc CanAccessProblem(CanAccessProblemReq) returns (CanAccessProblemResp);
+}

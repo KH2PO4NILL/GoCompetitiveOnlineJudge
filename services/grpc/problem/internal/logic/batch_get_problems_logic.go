@@ -7,6 +7,8 @@ import (
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/pb"
 
 	"github.com/zeromicro/go-zero/core/logx"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type BatchGetProblemsLogic struct {
@@ -25,7 +27,29 @@ func NewBatchGetProblemsLogic(ctx context.Context, svcCtx *svc.ServiceContext) *
 
 // 仅允许受信任的内部服务调用。
 func (l *BatchGetProblemsLogic) BatchGetProblems(in *pb.BatchGetProblemsReq) (*pb.BatchGetProblemsResp, error) {
-	// todo: add your logic here and delete this line
-
-	return &pb.BatchGetProblemsResp{}, nil
+	if in == nil || len(in.ProblemIds) == 0 {
+		return nil, status.Error(codes.InvalidArgument, "at least one problem_id is required")
+	}
+	if len(in.ProblemIds) > maxBatchSize {
+		return nil, status.Errorf(codes.ResourceExhausted, "batch size must not exceed %d", maxBatchSize)
+	}
+	for _, problemID := range in.ProblemIds {
+		if problemID <= 0 {
+			return nil, status.Error(codes.InvalidArgument, "problem_ids must be positive")
+		}
+	}
+	if _, err := requireInternalService(l.ctx); err != nil {
+		return nil, err
+	}
+	problems, err := l.svcCtx.ProblemModel.BatchGetPublicSummaries(l.ctx, in.ProblemIds)
+	if err != nil {
+		return nil, mapModelError(err)
+	}
+	result := make([]*pb.ProblemSummary, 0, len(problems))
+	for _, problem := range problems {
+		if problem != nil {
+			result = append(result, summaryProto(*problem))
+		}
+	}
+	return &pb.BatchGetProblemsResp{Problems: result}, nil
 }

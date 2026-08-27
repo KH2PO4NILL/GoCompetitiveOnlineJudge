@@ -41,7 +41,7 @@ func TestProblemModelRevisionLifecycle(t *testing.T) {
 	}
 	finalizeInput := FinalizeTestDataUploadInput{
 		ProblemID: created.ProblemID, UploadID: upload.UploadID, SHA256: strings.Repeat("a", 64),
-		ContentLength: 1024, ExpectedRevision: 1, ActorID: 101,
+		ContentLength: 1024, PackageKey: "problem-test-data/immutable/first.zip", ExpectedRevision: 1, ActorID: 101,
 		TestCases: []TestCaseInput{
 			{Name: "case-2", Score: 40, Ordinal: 1, Enabled: true},
 			{Name: "case-1", Score: 60, Ordinal: 0, Enabled: true},
@@ -67,7 +67,8 @@ func TestProblemModelRevisionLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetJudgeSpec(0) error = %v", err)
 	}
-	if spec.Revision != 3 || len(spec.TestCases) != 2 || spec.TestCases[0].Ordinal != 0 || spec.TestCases[1].Ordinal != 1 {
+	if spec.Revision != 3 || spec.TestDataPackageKey != finalizeInput.PackageKey ||
+		len(spec.TestCases) != 2 || spec.TestCases[0].Ordinal != 0 || spec.TestCases[1].Ordinal != 1 {
 		t.Fatalf("judge spec = revision %d cases %+v", spec.Revision, spec.TestCases)
 	}
 
@@ -208,7 +209,7 @@ func TestProblemModelRevisionLifecycle(t *testing.T) {
 		t.Fatalf("republished archived state = revision %d status %d", republishedAfterArchive.Revision, republishedAfterArchive.Status)
 	}
 
-	deletedRevision, err := repository.SoftDelete(ctx, created.ProblemID, 8)
+	deletedRevision, err := repository.SoftDelete(ctx, created.ProblemID, 8, 99)
 	if err != nil {
 		t.Fatalf("SoftDelete() error = %v", err)
 	}
@@ -242,7 +243,7 @@ func TestFinalizeTestDataUploadRollsBackOnRevisionConflict(t *testing.T) {
 	}
 	_, err = repository.FinalizeTestDataUpload(ctx, FinalizeTestDataUploadInput{
 		ProblemID: created.ProblemID, UploadID: upload.UploadID, SHA256: strings.Repeat("b", 64),
-		ExpectedRevision: 99, ActorID: 1,
+		PackageKey: "problem-test-data/immutable/conflict.zip", ExpectedRevision: 99, ActorID: 1,
 		TestCases: []TestCaseInput{{Name: "case", Score: 100, Ordinal: 0, Enabled: true}},
 	})
 	if !errors.Is(err, ErrProblemRevisionConflict) {
