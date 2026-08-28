@@ -26,6 +26,7 @@ func NewBatchGetProblemsLogic(ctx context.Context, svcCtx *svc.ServiceContext) *
 }
 
 // 仅允许受信任的内部服务调用。
+
 func (l *BatchGetProblemsLogic) BatchGetProblems(in *pb.BatchGetProblemsReq) (*pb.BatchGetProblemsResp, error) {
 	if in == nil || len(in.ProblemIds) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "at least one problem_id is required")

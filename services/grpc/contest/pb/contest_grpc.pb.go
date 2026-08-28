@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v3.19.4
-// source: contest.proto
+// source: proto/contest.proto
 
 package pb
 
@@ -19,14 +19,72 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ContestService_CanAccessProblem_FullMethodName = "/contest.ContestService/CanAccessProblem"
+	ContestService_ListContests_FullMethodName              = "/contest.ContestService/ListContests"
+	ContestService_GetContest_FullMethodName                = "/contest.ContestService/GetContest"
+	ContestService_RegisterContest_FullMethodName           = "/contest.ContestService/RegisterContest"
+	ContestService_CancelRegistration_FullMethodName        = "/contest.ContestService/CancelRegistration"
+	ContestService_GetMyContestStatus_FullMethodName        = "/contest.ContestService/GetMyContestStatus"
+	ContestService_ListContestProblems_FullMethodName       = "/contest.ContestService/ListContestProblems"
+	ContestService_GetScoreboard_FullMethodName             = "/contest.ContestService/GetScoreboard"
+	ContestService_CreateContest_FullMethodName             = "/contest.ContestService/CreateContest"
+	ContestService_GetContestForEdit_FullMethodName         = "/contest.ContestService/GetContestForEdit"
+	ContestService_UpdateContest_FullMethodName             = "/contest.ContestService/UpdateContest"
+	ContestService_PublishContest_FullMethodName            = "/contest.ContestService/PublishContest"
+	ContestService_CancelContest_FullMethodName             = "/contest.ContestService/CancelContest"
+	ContestService_ArchiveContest_FullMethodName            = "/contest.ContestService/ArchiveContest"
+	ContestService_DeleteContest_FullMethodName             = "/contest.ContestService/DeleteContest"
+	ContestService_RestoreContest_FullMethodName            = "/contest.ContestService/RestoreContest"
+	ContestService_SetContestProblems_FullMethodName        = "/contest.ContestService/SetContestProblems"
+	ContestService_ListRegistrations_FullMethodName         = "/contest.ContestService/ListRegistrations"
+	ContestService_ReviewRegistration_FullMethodName        = "/contest.ContestService/ReviewRegistration"
+	ContestService_ListParticipants_FullMethodName          = "/contest.ContestService/ListParticipants"
+	ContestService_FreezeScoreboard_FullMethodName          = "/contest.ContestService/FreezeScoreboard"
+	ContestService_UnfreezeScoreboard_FullMethodName        = "/contest.ContestService/UnfreezeScoreboard"
+	ContestService_CanAccessProblem_FullMethodName          = "/contest.ContestService/CanAccessProblem"
+	ContestService_ValidateContestSubmission_FullMethodName = "/contest.ContestService/ValidateContestSubmission"
 )
 
 // ContestServiceClient is the client API for ContestService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// 权限边界：用户侧方法从 metadata/context 解析当前用户；管理方法再次校验创建者或
+// 管理员权限；内部方法只接受受信任服务身份，不得直接暴露到 HTTP API。
+//
+// 状态码约定：非法参数/枚举/时间/FieldMask 返回 INVALID_ARGUMENT；身份缺失返回
+// UNAUTHENTICATED；无权访问返回 PERMISSION_DENIED；资源不存在返回 NOT_FOUND；
+// 重复报名/题目/标签返回 ALREADY_EXISTS；revision 冲突返回 ABORTED；非法状态迁移
+// 或时间窗口不满足返回 FAILED_PRECONDITION；分页或批量超限返回 RESOURCE_EXHAUSTED；
+// 下游依赖临时故障返回 UNAVAILABLE；未分类服务故障返回 INTERNAL。公开查询必须以
+// 相同方式处理“不存在”和“存在但不可见”，避免枚举私有比赛。
 type ContestServiceClient interface {
+	// 用户侧查询与自助操作。
+	ListContests(ctx context.Context, in *ListContestsReq, opts ...grpc.CallOption) (*ListContestsResp, error)
+	GetContest(ctx context.Context, in *GetContestReq, opts ...grpc.CallOption) (*GetContestResp, error)
+	RegisterContest(ctx context.Context, in *RegisterContestReq, opts ...grpc.CallOption) (*RegisterContestResp, error)
+	CancelRegistration(ctx context.Context, in *CancelRegistrationReq, opts ...grpc.CallOption) (*CancelRegistrationResp, error)
+	GetMyContestStatus(ctx context.Context, in *GetMyContestStatusReq, opts ...grpc.CallOption) (*GetMyContestStatusResp, error)
+	ListContestProblems(ctx context.Context, in *ListContestProblemsReq, opts ...grpc.CallOption) (*ListContestProblemsResp, error)
+	GetScoreboard(ctx context.Context, in *GetScoreboardReq, opts ...grpc.CallOption) (*GetScoreboardResp, error)
+	// 创建者与管理员接口。发布前必须校验必填字段；比赛开始后不可修改赛制、时间和题目
+	// 编排。封榜/解封榜仅适用于已发布的 ICPC 比赛。
+	CreateContest(ctx context.Context, in *CreateContestReq, opts ...grpc.CallOption) (*CreateContestResp, error)
+	GetContestForEdit(ctx context.Context, in *GetContestForEditReq, opts ...grpc.CallOption) (*GetContestForEditResp, error)
+	UpdateContest(ctx context.Context, in *UpdateContestReq, opts ...grpc.CallOption) (*UpdateContestResp, error)
+	PublishContest(ctx context.Context, in *PublishContestReq, opts ...grpc.CallOption) (*PublishContestResp, error)
+	CancelContest(ctx context.Context, in *CancelContestReq, opts ...grpc.CallOption) (*CancelContestResp, error)
+	ArchiveContest(ctx context.Context, in *ArchiveContestReq, opts ...grpc.CallOption) (*ArchiveContestResp, error)
+	DeleteContest(ctx context.Context, in *DeleteContestReq, opts ...grpc.CallOption) (*DeleteContestResp, error)
+	RestoreContest(ctx context.Context, in *RestoreContestReq, opts ...grpc.CallOption) (*RestoreContestResp, error)
+	SetContestProblems(ctx context.Context, in *SetContestProblemsReq, opts ...grpc.CallOption) (*SetContestProblemsResp, error)
+	ListRegistrations(ctx context.Context, in *ListRegistrationsReq, opts ...grpc.CallOption) (*ListRegistrationsResp, error)
+	ReviewRegistration(ctx context.Context, in *ReviewRegistrationReq, opts ...grpc.CallOption) (*ReviewRegistrationResp, error)
+	ListParticipants(ctx context.Context, in *ListParticipantsReq, opts ...grpc.CallOption) (*ListParticipantsResp, error)
+	FreezeScoreboard(ctx context.Context, in *FreezeScoreboardReq, opts ...grpc.CallOption) (*FreezeScoreboardResp, error)
+	UnfreezeScoreboard(ctx context.Context, in *UnfreezeScoreboardReq, opts ...grpc.CallOption) (*UnfreezeScoreboardResp, error)
+	// 受信任内部服务接口。预期业务拒绝使用响应字段，系统故障使用 gRPC status。
 	CanAccessProblem(ctx context.Context, in *CanAccessProblemReq, opts ...grpc.CallOption) (*CanAccessProblemResp, error)
+	ValidateContestSubmission(ctx context.Context, in *ValidateContestSubmissionReq, opts ...grpc.CallOption) (*ValidateContestSubmissionResp, error)
 }
 
 type contestServiceClient struct {
@@ -35,6 +93,216 @@ type contestServiceClient struct {
 
 func NewContestServiceClient(cc grpc.ClientConnInterface) ContestServiceClient {
 	return &contestServiceClient{cc}
+}
+
+func (c *contestServiceClient) ListContests(ctx context.Context, in *ListContestsReq, opts ...grpc.CallOption) (*ListContestsResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListContestsResp)
+	err := c.cc.Invoke(ctx, ContestService_ListContests_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) GetContest(ctx context.Context, in *GetContestReq, opts ...grpc.CallOption) (*GetContestResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetContestResp)
+	err := c.cc.Invoke(ctx, ContestService_GetContest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) RegisterContest(ctx context.Context, in *RegisterContestReq, opts ...grpc.CallOption) (*RegisterContestResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RegisterContestResp)
+	err := c.cc.Invoke(ctx, ContestService_RegisterContest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) CancelRegistration(ctx context.Context, in *CancelRegistrationReq, opts ...grpc.CallOption) (*CancelRegistrationResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelRegistrationResp)
+	err := c.cc.Invoke(ctx, ContestService_CancelRegistration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) GetMyContestStatus(ctx context.Context, in *GetMyContestStatusReq, opts ...grpc.CallOption) (*GetMyContestStatusResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetMyContestStatusResp)
+	err := c.cc.Invoke(ctx, ContestService_GetMyContestStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) ListContestProblems(ctx context.Context, in *ListContestProblemsReq, opts ...grpc.CallOption) (*ListContestProblemsResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListContestProblemsResp)
+	err := c.cc.Invoke(ctx, ContestService_ListContestProblems_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) GetScoreboard(ctx context.Context, in *GetScoreboardReq, opts ...grpc.CallOption) (*GetScoreboardResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetScoreboardResp)
+	err := c.cc.Invoke(ctx, ContestService_GetScoreboard_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) CreateContest(ctx context.Context, in *CreateContestReq, opts ...grpc.CallOption) (*CreateContestResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateContestResp)
+	err := c.cc.Invoke(ctx, ContestService_CreateContest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) GetContestForEdit(ctx context.Context, in *GetContestForEditReq, opts ...grpc.CallOption) (*GetContestForEditResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetContestForEditResp)
+	err := c.cc.Invoke(ctx, ContestService_GetContestForEdit_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) UpdateContest(ctx context.Context, in *UpdateContestReq, opts ...grpc.CallOption) (*UpdateContestResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpdateContestResp)
+	err := c.cc.Invoke(ctx, ContestService_UpdateContest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) PublishContest(ctx context.Context, in *PublishContestReq, opts ...grpc.CallOption) (*PublishContestResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PublishContestResp)
+	err := c.cc.Invoke(ctx, ContestService_PublishContest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) CancelContest(ctx context.Context, in *CancelContestReq, opts ...grpc.CallOption) (*CancelContestResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CancelContestResp)
+	err := c.cc.Invoke(ctx, ContestService_CancelContest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) ArchiveContest(ctx context.Context, in *ArchiveContestReq, opts ...grpc.CallOption) (*ArchiveContestResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ArchiveContestResp)
+	err := c.cc.Invoke(ctx, ContestService_ArchiveContest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) DeleteContest(ctx context.Context, in *DeleteContestReq, opts ...grpc.CallOption) (*DeleteContestResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteContestResp)
+	err := c.cc.Invoke(ctx, ContestService_DeleteContest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) RestoreContest(ctx context.Context, in *RestoreContestReq, opts ...grpc.CallOption) (*RestoreContestResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(RestoreContestResp)
+	err := c.cc.Invoke(ctx, ContestService_RestoreContest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) SetContestProblems(ctx context.Context, in *SetContestProblemsReq, opts ...grpc.CallOption) (*SetContestProblemsResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetContestProblemsResp)
+	err := c.cc.Invoke(ctx, ContestService_SetContestProblems_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) ListRegistrations(ctx context.Context, in *ListRegistrationsReq, opts ...grpc.CallOption) (*ListRegistrationsResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListRegistrationsResp)
+	err := c.cc.Invoke(ctx, ContestService_ListRegistrations_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) ReviewRegistration(ctx context.Context, in *ReviewRegistrationReq, opts ...grpc.CallOption) (*ReviewRegistrationResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ReviewRegistrationResp)
+	err := c.cc.Invoke(ctx, ContestService_ReviewRegistration_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) ListParticipants(ctx context.Context, in *ListParticipantsReq, opts ...grpc.CallOption) (*ListParticipantsResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListParticipantsResp)
+	err := c.cc.Invoke(ctx, ContestService_ListParticipants_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) FreezeScoreboard(ctx context.Context, in *FreezeScoreboardReq, opts ...grpc.CallOption) (*FreezeScoreboardResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(FreezeScoreboardResp)
+	err := c.cc.Invoke(ctx, ContestService_FreezeScoreboard_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) UnfreezeScoreboard(ctx context.Context, in *UnfreezeScoreboardReq, opts ...grpc.CallOption) (*UnfreezeScoreboardResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnfreezeScoreboardResp)
+	err := c.cc.Invoke(ctx, ContestService_UnfreezeScoreboard_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *contestServiceClient) CanAccessProblem(ctx context.Context, in *CanAccessProblemReq, opts ...grpc.CallOption) (*CanAccessProblemResp, error) {
@@ -47,11 +315,57 @@ func (c *contestServiceClient) CanAccessProblem(ctx context.Context, in *CanAcce
 	return out, nil
 }
 
+func (c *contestServiceClient) ValidateContestSubmission(ctx context.Context, in *ValidateContestSubmissionReq, opts ...grpc.CallOption) (*ValidateContestSubmissionResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ValidateContestSubmissionResp)
+	err := c.cc.Invoke(ctx, ContestService_ValidateContestSubmission_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ContestServiceServer is the server API for ContestService service.
 // All implementations must embed UnimplementedContestServiceServer
 // for forward compatibility.
+//
+// 权限边界：用户侧方法从 metadata/context 解析当前用户；管理方法再次校验创建者或
+// 管理员权限；内部方法只接受受信任服务身份，不得直接暴露到 HTTP API。
+//
+// 状态码约定：非法参数/枚举/时间/FieldMask 返回 INVALID_ARGUMENT；身份缺失返回
+// UNAUTHENTICATED；无权访问返回 PERMISSION_DENIED；资源不存在返回 NOT_FOUND；
+// 重复报名/题目/标签返回 ALREADY_EXISTS；revision 冲突返回 ABORTED；非法状态迁移
+// 或时间窗口不满足返回 FAILED_PRECONDITION；分页或批量超限返回 RESOURCE_EXHAUSTED；
+// 下游依赖临时故障返回 UNAVAILABLE；未分类服务故障返回 INTERNAL。公开查询必须以
+// 相同方式处理“不存在”和“存在但不可见”，避免枚举私有比赛。
 type ContestServiceServer interface {
+	// 用户侧查询与自助操作。
+	ListContests(context.Context, *ListContestsReq) (*ListContestsResp, error)
+	GetContest(context.Context, *GetContestReq) (*GetContestResp, error)
+	RegisterContest(context.Context, *RegisterContestReq) (*RegisterContestResp, error)
+	CancelRegistration(context.Context, *CancelRegistrationReq) (*CancelRegistrationResp, error)
+	GetMyContestStatus(context.Context, *GetMyContestStatusReq) (*GetMyContestStatusResp, error)
+	ListContestProblems(context.Context, *ListContestProblemsReq) (*ListContestProblemsResp, error)
+	GetScoreboard(context.Context, *GetScoreboardReq) (*GetScoreboardResp, error)
+	// 创建者与管理员接口。发布前必须校验必填字段；比赛开始后不可修改赛制、时间和题目
+	// 编排。封榜/解封榜仅适用于已发布的 ICPC 比赛。
+	CreateContest(context.Context, *CreateContestReq) (*CreateContestResp, error)
+	GetContestForEdit(context.Context, *GetContestForEditReq) (*GetContestForEditResp, error)
+	UpdateContest(context.Context, *UpdateContestReq) (*UpdateContestResp, error)
+	PublishContest(context.Context, *PublishContestReq) (*PublishContestResp, error)
+	CancelContest(context.Context, *CancelContestReq) (*CancelContestResp, error)
+	ArchiveContest(context.Context, *ArchiveContestReq) (*ArchiveContestResp, error)
+	DeleteContest(context.Context, *DeleteContestReq) (*DeleteContestResp, error)
+	RestoreContest(context.Context, *RestoreContestReq) (*RestoreContestResp, error)
+	SetContestProblems(context.Context, *SetContestProblemsReq) (*SetContestProblemsResp, error)
+	ListRegistrations(context.Context, *ListRegistrationsReq) (*ListRegistrationsResp, error)
+	ReviewRegistration(context.Context, *ReviewRegistrationReq) (*ReviewRegistrationResp, error)
+	ListParticipants(context.Context, *ListParticipantsReq) (*ListParticipantsResp, error)
+	FreezeScoreboard(context.Context, *FreezeScoreboardReq) (*FreezeScoreboardResp, error)
+	UnfreezeScoreboard(context.Context, *UnfreezeScoreboardReq) (*UnfreezeScoreboardResp, error)
+	// 受信任内部服务接口。预期业务拒绝使用响应字段，系统故障使用 gRPC status。
 	CanAccessProblem(context.Context, *CanAccessProblemReq) (*CanAccessProblemResp, error)
+	ValidateContestSubmission(context.Context, *ValidateContestSubmissionReq) (*ValidateContestSubmissionResp, error)
 	mustEmbedUnimplementedContestServiceServer()
 }
 
@@ -62,8 +376,74 @@ type ContestServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedContestServiceServer struct{}
 
+func (UnimplementedContestServiceServer) ListContests(context.Context, *ListContestsReq) (*ListContestsResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListContests not implemented")
+}
+func (UnimplementedContestServiceServer) GetContest(context.Context, *GetContestReq) (*GetContestResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetContest not implemented")
+}
+func (UnimplementedContestServiceServer) RegisterContest(context.Context, *RegisterContestReq) (*RegisterContestResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method RegisterContest not implemented")
+}
+func (UnimplementedContestServiceServer) CancelRegistration(context.Context, *CancelRegistrationReq) (*CancelRegistrationResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelRegistration not implemented")
+}
+func (UnimplementedContestServiceServer) GetMyContestStatus(context.Context, *GetMyContestStatusReq) (*GetMyContestStatusResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetMyContestStatus not implemented")
+}
+func (UnimplementedContestServiceServer) ListContestProblems(context.Context, *ListContestProblemsReq) (*ListContestProblemsResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListContestProblems not implemented")
+}
+func (UnimplementedContestServiceServer) GetScoreboard(context.Context, *GetScoreboardReq) (*GetScoreboardResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetScoreboard not implemented")
+}
+func (UnimplementedContestServiceServer) CreateContest(context.Context, *CreateContestReq) (*CreateContestResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateContest not implemented")
+}
+func (UnimplementedContestServiceServer) GetContestForEdit(context.Context, *GetContestForEditReq) (*GetContestForEditResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetContestForEdit not implemented")
+}
+func (UnimplementedContestServiceServer) UpdateContest(context.Context, *UpdateContestReq) (*UpdateContestResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateContest not implemented")
+}
+func (UnimplementedContestServiceServer) PublishContest(context.Context, *PublishContestReq) (*PublishContestResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method PublishContest not implemented")
+}
+func (UnimplementedContestServiceServer) CancelContest(context.Context, *CancelContestReq) (*CancelContestResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelContest not implemented")
+}
+func (UnimplementedContestServiceServer) ArchiveContest(context.Context, *ArchiveContestReq) (*ArchiveContestResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method ArchiveContest not implemented")
+}
+func (UnimplementedContestServiceServer) DeleteContest(context.Context, *DeleteContestReq) (*DeleteContestResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method DeleteContest not implemented")
+}
+func (UnimplementedContestServiceServer) RestoreContest(context.Context, *RestoreContestReq) (*RestoreContestResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method RestoreContest not implemented")
+}
+func (UnimplementedContestServiceServer) SetContestProblems(context.Context, *SetContestProblemsReq) (*SetContestProblemsResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetContestProblems not implemented")
+}
+func (UnimplementedContestServiceServer) ListRegistrations(context.Context, *ListRegistrationsReq) (*ListRegistrationsResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListRegistrations not implemented")
+}
+func (UnimplementedContestServiceServer) ReviewRegistration(context.Context, *ReviewRegistrationReq) (*ReviewRegistrationResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReviewRegistration not implemented")
+}
+func (UnimplementedContestServiceServer) ListParticipants(context.Context, *ListParticipantsReq) (*ListParticipantsResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListParticipants not implemented")
+}
+func (UnimplementedContestServiceServer) FreezeScoreboard(context.Context, *FreezeScoreboardReq) (*FreezeScoreboardResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method FreezeScoreboard not implemented")
+}
+func (UnimplementedContestServiceServer) UnfreezeScoreboard(context.Context, *UnfreezeScoreboardReq) (*UnfreezeScoreboardResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method UnfreezeScoreboard not implemented")
+}
 func (UnimplementedContestServiceServer) CanAccessProblem(context.Context, *CanAccessProblemReq) (*CanAccessProblemResp, error) {
 	return nil, status.Error(codes.Unimplemented, "method CanAccessProblem not implemented")
+}
+func (UnimplementedContestServiceServer) ValidateContestSubmission(context.Context, *ValidateContestSubmissionReq) (*ValidateContestSubmissionResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method ValidateContestSubmission not implemented")
 }
 func (UnimplementedContestServiceServer) mustEmbedUnimplementedContestServiceServer() {}
 func (UnimplementedContestServiceServer) testEmbeddedByValue()                        {}
@@ -86,6 +466,384 @@ func RegisterContestServiceServer(s grpc.ServiceRegistrar, srv ContestServiceSer
 	s.RegisterService(&ContestService_ServiceDesc, srv)
 }
 
+func _ContestService_ListContests_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListContestsReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).ListContests(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_ListContests_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).ListContests(ctx, req.(*ListContestsReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_GetContest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetContestReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).GetContest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_GetContest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).GetContest(ctx, req.(*GetContestReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_RegisterContest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterContestReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).RegisterContest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_RegisterContest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).RegisterContest(ctx, req.(*RegisterContestReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_CancelRegistration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelRegistrationReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).CancelRegistration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_CancelRegistration_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).CancelRegistration(ctx, req.(*CancelRegistrationReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_GetMyContestStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetMyContestStatusReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).GetMyContestStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_GetMyContestStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).GetMyContestStatus(ctx, req.(*GetMyContestStatusReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_ListContestProblems_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListContestProblemsReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).ListContestProblems(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_ListContestProblems_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).ListContestProblems(ctx, req.(*ListContestProblemsReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_GetScoreboard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetScoreboardReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).GetScoreboard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_GetScoreboard_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).GetScoreboard(ctx, req.(*GetScoreboardReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_CreateContest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateContestReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).CreateContest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_CreateContest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).CreateContest(ctx, req.(*CreateContestReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_GetContestForEdit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetContestForEditReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).GetContestForEdit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_GetContestForEdit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).GetContestForEdit(ctx, req.(*GetContestForEditReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_UpdateContest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateContestReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).UpdateContest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_UpdateContest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).UpdateContest(ctx, req.(*UpdateContestReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_PublishContest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PublishContestReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).PublishContest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_PublishContest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).PublishContest(ctx, req.(*PublishContestReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_CancelContest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelContestReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).CancelContest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_CancelContest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).CancelContest(ctx, req.(*CancelContestReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_ArchiveContest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ArchiveContestReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).ArchiveContest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_ArchiveContest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).ArchiveContest(ctx, req.(*ArchiveContestReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_DeleteContest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteContestReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).DeleteContest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_DeleteContest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).DeleteContest(ctx, req.(*DeleteContestReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_RestoreContest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RestoreContestReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).RestoreContest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_RestoreContest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).RestoreContest(ctx, req.(*RestoreContestReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_SetContestProblems_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetContestProblemsReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).SetContestProblems(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_SetContestProblems_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).SetContestProblems(ctx, req.(*SetContestProblemsReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_ListRegistrations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListRegistrationsReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).ListRegistrations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_ListRegistrations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).ListRegistrations(ctx, req.(*ListRegistrationsReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_ReviewRegistration_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReviewRegistrationReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).ReviewRegistration(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_ReviewRegistration_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).ReviewRegistration(ctx, req.(*ReviewRegistrationReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_ListParticipants_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListParticipantsReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).ListParticipants(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_ListParticipants_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).ListParticipants(ctx, req.(*ListParticipantsReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_FreezeScoreboard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FreezeScoreboardReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).FreezeScoreboard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_FreezeScoreboard_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).FreezeScoreboard(ctx, req.(*FreezeScoreboardReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_UnfreezeScoreboard_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnfreezeScoreboardReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).UnfreezeScoreboard(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_UnfreezeScoreboard_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).UnfreezeScoreboard(ctx, req.(*UnfreezeScoreboardReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ContestService_CanAccessProblem_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(CanAccessProblemReq)
 	if err := dec(in); err != nil {
@@ -104,6 +862,24 @@ func _ContestService_CanAccessProblem_Handler(srv interface{}, ctx context.Conte
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ContestService_ValidateContestSubmission_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ValidateContestSubmissionReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).ValidateContestSubmission(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_ValidateContestSubmission_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).ValidateContestSubmission(ctx, req.(*ValidateContestSubmissionReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ContestService_ServiceDesc is the grpc.ServiceDesc for ContestService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -112,10 +888,98 @@ var ContestService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*ContestServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "ListContests",
+			Handler:    _ContestService_ListContests_Handler,
+		},
+		{
+			MethodName: "GetContest",
+			Handler:    _ContestService_GetContest_Handler,
+		},
+		{
+			MethodName: "RegisterContest",
+			Handler:    _ContestService_RegisterContest_Handler,
+		},
+		{
+			MethodName: "CancelRegistration",
+			Handler:    _ContestService_CancelRegistration_Handler,
+		},
+		{
+			MethodName: "GetMyContestStatus",
+			Handler:    _ContestService_GetMyContestStatus_Handler,
+		},
+		{
+			MethodName: "ListContestProblems",
+			Handler:    _ContestService_ListContestProblems_Handler,
+		},
+		{
+			MethodName: "GetScoreboard",
+			Handler:    _ContestService_GetScoreboard_Handler,
+		},
+		{
+			MethodName: "CreateContest",
+			Handler:    _ContestService_CreateContest_Handler,
+		},
+		{
+			MethodName: "GetContestForEdit",
+			Handler:    _ContestService_GetContestForEdit_Handler,
+		},
+		{
+			MethodName: "UpdateContest",
+			Handler:    _ContestService_UpdateContest_Handler,
+		},
+		{
+			MethodName: "PublishContest",
+			Handler:    _ContestService_PublishContest_Handler,
+		},
+		{
+			MethodName: "CancelContest",
+			Handler:    _ContestService_CancelContest_Handler,
+		},
+		{
+			MethodName: "ArchiveContest",
+			Handler:    _ContestService_ArchiveContest_Handler,
+		},
+		{
+			MethodName: "DeleteContest",
+			Handler:    _ContestService_DeleteContest_Handler,
+		},
+		{
+			MethodName: "RestoreContest",
+			Handler:    _ContestService_RestoreContest_Handler,
+		},
+		{
+			MethodName: "SetContestProblems",
+			Handler:    _ContestService_SetContestProblems_Handler,
+		},
+		{
+			MethodName: "ListRegistrations",
+			Handler:    _ContestService_ListRegistrations_Handler,
+		},
+		{
+			MethodName: "ReviewRegistration",
+			Handler:    _ContestService_ReviewRegistration_Handler,
+		},
+		{
+			MethodName: "ListParticipants",
+			Handler:    _ContestService_ListParticipants_Handler,
+		},
+		{
+			MethodName: "FreezeScoreboard",
+			Handler:    _ContestService_FreezeScoreboard_Handler,
+		},
+		{
+			MethodName: "UnfreezeScoreboard",
+			Handler:    _ContestService_UnfreezeScoreboard_Handler,
+		},
+		{
 			MethodName: "CanAccessProblem",
 			Handler:    _ContestService_CanAccessProblem_Handler,
 		},
+		{
+			MethodName: "ValidateContestSubmission",
+			Handler:    _ContestService_ValidateContestSubmission_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "contest.proto",
+	Metadata: "proto/contest.proto",
 }
