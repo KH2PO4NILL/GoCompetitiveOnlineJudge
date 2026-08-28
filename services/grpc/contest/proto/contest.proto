@@ -1,0 +1,607 @@
+syntax = "proto3";
+
+package contest;
+option go_package = "./pb";
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/timestamp.proto";
+
+// 所有 UNSPECIFIED 值仅表示请求未指定，不能作为有效业务状态持久化。
+enum ContestMode {
+  CONTEST_MODE_UNSPECIFIED = 0;
+  // ICPC：按解题数、罚时和最后解题时间排名。
+  CONTEST_MODE_ICPC = 1;
+  // IOI：按比赛期间可见的每题最高分及总分排名。
+  CONTEST_MODE_IOI = 2;
+  // OI：按每题最高分及总分排名；比赛期间通常隐藏真实得分和评测结果。
+  CONTEST_MODE_OI = 3;
+}
+
+enum ContestStatus {
+  CONTEST_STATUS_UNSPECIFIED = 0;
+  CONTEST_STATUS_DRAFT = 1;
+  // 已发布但服务端当前时间早于 start_at。
+  CONTEST_STATUS_PUBLISHED = 2;
+  // 已发布且 start_at <= 服务端当前时间 < end_at。
+  CONTEST_STATUS_RUNNING = 3;
+  // 已发布且服务端当前时间 >= end_at。
+  CONTEST_STATUS_FINISHED = 4;
+  CONTEST_STATUS_CANCELLED = 5;
+  CONTEST_STATUS_ARCHIVED = 6;
+  CONTEST_STATUS_DELETED = 7;
+}
+
+// PUBLISHED、RUNNING 和 FINISHED 是同一已发布生命周期的时间阶段，服务端必须
+// 使用自身时钟和 start_at/end_at 计算，不得依赖客户端传值或异步定时任务及时切换。
+// CANCELLED、ARCHIVED、DELETED 是显式生命周期状态，并优先于时间阶段。
+
+enum ContestVisibility {
+  CONTEST_VISIBILITY_UNSPECIFIED = 0;
+  // 可出现在公开列表并允许公开读取详情。
+  CONTEST_VISIBILITY_PUBLIC = 1;
+  // 不出现在公开列表；知道 contest_id 的用户仍可读取详情。
+  CONTEST_VISIBILITY_UNLISTED = 2;
+  // 仅创建者、管理员、受邀用户或已获参赛资格的用户可见。
+  CONTEST_VISIBILITY_PRIVATE = 3;
+}
+
+enum RegistrationPolicy {
+  REGISTRATION_POLICY_UNSPECIFIED = 0;
+  REGISTRATION_POLICY_OPEN = 1;
+  REGISTRATION_POLICY_APPROVAL_REQUIRED = 2;
+  REGISTRATION_POLICY_INVITE_ONLY = 3;
+}
+
+enum RegistrationStatus {
+  REGISTRATION_STATUS_UNSPECIFIED = 0;
+  REGISTRATION_STATUS_PENDING = 1;
+  REGISTRATION_STATUS_APPROVED = 2;
+  REGISTRATION_STATUS_REJECTED = 3;
+  REGISTRATION_STATUS_CANCELLED = 4;
+}
+
+enum RegistrationReviewDecision {
+  REGISTRATION_REVIEW_DECISION_UNSPECIFIED = 0;
+  REGISTRATION_REVIEW_DECISION_APPROVE = 1;
+  REGISTRATION_REVIEW_DECISION_REJECT = 2;
+}
+
+enum ParticipantStatus {
+  PARTICIPANT_STATUS_UNSPECIFIED = 0;
+  PARTICIPANT_STATUS_NORMAL = 1;
+  PARTICIPANT_STATUS_DISQUALIFIED = 2;
+  PARTICIPANT_STATUS_WITHDRAWN = 3;
+}
+
+enum ScoreboardVisibility {
+  SCOREBOARD_VISIBILITY_UNSPECIFIED = 0;
+  SCOREBOARD_VISIBILITY_PUBLIC = 1;
+  SCOREBOARD_VISIBILITY_PARTICIPANTS_ONLY = 2;
+  SCOREBOARD_VISIBILITY_HIDDEN = 3;
+}
+
+// 说明用户当前拿到的是实时榜、封榜公开快照还是最终榜。
+enum ScoreboardView {
+  SCOREBOARD_VIEW_UNSPECIFIED = 0;
+  SCOREBOARD_VIEW_LIVE = 1;
+  SCOREBOARD_VIEW_FROZEN_PUBLIC_SNAPSHOT = 2;
+  SCOREBOARD_VIEW_FINAL = 3;
+}
+
+enum SubmissionDenyReason {
+  SUBMISSION_DENY_REASON_UNSPECIFIED = 0;
+  SUBMISSION_DENY_REASON_NOT_REGISTERED = 1;
+  SUBMISSION_DENY_REASON_REGISTRATION_PENDING = 2;
+  SUBMISSION_DENY_REASON_CONTEST_NOT_STARTED = 3;
+  SUBMISSION_DENY_REASON_CONTEST_FINISHED = 4;
+  SUBMISSION_DENY_REASON_CONTEST_CANCELLED = 5;
+  SUBMISSION_DENY_REASON_PROBLEM_NOT_ASSIGNED = 6;
+  SUBMISSION_DENY_REASON_PARTICIPANT_DISQUALIFIED = 7;
+  SUBMISSION_DENY_REASON_PARTICIPANT_WITHDRAWN = 8;
+  SUBMISSION_DENY_REASON_UNAUTHORIZED = 9;
+  SUBMISSION_DENY_REASON_OTHER = 10;
+}
+
+//////////////////// 比赛配置与展示 ////////////////////
+
+// 创建者可以提供或修改的字段。creator_id、status、revision 和审计时间由服务端维护。
+message ContestEditableFields {
+  string title = 1;
+  string description = 2;
+  ContestMode mode = 3;
+  google.protobuf.Timestamp start_at = 4;
+  google.protobuf.Timestamp end_at = 5;
+  google.protobuf.Timestamp registration_start_at = 6;
+  google.protobuf.Timestamp registration_end_at = 7;
+  RegistrationPolicy registration_policy = 8;
+  ContestVisibility visibility = 9;
+  ScoreboardVisibility scoreboard_visibility = 10;
+
+  // 仅 ICPC 模式允许配置封榜。二者只能设置一个；均未设置表示不自动封榜。
+  oneof scoreboard_freeze_policy {
+    google.protobuf.Timestamp scoreboard_freeze_at = 11;
+    google.protobuf.Duration scoreboard_freeze_before_end = 12;
+  }
+
+  // 仅管理端 DTO 可以返回。INVITE_ONLY 比赛可由服务端生成或由创建者设置；
+  // 用户侧 ContestDetail 和 ContestSummary 绝不能包含该值。
+  optional string invite_code = 13;
+}
+
+// 管理端完整比赛对象，包含敏感配置，不得从用户侧接口返回。
+message Contest {
+  int64 contest_id = 1;
+  int64 creator_id = 2;
+  ContestEditableFields editable = 3;
+  ContestStatus status = 4;
+  int64 revision = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  google.protobuf.Timestamp published_at = 8;
+  google.protobuf.Timestamp cancelled_at = 9;
+  google.protobuf.Timestamp archived_at = 10;
+  google.protobuf.Timestamp deleted_at = 11;
+  bool scoreboard_frozen = 12;
+  google.protobuf.Timestamp scoreboard_frozen_at = 13;
+}
+
+// 用户侧详情。服务端应根据身份和比赛阶段裁剪信息，不包含邀请码和内部配置。
+message ContestDetail {
+  int64 contest_id = 1;
+  string title = 2;
+  string description = 3;
+  ContestMode mode = 4;
+  ContestStatus status = 5;
+  google.protobuf.Timestamp start_at = 6;
+  google.protobuf.Timestamp end_at = 7;
+  google.protobuf.Timestamp registration_start_at = 8;
+  google.protobuf.Timestamp registration_end_at = 9;
+  RegistrationPolicy registration_policy = 10;
+  ContestVisibility visibility = 11;
+  ScoreboardVisibility scoreboard_visibility = 12;
+  bool registration_open = 13;
+  bool scoreboard_frozen = 14;
+  int64 participant_count = 15;
+}
+
+// 列表页轻量信息，按 start_at 降序、contest_id 降序稳定排序。
+message ContestSummary {
+  int64 contest_id = 1;
+  string title = 2;
+  ContestMode mode = 3;
+  ContestStatus status = 4;
+  google.protobuf.Timestamp start_at = 5;
+  google.protobuf.Timestamp end_at = 6;
+  RegistrationPolicy registration_policy = 7;
+  ContestVisibility visibility = 8;
+  bool registration_open = 9;
+  int64 participant_count = 10;
+}
+
+//////////////////// 比赛题目 ////////////////////
+
+// 管理端题目编排项。Contest RPC 只保存跨服务 problem_id，不嵌套 Problem 内部对象。
+message ContestProblem {
+  int64 problem_id = 1;
+  string label = 2;
+  int32 display_order = 3;
+  // IOI/OI 模式的比赛内满分；ICPC 模式必须为 0。
+  int64 max_score = 4;
+}
+
+// 用户侧安全题目条目。未开赛或无权访问时不得返回该消息。
+message ContestProblemSummary {
+  int64 problem_id = 1;
+  string label = 2;
+  int32 display_order = 3;
+  int64 max_score = 4;
+}
+
+//////////////////// 报名与参赛 ////////////////////
+
+// 报名记录不等同于正式参赛资格；仅 APPROVED 的报名才能产生正常参赛者。
+message ContestRegistration {
+  int64 registration_id = 1;
+  int64 contest_id = 2;
+  int64 user_id = 3;
+  RegistrationStatus status = 4;
+  string application_note = 5;
+  int64 reviewer_id = 6;
+  string review_note = 7;
+  int64 revision = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp reviewed_at = 10;
+  google.protobuf.Timestamp cancelled_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+message ContestParticipant {
+  int64 contest_id = 1;
+  int64 user_id = 2;
+  ParticipantStatus status = 3;
+  google.protobuf.Timestamp qualified_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+// 当前用户的报名和参赛状态。registration/participant 缺失表示对应记录不存在。
+message MyContestStatus {
+  int64 contest_id = 1;
+  ContestRegistration registration = 2;
+  ContestParticipant participant = 3;
+  bool can_view_problems = 4;
+  bool can_submit = 5;
+}
+
+//////////////////// 排行榜 ////////////////////
+
+message IcpcProblemResult {
+  bool solved = 1;
+  int32 wrong_attempts = 2;
+  google.protobuf.Duration penalty = 3;
+  google.protobuf.Timestamp accepted_at = 4;
+  bool first_to_solve = 5;
+}
+
+message IoiProblemResult {
+  int64 score = 1;
+  int64 max_score = 2;
+  int32 submission_count = 3;
+  google.protobuf.Timestamp last_effective_submission_at = 4;
+}
+
+message OiProblemResult {
+  int64 score = 1;
+  int64 max_score = 2;
+  int32 submission_count = 3;
+  google.protobuf.Timestamp last_effective_submission_at = 4;
+}
+
+message ScoreboardProblemResult {
+  int64 problem_id = 1;
+  string label = 2;
+
+  // 必须与 Scoreboard.mode 一致；禁止同时返回多种赛制结果。
+  oneof result {
+    IcpcProblemResult icpc = 3;
+    IoiProblemResult ioi = 4;
+    OiProblemResult oi = 5;
+  }
+}
+
+message IcpcScore {
+  int32 solved_count = 1;
+  google.protobuf.Duration total_penalty = 2;
+  google.protobuf.Timestamp last_solved_at = 3;
+}
+
+message IoiScore {
+  int64 total_score = 1;
+  google.protobuf.Timestamp last_effective_submission_at = 2;
+}
+
+message OiScore {
+  int64 total_score = 1;
+  google.protobuf.Timestamp last_effective_submission_at = 2;
+}
+
+message ScoreboardRow {
+  // rank 允许并列；ordinal 是分页和稳定排序使用的唯一顺序位置。
+  int64 rank = 1;
+  int64 ordinal = 2;
+  int64 user_id = 3;
+  string display_name = 4;
+  repeated ScoreboardProblemResult problem_results = 5;
+
+  oneof score {
+    IcpcScore icpc = 6;
+    IoiScore ioi = 7;
+    OiScore oi = 8;
+  }
+}
+
+message Scoreboard {
+  int64 contest_id = 1;
+  ContestMode mode = 2;
+  google.protobuf.Timestamp generated_at = 3;
+  bool frozen = 4;
+  ScoreboardView view = 5;
+  int64 total = 6;
+  repeated ScoreboardRow rows = 7;
+}
+
+// 封榜期间，GetScoreboard 只能基于封榜时公开快照构造 Scoreboard；不得返回封榜后
+// 的提交次数、题目结果、真实罚时、得分、时间戳或任何可反推出真实排名的字段。
+
+//////////////////// 用户侧接口 ////////////////////
+
+message ListContestsReq {
+  int32 page = 1;
+  int32 page_size = 2;
+  string keyword = 3;
+  ContestStatus status = 4;
+  ContestMode mode = 5;
+}
+
+message ListContestsResp {
+  int64 total = 1;
+  repeated ContestSummary contests = 2;
+}
+
+message GetContestReq {
+  int64 contest_id = 1;
+}
+
+message GetContestResp {
+  ContestDetail contest = 1;
+}
+
+// 当前用户身份必须来自受信任 gRPC metadata/context，不能由请求体指定。
+message RegisterContestReq {
+  int64 contest_id = 1;
+  string invite_code = 2;
+  string application_note = 3;
+}
+
+message RegisterContestResp {
+  ContestRegistration registration = 1;
+}
+
+message CancelRegistrationReq {
+  int64 contest_id = 1;
+  int64 expected_revision = 2;
+}
+
+message CancelRegistrationResp {
+  ContestRegistration registration = 1;
+}
+
+message GetMyContestStatusReq {
+  int64 contest_id = 1;
+}
+
+message GetMyContestStatusResp {
+  MyContestStatus status = 1;
+}
+
+message ListContestProblemsReq {
+  int64 contest_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message ListContestProblemsResp {
+  int64 total = 1;
+  repeated ContestProblemSummary problems = 2;
+}
+
+message GetScoreboardReq {
+  int64 contest_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+}
+
+message GetScoreboardResp {
+  Scoreboard scoreboard = 1;
+}
+
+//////////////////// 创建者与管理员接口 ////////////////////
+
+message CreateContestReq {
+  ContestEditableFields contest = 1;
+}
+
+message CreateContestResp {
+  Contest contest = 1;
+}
+
+message GetContestForEditReq {
+  int64 contest_id = 1;
+}
+
+message GetContestForEditResp {
+  Contest contest = 1;
+  repeated ContestProblem problems = 2;
+}
+
+message UpdateContestReq {
+  int64 contest_id = 1;
+  ContestEditableFields contest = 2;
+  // 路径相对于 ContestEditableFields，例如 title、start_at、scoreboard_freeze_at。
+  google.protobuf.FieldMask update_mask = 3;
+  // 与当前比赛 revision 不同必须返回 ABORTED。
+  int64 expected_revision = 4;
+}
+
+message UpdateContestResp {
+  Contest contest = 1;
+}
+
+message PublishContestReq {
+  int64 contest_id = 1;
+  int64 expected_revision = 2;
+}
+
+message PublishContestResp {
+  Contest contest = 1;
+}
+
+message CancelContestReq {
+  int64 contest_id = 1;
+  int64 expected_revision = 2;
+  string reason = 3;
+}
+
+message CancelContestResp {
+  Contest contest = 1;
+}
+
+message ArchiveContestReq {
+  int64 contest_id = 1;
+  int64 expected_revision = 2;
+}
+
+message ArchiveContestResp {
+  Contest contest = 1;
+}
+
+// 软删除比赛。
+message DeleteContestReq {
+  int64 contest_id = 1;
+  int64 expected_revision = 2;
+}
+
+message DeleteContestResp {
+  int64 revision = 1;
+}
+
+message RestoreContestReq {
+  int64 contest_id = 1;
+  int64 expected_revision = 2;
+}
+
+message RestoreContestResp {
+  Contest contest = 1;
+}
+
+// 原子替换完整题目编排。problem_id、label、display_order 均不得重复；冲突返回
+// ALREADY_EXISTS，任一条非法时整个请求不得生效。
+message SetContestProblemsReq {
+  int64 contest_id = 1;
+  repeated ContestProblem problems = 2;
+  int64 expected_revision = 3;
+}
+
+message SetContestProblemsResp {
+  Contest contest = 1;
+  repeated ContestProblem problems = 2;
+}
+
+message ListRegistrationsReq {
+  int64 contest_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  RegistrationStatus status = 4;
+}
+
+message ListRegistrationsResp {
+  int64 total = 1;
+  // 按 created_at 升序、registration_id 升序稳定排序。
+  repeated ContestRegistration registrations = 2;
+}
+
+message ReviewRegistrationReq {
+  int64 contest_id = 1;
+  int64 registration_id = 2;
+  RegistrationReviewDecision decision = 3;
+  string review_note = 4;
+  int64 expected_revision = 5;
+}
+
+message ReviewRegistrationResp {
+  ContestRegistration registration = 1;
+  ContestParticipant participant = 2;
+}
+
+message ListParticipantsReq {
+  int64 contest_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  ParticipantStatus status = 4;
+}
+
+message ListParticipantsResp {
+  int64 total = 1;
+  // 按 qualified_at 升序、user_id 升序稳定排序。
+  repeated ContestParticipant participants = 2;
+}
+
+message FreezeScoreboardReq {
+  int64 contest_id = 1;
+  int64 expected_revision = 2;
+}
+
+message FreezeScoreboardResp {
+  Contest contest = 1;
+}
+
+message UnfreezeScoreboardReq {
+  int64 contest_id = 1;
+  int64 expected_revision = 2;
+}
+
+message UnfreezeScoreboardResp {
+  Contest contest = 1;
+}
+
+//////////////////// 受信任内部服务接口 ////////////////////
+
+// 仅 Problem RPC 可调用。字段号和方法签名保持与现有客户端兼容。
+message CanAccessProblemReq {
+  int64 contest_id = 1;
+  int64 problem_id = 2;
+  int64 user_id = 3;
+}
+
+message CanAccessProblemResp {
+  bool allowed = 1;
+  // allowed=false 时给出可判别的业务原因；依赖故障仍通过 gRPC status 返回。
+  SubmissionDenyReason deny_reason = 2;
+}
+
+// 仅 Submit RPC 可调用。user_id 和 submitted_at 必须来自受信任服务上下文。
+message ValidateContestSubmissionReq {
+  int64 contest_id = 1;
+  int64 problem_id = 2;
+  int64 user_id = 3;
+  google.protobuf.Timestamp submitted_at = 4;
+}
+
+message ValidateContestSubmissionResp {
+  bool allowed = 1;
+  // allowed=true 时必须为 UNSPECIFIED；业务拒绝必须返回具体枚举值。
+  SubmissionDenyReason deny_reason = 2;
+  ContestMode mode = 3;
+}
+
+// 权限边界：用户侧方法从 metadata/context 解析当前用户；管理方法再次校验创建者或
+// 管理员权限；内部方法只接受受信任服务身份，不得直接暴露到 HTTP API。
+//
+// 状态码约定：非法参数/枚举/时间/FieldMask 返回 INVALID_ARGUMENT；身份缺失返回
+// UNAUTHENTICATED；无权访问返回 PERMISSION_DENIED；资源不存在返回 NOT_FOUND；
+// 重复报名/题目/标签返回 ALREADY_EXISTS；revision 冲突返回 ABORTED；非法状态迁移
+// 或时间窗口不满足返回 FAILED_PRECONDITION；分页或批量超限返回 RESOURCE_EXHAUSTED；
+// 下游依赖临时故障返回 UNAVAILABLE；未分类服务故障返回 INTERNAL。公开查询必须以
+// 相同方式处理“不存在”和“存在但不可见”，避免枚举私有比赛。
+service ContestService {
+  // 用户侧查询与自助操作。
+  rpc ListContests(ListContestsReq) returns (ListContestsResp);
+  rpc GetContest(GetContestReq) returns (GetContestResp);
+  rpc RegisterContest(RegisterContestReq) returns (RegisterContestResp);
+  rpc CancelRegistration(CancelRegistrationReq) returns (CancelRegistrationResp);
+  rpc GetMyContestStatus(GetMyContestStatusReq) returns (GetMyContestStatusResp);
+  rpc ListContestProblems(ListContestProblemsReq) returns (ListContestProblemsResp);
+  rpc GetScoreboard(GetScoreboardReq) returns (GetScoreboardResp);
+
+  // 创建者与管理员接口。发布前必须校验必填字段；比赛开始后不可修改赛制、时间和题目
+  // 编排。封榜/解封榜仅适用于已发布的 ICPC 比赛。
+  rpc CreateContest(CreateContestReq) returns (CreateContestResp);
+  rpc GetContestForEdit(GetContestForEditReq) returns (GetContestForEditResp);
+  rpc UpdateContest(UpdateContestReq) returns (UpdateContestResp);
+  rpc PublishContest(PublishContestReq) returns (PublishContestResp);
+  rpc CancelContest(CancelContestReq) returns (CancelContestResp);
+  rpc ArchiveContest(ArchiveContestReq) returns (ArchiveContestResp);
+  rpc DeleteContest(DeleteContestReq) returns (DeleteContestResp);
+  rpc RestoreContest(RestoreContestReq) returns (RestoreContestResp);
+  rpc SetContestProblems(SetContestProblemsReq) returns (SetContestProblemsResp);
+  rpc ListRegistrations(ListRegistrationsReq) returns (ListRegistrationsResp);
+  rpc ReviewRegistration(ReviewRegistrationReq) returns (ReviewRegistrationResp);
+  rpc ListParticipants(ListParticipantsReq) returns (ListParticipantsResp);
+  rpc FreezeScoreboard(FreezeScoreboardReq) returns (FreezeScoreboardResp);
+  rpc UnfreezeScoreboard(UnfreezeScoreboardReq) returns (UnfreezeScoreboardResp);
+
+  // 受信任内部服务接口。预期业务拒绝使用响应字段，系统故障使用 gRPC status。
+  rpc CanAccessProblem(CanAccessProblemReq) returns (CanAccessProblemResp);
+  rpc ValidateContestSubmission(ValidateContestSubmissionReq)
+      returns (ValidateContestSubmissionResp);
+}

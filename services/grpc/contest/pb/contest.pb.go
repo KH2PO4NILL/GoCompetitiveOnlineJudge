@@ -2,13 +2,16 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v3.19.4
-// source: contest.proto
+// source: proto/contest.proto
 
 package pb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
+	fieldmaskpb "google.golang.org/protobuf/types/known/fieldmaskpb"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -21,8 +24,4494 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Problem RPC uses this internal contract to verify both contest membership
-// and that the requested problem is assigned to the contest.
+// 所有 UNSPECIFIED 值仅表示请求未指定，不能作为有效业务状态持久化。
+type ContestMode int32
+
+const (
+	ContestMode_CONTEST_MODE_UNSPECIFIED ContestMode = 0
+	// ICPC：按解题数、罚时和最后解题时间排名。
+	ContestMode_CONTEST_MODE_ICPC ContestMode = 1
+	// IOI：按比赛期间可见的每题最高分及总分排名。
+	ContestMode_CONTEST_MODE_IOI ContestMode = 2
+	// OI：按每题最高分及总分排名；比赛期间通常隐藏真实得分和评测结果。
+	ContestMode_CONTEST_MODE_OI ContestMode = 3
+)
+
+// Enum value maps for ContestMode.
+var (
+	ContestMode_name = map[int32]string{
+		0: "CONTEST_MODE_UNSPECIFIED",
+		1: "CONTEST_MODE_ICPC",
+		2: "CONTEST_MODE_IOI",
+		3: "CONTEST_MODE_OI",
+	}
+	ContestMode_value = map[string]int32{
+		"CONTEST_MODE_UNSPECIFIED": 0,
+		"CONTEST_MODE_ICPC":        1,
+		"CONTEST_MODE_IOI":         2,
+		"CONTEST_MODE_OI":          3,
+	}
+)
+
+func (x ContestMode) Enum() *ContestMode {
+	p := new(ContestMode)
+	*p = x
+	return p
+}
+
+func (x ContestMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ContestMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_contest_proto_enumTypes[0].Descriptor()
+}
+
+func (ContestMode) Type() protoreflect.EnumType {
+	return &file_proto_contest_proto_enumTypes[0]
+}
+
+func (x ContestMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ContestMode.Descriptor instead.
+func (ContestMode) EnumDescriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{0}
+}
+
+type ContestStatus int32
+
+const (
+	ContestStatus_CONTEST_STATUS_UNSPECIFIED ContestStatus = 0
+	ContestStatus_CONTEST_STATUS_DRAFT       ContestStatus = 1
+	// 已发布但服务端当前时间早于 start_at。
+	ContestStatus_CONTEST_STATUS_PUBLISHED ContestStatus = 2
+	// 已发布且 start_at <= 服务端当前时间 < end_at。
+	ContestStatus_CONTEST_STATUS_RUNNING ContestStatus = 3
+	// 已发布且服务端当前时间 >= end_at。
+	ContestStatus_CONTEST_STATUS_FINISHED  ContestStatus = 4
+	ContestStatus_CONTEST_STATUS_CANCELLED ContestStatus = 5
+	ContestStatus_CONTEST_STATUS_ARCHIVED  ContestStatus = 6
+	ContestStatus_CONTEST_STATUS_DELETED   ContestStatus = 7
+)
+
+// Enum value maps for ContestStatus.
+var (
+	ContestStatus_name = map[int32]string{
+		0: "CONTEST_STATUS_UNSPECIFIED",
+		1: "CONTEST_STATUS_DRAFT",
+		2: "CONTEST_STATUS_PUBLISHED",
+		3: "CONTEST_STATUS_RUNNING",
+		4: "CONTEST_STATUS_FINISHED",
+		5: "CONTEST_STATUS_CANCELLED",
+		6: "CONTEST_STATUS_ARCHIVED",
+		7: "CONTEST_STATUS_DELETED",
+	}
+	ContestStatus_value = map[string]int32{
+		"CONTEST_STATUS_UNSPECIFIED": 0,
+		"CONTEST_STATUS_DRAFT":       1,
+		"CONTEST_STATUS_PUBLISHED":   2,
+		"CONTEST_STATUS_RUNNING":     3,
+		"CONTEST_STATUS_FINISHED":    4,
+		"CONTEST_STATUS_CANCELLED":   5,
+		"CONTEST_STATUS_ARCHIVED":    6,
+		"CONTEST_STATUS_DELETED":     7,
+	}
+)
+
+func (x ContestStatus) Enum() *ContestStatus {
+	p := new(ContestStatus)
+	*p = x
+	return p
+}
+
+func (x ContestStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ContestStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_contest_proto_enumTypes[1].Descriptor()
+}
+
+func (ContestStatus) Type() protoreflect.EnumType {
+	return &file_proto_contest_proto_enumTypes[1]
+}
+
+func (x ContestStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ContestStatus.Descriptor instead.
+func (ContestStatus) EnumDescriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{1}
+}
+
+type ContestVisibility int32
+
+const (
+	ContestVisibility_CONTEST_VISIBILITY_UNSPECIFIED ContestVisibility = 0
+	// 可出现在公开列表并允许公开读取详情。
+	ContestVisibility_CONTEST_VISIBILITY_PUBLIC ContestVisibility = 1
+	// 不出现在公开列表；知道 contest_id 的用户仍可读取详情。
+	ContestVisibility_CONTEST_VISIBILITY_UNLISTED ContestVisibility = 2
+	// 仅创建者、管理员、受邀用户或已获参赛资格的用户可见。
+	ContestVisibility_CONTEST_VISIBILITY_PRIVATE ContestVisibility = 3
+)
+
+// Enum value maps for ContestVisibility.
+var (
+	ContestVisibility_name = map[int32]string{
+		0: "CONTEST_VISIBILITY_UNSPECIFIED",
+		1: "CONTEST_VISIBILITY_PUBLIC",
+		2: "CONTEST_VISIBILITY_UNLISTED",
+		3: "CONTEST_VISIBILITY_PRIVATE",
+	}
+	ContestVisibility_value = map[string]int32{
+		"CONTEST_VISIBILITY_UNSPECIFIED": 0,
+		"CONTEST_VISIBILITY_PUBLIC":      1,
+		"CONTEST_VISIBILITY_UNLISTED":    2,
+		"CONTEST_VISIBILITY_PRIVATE":     3,
+	}
+)
+
+func (x ContestVisibility) Enum() *ContestVisibility {
+	p := new(ContestVisibility)
+	*p = x
+	return p
+}
+
+func (x ContestVisibility) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ContestVisibility) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_contest_proto_enumTypes[2].Descriptor()
+}
+
+func (ContestVisibility) Type() protoreflect.EnumType {
+	return &file_proto_contest_proto_enumTypes[2]
+}
+
+func (x ContestVisibility) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ContestVisibility.Descriptor instead.
+func (ContestVisibility) EnumDescriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{2}
+}
+
+type RegistrationPolicy int32
+
+const (
+	RegistrationPolicy_REGISTRATION_POLICY_UNSPECIFIED       RegistrationPolicy = 0
+	RegistrationPolicy_REGISTRATION_POLICY_OPEN              RegistrationPolicy = 1
+	RegistrationPolicy_REGISTRATION_POLICY_APPROVAL_REQUIRED RegistrationPolicy = 2
+	RegistrationPolicy_REGISTRATION_POLICY_INVITE_ONLY       RegistrationPolicy = 3
+)
+
+// Enum value maps for RegistrationPolicy.
+var (
+	RegistrationPolicy_name = map[int32]string{
+		0: "REGISTRATION_POLICY_UNSPECIFIED",
+		1: "REGISTRATION_POLICY_OPEN",
+		2: "REGISTRATION_POLICY_APPROVAL_REQUIRED",
+		3: "REGISTRATION_POLICY_INVITE_ONLY",
+	}
+	RegistrationPolicy_value = map[string]int32{
+		"REGISTRATION_POLICY_UNSPECIFIED":       0,
+		"REGISTRATION_POLICY_OPEN":              1,
+		"REGISTRATION_POLICY_APPROVAL_REQUIRED": 2,
+		"REGISTRATION_POLICY_INVITE_ONLY":       3,
+	}
+)
+
+func (x RegistrationPolicy) Enum() *RegistrationPolicy {
+	p := new(RegistrationPolicy)
+	*p = x
+	return p
+}
+
+func (x RegistrationPolicy) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RegistrationPolicy) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_contest_proto_enumTypes[3].Descriptor()
+}
+
+func (RegistrationPolicy) Type() protoreflect.EnumType {
+	return &file_proto_contest_proto_enumTypes[3]
+}
+
+func (x RegistrationPolicy) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RegistrationPolicy.Descriptor instead.
+func (RegistrationPolicy) EnumDescriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{3}
+}
+
+type RegistrationStatus int32
+
+const (
+	RegistrationStatus_REGISTRATION_STATUS_UNSPECIFIED RegistrationStatus = 0
+	RegistrationStatus_REGISTRATION_STATUS_PENDING     RegistrationStatus = 1
+	RegistrationStatus_REGISTRATION_STATUS_APPROVED    RegistrationStatus = 2
+	RegistrationStatus_REGISTRATION_STATUS_REJECTED    RegistrationStatus = 3
+	RegistrationStatus_REGISTRATION_STATUS_CANCELLED   RegistrationStatus = 4
+)
+
+// Enum value maps for RegistrationStatus.
+var (
+	RegistrationStatus_name = map[int32]string{
+		0: "REGISTRATION_STATUS_UNSPECIFIED",
+		1: "REGISTRATION_STATUS_PENDING",
+		2: "REGISTRATION_STATUS_APPROVED",
+		3: "REGISTRATION_STATUS_REJECTED",
+		4: "REGISTRATION_STATUS_CANCELLED",
+	}
+	RegistrationStatus_value = map[string]int32{
+		"REGISTRATION_STATUS_UNSPECIFIED": 0,
+		"REGISTRATION_STATUS_PENDING":     1,
+		"REGISTRATION_STATUS_APPROVED":    2,
+		"REGISTRATION_STATUS_REJECTED":    3,
+		"REGISTRATION_STATUS_CANCELLED":   4,
+	}
+)
+
+func (x RegistrationStatus) Enum() *RegistrationStatus {
+	p := new(RegistrationStatus)
+	*p = x
+	return p
+}
+
+func (x RegistrationStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RegistrationStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_contest_proto_enumTypes[4].Descriptor()
+}
+
+func (RegistrationStatus) Type() protoreflect.EnumType {
+	return &file_proto_contest_proto_enumTypes[4]
+}
+
+func (x RegistrationStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RegistrationStatus.Descriptor instead.
+func (RegistrationStatus) EnumDescriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{4}
+}
+
+type RegistrationReviewDecision int32
+
+const (
+	RegistrationReviewDecision_REGISTRATION_REVIEW_DECISION_UNSPECIFIED RegistrationReviewDecision = 0
+	RegistrationReviewDecision_REGISTRATION_REVIEW_DECISION_APPROVE     RegistrationReviewDecision = 1
+	RegistrationReviewDecision_REGISTRATION_REVIEW_DECISION_REJECT      RegistrationReviewDecision = 2
+)
+
+// Enum value maps for RegistrationReviewDecision.
+var (
+	RegistrationReviewDecision_name = map[int32]string{
+		0: "REGISTRATION_REVIEW_DECISION_UNSPECIFIED",
+		1: "REGISTRATION_REVIEW_DECISION_APPROVE",
+		2: "REGISTRATION_REVIEW_DECISION_REJECT",
+	}
+	RegistrationReviewDecision_value = map[string]int32{
+		"REGISTRATION_REVIEW_DECISION_UNSPECIFIED": 0,
+		"REGISTRATION_REVIEW_DECISION_APPROVE":     1,
+		"REGISTRATION_REVIEW_DECISION_REJECT":      2,
+	}
+)
+
+func (x RegistrationReviewDecision) Enum() *RegistrationReviewDecision {
+	p := new(RegistrationReviewDecision)
+	*p = x
+	return p
+}
+
+func (x RegistrationReviewDecision) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RegistrationReviewDecision) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_contest_proto_enumTypes[5].Descriptor()
+}
+
+func (RegistrationReviewDecision) Type() protoreflect.EnumType {
+	return &file_proto_contest_proto_enumTypes[5]
+}
+
+func (x RegistrationReviewDecision) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RegistrationReviewDecision.Descriptor instead.
+func (RegistrationReviewDecision) EnumDescriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{5}
+}
+
+type ParticipantStatus int32
+
+const (
+	ParticipantStatus_PARTICIPANT_STATUS_UNSPECIFIED  ParticipantStatus = 0
+	ParticipantStatus_PARTICIPANT_STATUS_NORMAL       ParticipantStatus = 1
+	ParticipantStatus_PARTICIPANT_STATUS_DISQUALIFIED ParticipantStatus = 2
+	ParticipantStatus_PARTICIPANT_STATUS_WITHDRAWN    ParticipantStatus = 3
+)
+
+// Enum value maps for ParticipantStatus.
+var (
+	ParticipantStatus_name = map[int32]string{
+		0: "PARTICIPANT_STATUS_UNSPECIFIED",
+		1: "PARTICIPANT_STATUS_NORMAL",
+		2: "PARTICIPANT_STATUS_DISQUALIFIED",
+		3: "PARTICIPANT_STATUS_WITHDRAWN",
+	}
+	ParticipantStatus_value = map[string]int32{
+		"PARTICIPANT_STATUS_UNSPECIFIED":  0,
+		"PARTICIPANT_STATUS_NORMAL":       1,
+		"PARTICIPANT_STATUS_DISQUALIFIED": 2,
+		"PARTICIPANT_STATUS_WITHDRAWN":    3,
+	}
+)
+
+func (x ParticipantStatus) Enum() *ParticipantStatus {
+	p := new(ParticipantStatus)
+	*p = x
+	return p
+}
+
+func (x ParticipantStatus) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ParticipantStatus) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_contest_proto_enumTypes[6].Descriptor()
+}
+
+func (ParticipantStatus) Type() protoreflect.EnumType {
+	return &file_proto_contest_proto_enumTypes[6]
+}
+
+func (x ParticipantStatus) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ParticipantStatus.Descriptor instead.
+func (ParticipantStatus) EnumDescriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{6}
+}
+
+type ScoreboardVisibility int32
+
+const (
+	ScoreboardVisibility_SCOREBOARD_VISIBILITY_UNSPECIFIED       ScoreboardVisibility = 0
+	ScoreboardVisibility_SCOREBOARD_VISIBILITY_PUBLIC            ScoreboardVisibility = 1
+	ScoreboardVisibility_SCOREBOARD_VISIBILITY_PARTICIPANTS_ONLY ScoreboardVisibility = 2
+	ScoreboardVisibility_SCOREBOARD_VISIBILITY_HIDDEN            ScoreboardVisibility = 3
+)
+
+// Enum value maps for ScoreboardVisibility.
+var (
+	ScoreboardVisibility_name = map[int32]string{
+		0: "SCOREBOARD_VISIBILITY_UNSPECIFIED",
+		1: "SCOREBOARD_VISIBILITY_PUBLIC",
+		2: "SCOREBOARD_VISIBILITY_PARTICIPANTS_ONLY",
+		3: "SCOREBOARD_VISIBILITY_HIDDEN",
+	}
+	ScoreboardVisibility_value = map[string]int32{
+		"SCOREBOARD_VISIBILITY_UNSPECIFIED":       0,
+		"SCOREBOARD_VISIBILITY_PUBLIC":            1,
+		"SCOREBOARD_VISIBILITY_PARTICIPANTS_ONLY": 2,
+		"SCOREBOARD_VISIBILITY_HIDDEN":            3,
+	}
+)
+
+func (x ScoreboardVisibility) Enum() *ScoreboardVisibility {
+	p := new(ScoreboardVisibility)
+	*p = x
+	return p
+}
+
+func (x ScoreboardVisibility) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ScoreboardVisibility) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_contest_proto_enumTypes[7].Descriptor()
+}
+
+func (ScoreboardVisibility) Type() protoreflect.EnumType {
+	return &file_proto_contest_proto_enumTypes[7]
+}
+
+func (x ScoreboardVisibility) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ScoreboardVisibility.Descriptor instead.
+func (ScoreboardVisibility) EnumDescriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{7}
+}
+
+// 说明用户当前拿到的是实时榜、封榜公开快照还是最终榜。
+type ScoreboardView int32
+
+const (
+	ScoreboardView_SCOREBOARD_VIEW_UNSPECIFIED            ScoreboardView = 0
+	ScoreboardView_SCOREBOARD_VIEW_LIVE                   ScoreboardView = 1
+	ScoreboardView_SCOREBOARD_VIEW_FROZEN_PUBLIC_SNAPSHOT ScoreboardView = 2
+	ScoreboardView_SCOREBOARD_VIEW_FINAL                  ScoreboardView = 3
+)
+
+// Enum value maps for ScoreboardView.
+var (
+	ScoreboardView_name = map[int32]string{
+		0: "SCOREBOARD_VIEW_UNSPECIFIED",
+		1: "SCOREBOARD_VIEW_LIVE",
+		2: "SCOREBOARD_VIEW_FROZEN_PUBLIC_SNAPSHOT",
+		3: "SCOREBOARD_VIEW_FINAL",
+	}
+	ScoreboardView_value = map[string]int32{
+		"SCOREBOARD_VIEW_UNSPECIFIED":            0,
+		"SCOREBOARD_VIEW_LIVE":                   1,
+		"SCOREBOARD_VIEW_FROZEN_PUBLIC_SNAPSHOT": 2,
+		"SCOREBOARD_VIEW_FINAL":                  3,
+	}
+)
+
+func (x ScoreboardView) Enum() *ScoreboardView {
+	p := new(ScoreboardView)
+	*p = x
+	return p
+}
+
+func (x ScoreboardView) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ScoreboardView) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_contest_proto_enumTypes[8].Descriptor()
+}
+
+func (ScoreboardView) Type() protoreflect.EnumType {
+	return &file_proto_contest_proto_enumTypes[8]
+}
+
+func (x ScoreboardView) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ScoreboardView.Descriptor instead.
+func (ScoreboardView) EnumDescriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{8}
+}
+
+type SubmissionDenyReason int32
+
+const (
+	SubmissionDenyReason_SUBMISSION_DENY_REASON_UNSPECIFIED              SubmissionDenyReason = 0
+	SubmissionDenyReason_SUBMISSION_DENY_REASON_NOT_REGISTERED           SubmissionDenyReason = 1
+	SubmissionDenyReason_SUBMISSION_DENY_REASON_REGISTRATION_PENDING     SubmissionDenyReason = 2
+	SubmissionDenyReason_SUBMISSION_DENY_REASON_CONTEST_NOT_STARTED      SubmissionDenyReason = 3
+	SubmissionDenyReason_SUBMISSION_DENY_REASON_CONTEST_FINISHED         SubmissionDenyReason = 4
+	SubmissionDenyReason_SUBMISSION_DENY_REASON_CONTEST_CANCELLED        SubmissionDenyReason = 5
+	SubmissionDenyReason_SUBMISSION_DENY_REASON_PROBLEM_NOT_ASSIGNED     SubmissionDenyReason = 6
+	SubmissionDenyReason_SUBMISSION_DENY_REASON_PARTICIPANT_DISQUALIFIED SubmissionDenyReason = 7
+	SubmissionDenyReason_SUBMISSION_DENY_REASON_PARTICIPANT_WITHDRAWN    SubmissionDenyReason = 8
+	SubmissionDenyReason_SUBMISSION_DENY_REASON_UNAUTHORIZED             SubmissionDenyReason = 9
+	SubmissionDenyReason_SUBMISSION_DENY_REASON_OTHER                    SubmissionDenyReason = 10
+)
+
+// Enum value maps for SubmissionDenyReason.
+var (
+	SubmissionDenyReason_name = map[int32]string{
+		0:  "SUBMISSION_DENY_REASON_UNSPECIFIED",
+		1:  "SUBMISSION_DENY_REASON_NOT_REGISTERED",
+		2:  "SUBMISSION_DENY_REASON_REGISTRATION_PENDING",
+		3:  "SUBMISSION_DENY_REASON_CONTEST_NOT_STARTED",
+		4:  "SUBMISSION_DENY_REASON_CONTEST_FINISHED",
+		5:  "SUBMISSION_DENY_REASON_CONTEST_CANCELLED",
+		6:  "SUBMISSION_DENY_REASON_PROBLEM_NOT_ASSIGNED",
+		7:  "SUBMISSION_DENY_REASON_PARTICIPANT_DISQUALIFIED",
+		8:  "SUBMISSION_DENY_REASON_PARTICIPANT_WITHDRAWN",
+		9:  "SUBMISSION_DENY_REASON_UNAUTHORIZED",
+		10: "SUBMISSION_DENY_REASON_OTHER",
+	}
+	SubmissionDenyReason_value = map[string]int32{
+		"SUBMISSION_DENY_REASON_UNSPECIFIED":              0,
+		"SUBMISSION_DENY_REASON_NOT_REGISTERED":           1,
+		"SUBMISSION_DENY_REASON_REGISTRATION_PENDING":     2,
+		"SUBMISSION_DENY_REASON_CONTEST_NOT_STARTED":      3,
+		"SUBMISSION_DENY_REASON_CONTEST_FINISHED":         4,
+		"SUBMISSION_DENY_REASON_CONTEST_CANCELLED":        5,
+		"SUBMISSION_DENY_REASON_PROBLEM_NOT_ASSIGNED":     6,
+		"SUBMISSION_DENY_REASON_PARTICIPANT_DISQUALIFIED": 7,
+		"SUBMISSION_DENY_REASON_PARTICIPANT_WITHDRAWN":    8,
+		"SUBMISSION_DENY_REASON_UNAUTHORIZED":             9,
+		"SUBMISSION_DENY_REASON_OTHER":                    10,
+	}
+)
+
+func (x SubmissionDenyReason) Enum() *SubmissionDenyReason {
+	p := new(SubmissionDenyReason)
+	*p = x
+	return p
+}
+
+func (x SubmissionDenyReason) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SubmissionDenyReason) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_contest_proto_enumTypes[9].Descriptor()
+}
+
+func (SubmissionDenyReason) Type() protoreflect.EnumType {
+	return &file_proto_contest_proto_enumTypes[9]
+}
+
+func (x SubmissionDenyReason) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SubmissionDenyReason.Descriptor instead.
+func (SubmissionDenyReason) EnumDescriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{9}
+}
+
+// 创建者可以提供或修改的字段。creator_id、status、revision 和审计时间由服务端维护。
+type ContestEditableFields struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	Title                string                 `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
+	Description          string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
+	Mode                 ContestMode            `protobuf:"varint,3,opt,name=mode,proto3,enum=contest.ContestMode" json:"mode,omitempty"`
+	StartAt              *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=start_at,json=startAt,proto3" json:"start_at,omitempty"`
+	EndAt                *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=end_at,json=endAt,proto3" json:"end_at,omitempty"`
+	RegistrationStartAt  *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=registration_start_at,json=registrationStartAt,proto3" json:"registration_start_at,omitempty"`
+	RegistrationEndAt    *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=registration_end_at,json=registrationEndAt,proto3" json:"registration_end_at,omitempty"`
+	RegistrationPolicy   RegistrationPolicy     `protobuf:"varint,8,opt,name=registration_policy,json=registrationPolicy,proto3,enum=contest.RegistrationPolicy" json:"registration_policy,omitempty"`
+	Visibility           ContestVisibility      `protobuf:"varint,9,opt,name=visibility,proto3,enum=contest.ContestVisibility" json:"visibility,omitempty"`
+	ScoreboardVisibility ScoreboardVisibility   `protobuf:"varint,10,opt,name=scoreboard_visibility,json=scoreboardVisibility,proto3,enum=contest.ScoreboardVisibility" json:"scoreboard_visibility,omitempty"`
+	// 仅 ICPC 模式允许配置封榜。二者只能设置一个；均未设置表示不自动封榜。
+	//
+	// Types that are valid to be assigned to ScoreboardFreezePolicy:
+	//
+	//	*ContestEditableFields_ScoreboardFreezeAt
+	//	*ContestEditableFields_ScoreboardFreezeBeforeEnd
+	ScoreboardFreezePolicy isContestEditableFields_ScoreboardFreezePolicy `protobuf_oneof:"scoreboard_freeze_policy"`
+	// 仅管理端 DTO 可以返回。INVITE_ONLY 比赛可由服务端生成或由创建者设置；
+	// 用户侧 ContestDetail 和 ContestSummary 绝不能包含该值。
+	InviteCode    *string `protobuf:"bytes,13,opt,name=invite_code,json=inviteCode,proto3,oneof" json:"invite_code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContestEditableFields) Reset() {
+	*x = ContestEditableFields{}
+	mi := &file_proto_contest_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContestEditableFields) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContestEditableFields) ProtoMessage() {}
+
+func (x *ContestEditableFields) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContestEditableFields.ProtoReflect.Descriptor instead.
+func (*ContestEditableFields) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ContestEditableFields) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *ContestEditableFields) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ContestEditableFields) GetMode() ContestMode {
+	if x != nil {
+		return x.Mode
+	}
+	return ContestMode_CONTEST_MODE_UNSPECIFIED
+}
+
+func (x *ContestEditableFields) GetStartAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartAt
+	}
+	return nil
+}
+
+func (x *ContestEditableFields) GetEndAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndAt
+	}
+	return nil
+}
+
+func (x *ContestEditableFields) GetRegistrationStartAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RegistrationStartAt
+	}
+	return nil
+}
+
+func (x *ContestEditableFields) GetRegistrationEndAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RegistrationEndAt
+	}
+	return nil
+}
+
+func (x *ContestEditableFields) GetRegistrationPolicy() RegistrationPolicy {
+	if x != nil {
+		return x.RegistrationPolicy
+	}
+	return RegistrationPolicy_REGISTRATION_POLICY_UNSPECIFIED
+}
+
+func (x *ContestEditableFields) GetVisibility() ContestVisibility {
+	if x != nil {
+		return x.Visibility
+	}
+	return ContestVisibility_CONTEST_VISIBILITY_UNSPECIFIED
+}
+
+func (x *ContestEditableFields) GetScoreboardVisibility() ScoreboardVisibility {
+	if x != nil {
+		return x.ScoreboardVisibility
+	}
+	return ScoreboardVisibility_SCOREBOARD_VISIBILITY_UNSPECIFIED
+}
+
+func (x *ContestEditableFields) GetScoreboardFreezePolicy() isContestEditableFields_ScoreboardFreezePolicy {
+	if x != nil {
+		return x.ScoreboardFreezePolicy
+	}
+	return nil
+}
+
+func (x *ContestEditableFields) GetScoreboardFreezeAt() *timestamppb.Timestamp {
+	if x != nil {
+		if x, ok := x.ScoreboardFreezePolicy.(*ContestEditableFields_ScoreboardFreezeAt); ok {
+			return x.ScoreboardFreezeAt
+		}
+	}
+	return nil
+}
+
+func (x *ContestEditableFields) GetScoreboardFreezeBeforeEnd() *durationpb.Duration {
+	if x != nil {
+		if x, ok := x.ScoreboardFreezePolicy.(*ContestEditableFields_ScoreboardFreezeBeforeEnd); ok {
+			return x.ScoreboardFreezeBeforeEnd
+		}
+	}
+	return nil
+}
+
+func (x *ContestEditableFields) GetInviteCode() string {
+	if x != nil && x.InviteCode != nil {
+		return *x.InviteCode
+	}
+	return ""
+}
+
+type isContestEditableFields_ScoreboardFreezePolicy interface {
+	isContestEditableFields_ScoreboardFreezePolicy()
+}
+
+type ContestEditableFields_ScoreboardFreezeAt struct {
+	ScoreboardFreezeAt *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=scoreboard_freeze_at,json=scoreboardFreezeAt,proto3,oneof"`
+}
+
+type ContestEditableFields_ScoreboardFreezeBeforeEnd struct {
+	ScoreboardFreezeBeforeEnd *durationpb.Duration `protobuf:"bytes,12,opt,name=scoreboard_freeze_before_end,json=scoreboardFreezeBeforeEnd,proto3,oneof"`
+}
+
+func (*ContestEditableFields_ScoreboardFreezeAt) isContestEditableFields_ScoreboardFreezePolicy() {}
+
+func (*ContestEditableFields_ScoreboardFreezeBeforeEnd) isContestEditableFields_ScoreboardFreezePolicy() {
+}
+
+// 管理端完整比赛对象，包含敏感配置，不得从用户侧接口返回。
+type Contest struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	ContestId          int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	CreatorId          int64                  `protobuf:"varint,2,opt,name=creator_id,json=creatorId,proto3" json:"creator_id,omitempty"`
+	Editable           *ContestEditableFields `protobuf:"bytes,3,opt,name=editable,proto3" json:"editable,omitempty"`
+	Status             ContestStatus          `protobuf:"varint,4,opt,name=status,proto3,enum=contest.ContestStatus" json:"status,omitempty"`
+	Revision           int64                  `protobuf:"varint,5,opt,name=revision,proto3" json:"revision,omitempty"`
+	CreatedAt          *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt          *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	PublishedAt        *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=published_at,json=publishedAt,proto3" json:"published_at,omitempty"`
+	CancelledAt        *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=cancelled_at,json=cancelledAt,proto3" json:"cancelled_at,omitempty"`
+	ArchivedAt         *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=archived_at,json=archivedAt,proto3" json:"archived_at,omitempty"`
+	DeletedAt          *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=deleted_at,json=deletedAt,proto3" json:"deleted_at,omitempty"`
+	ScoreboardFrozen   bool                   `protobuf:"varint,12,opt,name=scoreboard_frozen,json=scoreboardFrozen,proto3" json:"scoreboard_frozen,omitempty"`
+	ScoreboardFrozenAt *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=scoreboard_frozen_at,json=scoreboardFrozenAt,proto3" json:"scoreboard_frozen_at,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *Contest) Reset() {
+	*x = Contest{}
+	mi := &file_proto_contest_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Contest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Contest) ProtoMessage() {}
+
+func (x *Contest) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Contest.ProtoReflect.Descriptor instead.
+func (*Contest) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Contest) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *Contest) GetCreatorId() int64 {
+	if x != nil {
+		return x.CreatorId
+	}
+	return 0
+}
+
+func (x *Contest) GetEditable() *ContestEditableFields {
+	if x != nil {
+		return x.Editable
+	}
+	return nil
+}
+
+func (x *Contest) GetStatus() ContestStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ContestStatus_CONTEST_STATUS_UNSPECIFIED
+}
+
+func (x *Contest) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *Contest) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *Contest) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+func (x *Contest) GetPublishedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.PublishedAt
+	}
+	return nil
+}
+
+func (x *Contest) GetCancelledAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CancelledAt
+	}
+	return nil
+}
+
+func (x *Contest) GetArchivedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ArchivedAt
+	}
+	return nil
+}
+
+func (x *Contest) GetDeletedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.DeletedAt
+	}
+	return nil
+}
+
+func (x *Contest) GetScoreboardFrozen() bool {
+	if x != nil {
+		return x.ScoreboardFrozen
+	}
+	return false
+}
+
+func (x *Contest) GetScoreboardFrozenAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ScoreboardFrozenAt
+	}
+	return nil
+}
+
+// 用户侧详情。服务端应根据身份和比赛阶段裁剪信息，不包含邀请码和内部配置。
+type ContestDetail struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	ContestId            int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	Title                string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Description          string                 `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	Mode                 ContestMode            `protobuf:"varint,4,opt,name=mode,proto3,enum=contest.ContestMode" json:"mode,omitempty"`
+	Status               ContestStatus          `protobuf:"varint,5,opt,name=status,proto3,enum=contest.ContestStatus" json:"status,omitempty"`
+	StartAt              *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=start_at,json=startAt,proto3" json:"start_at,omitempty"`
+	EndAt                *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=end_at,json=endAt,proto3" json:"end_at,omitempty"`
+	RegistrationStartAt  *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=registration_start_at,json=registrationStartAt,proto3" json:"registration_start_at,omitempty"`
+	RegistrationEndAt    *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=registration_end_at,json=registrationEndAt,proto3" json:"registration_end_at,omitempty"`
+	RegistrationPolicy   RegistrationPolicy     `protobuf:"varint,10,opt,name=registration_policy,json=registrationPolicy,proto3,enum=contest.RegistrationPolicy" json:"registration_policy,omitempty"`
+	Visibility           ContestVisibility      `protobuf:"varint,11,opt,name=visibility,proto3,enum=contest.ContestVisibility" json:"visibility,omitempty"`
+	ScoreboardVisibility ScoreboardVisibility   `protobuf:"varint,12,opt,name=scoreboard_visibility,json=scoreboardVisibility,proto3,enum=contest.ScoreboardVisibility" json:"scoreboard_visibility,omitempty"`
+	RegistrationOpen     bool                   `protobuf:"varint,13,opt,name=registration_open,json=registrationOpen,proto3" json:"registration_open,omitempty"`
+	ScoreboardFrozen     bool                   `protobuf:"varint,14,opt,name=scoreboard_frozen,json=scoreboardFrozen,proto3" json:"scoreboard_frozen,omitempty"`
+	ParticipantCount     int64                  `protobuf:"varint,15,opt,name=participant_count,json=participantCount,proto3" json:"participant_count,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *ContestDetail) Reset() {
+	*x = ContestDetail{}
+	mi := &file_proto_contest_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContestDetail) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContestDetail) ProtoMessage() {}
+
+func (x *ContestDetail) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContestDetail.ProtoReflect.Descriptor instead.
+func (*ContestDetail) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ContestDetail) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *ContestDetail) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *ContestDetail) GetDescription() string {
+	if x != nil {
+		return x.Description
+	}
+	return ""
+}
+
+func (x *ContestDetail) GetMode() ContestMode {
+	if x != nil {
+		return x.Mode
+	}
+	return ContestMode_CONTEST_MODE_UNSPECIFIED
+}
+
+func (x *ContestDetail) GetStatus() ContestStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ContestStatus_CONTEST_STATUS_UNSPECIFIED
+}
+
+func (x *ContestDetail) GetStartAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartAt
+	}
+	return nil
+}
+
+func (x *ContestDetail) GetEndAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndAt
+	}
+	return nil
+}
+
+func (x *ContestDetail) GetRegistrationStartAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RegistrationStartAt
+	}
+	return nil
+}
+
+func (x *ContestDetail) GetRegistrationEndAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RegistrationEndAt
+	}
+	return nil
+}
+
+func (x *ContestDetail) GetRegistrationPolicy() RegistrationPolicy {
+	if x != nil {
+		return x.RegistrationPolicy
+	}
+	return RegistrationPolicy_REGISTRATION_POLICY_UNSPECIFIED
+}
+
+func (x *ContestDetail) GetVisibility() ContestVisibility {
+	if x != nil {
+		return x.Visibility
+	}
+	return ContestVisibility_CONTEST_VISIBILITY_UNSPECIFIED
+}
+
+func (x *ContestDetail) GetScoreboardVisibility() ScoreboardVisibility {
+	if x != nil {
+		return x.ScoreboardVisibility
+	}
+	return ScoreboardVisibility_SCOREBOARD_VISIBILITY_UNSPECIFIED
+}
+
+func (x *ContestDetail) GetRegistrationOpen() bool {
+	if x != nil {
+		return x.RegistrationOpen
+	}
+	return false
+}
+
+func (x *ContestDetail) GetScoreboardFrozen() bool {
+	if x != nil {
+		return x.ScoreboardFrozen
+	}
+	return false
+}
+
+func (x *ContestDetail) GetParticipantCount() int64 {
+	if x != nil {
+		return x.ParticipantCount
+	}
+	return 0
+}
+
+// 列表页轻量信息，按 start_at 降序、contest_id 降序稳定排序。
+type ContestSummary struct {
+	state              protoimpl.MessageState `protogen:"open.v1"`
+	ContestId          int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	Title              string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	Mode               ContestMode            `protobuf:"varint,3,opt,name=mode,proto3,enum=contest.ContestMode" json:"mode,omitempty"`
+	Status             ContestStatus          `protobuf:"varint,4,opt,name=status,proto3,enum=contest.ContestStatus" json:"status,omitempty"`
+	StartAt            *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=start_at,json=startAt,proto3" json:"start_at,omitempty"`
+	EndAt              *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=end_at,json=endAt,proto3" json:"end_at,omitempty"`
+	RegistrationPolicy RegistrationPolicy     `protobuf:"varint,7,opt,name=registration_policy,json=registrationPolicy,proto3,enum=contest.RegistrationPolicy" json:"registration_policy,omitempty"`
+	Visibility         ContestVisibility      `protobuf:"varint,8,opt,name=visibility,proto3,enum=contest.ContestVisibility" json:"visibility,omitempty"`
+	RegistrationOpen   bool                   `protobuf:"varint,9,opt,name=registration_open,json=registrationOpen,proto3" json:"registration_open,omitempty"`
+	ParticipantCount   int64                  `protobuf:"varint,10,opt,name=participant_count,json=participantCount,proto3" json:"participant_count,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *ContestSummary) Reset() {
+	*x = ContestSummary{}
+	mi := &file_proto_contest_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContestSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContestSummary) ProtoMessage() {}
+
+func (x *ContestSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContestSummary.ProtoReflect.Descriptor instead.
+func (*ContestSummary) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ContestSummary) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *ContestSummary) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
+func (x *ContestSummary) GetMode() ContestMode {
+	if x != nil {
+		return x.Mode
+	}
+	return ContestMode_CONTEST_MODE_UNSPECIFIED
+}
+
+func (x *ContestSummary) GetStatus() ContestStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ContestStatus_CONTEST_STATUS_UNSPECIFIED
+}
+
+func (x *ContestSummary) GetStartAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartAt
+	}
+	return nil
+}
+
+func (x *ContestSummary) GetEndAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndAt
+	}
+	return nil
+}
+
+func (x *ContestSummary) GetRegistrationPolicy() RegistrationPolicy {
+	if x != nil {
+		return x.RegistrationPolicy
+	}
+	return RegistrationPolicy_REGISTRATION_POLICY_UNSPECIFIED
+}
+
+func (x *ContestSummary) GetVisibility() ContestVisibility {
+	if x != nil {
+		return x.Visibility
+	}
+	return ContestVisibility_CONTEST_VISIBILITY_UNSPECIFIED
+}
+
+func (x *ContestSummary) GetRegistrationOpen() bool {
+	if x != nil {
+		return x.RegistrationOpen
+	}
+	return false
+}
+
+func (x *ContestSummary) GetParticipantCount() int64 {
+	if x != nil {
+		return x.ParticipantCount
+	}
+	return 0
+}
+
+// 管理端题目编排项。Contest RPC 只保存跨服务 problem_id，不嵌套 Problem 内部对象。
+type ContestProblem struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	ProblemId    int64                  `protobuf:"varint,1,opt,name=problem_id,json=problemId,proto3" json:"problem_id,omitempty"`
+	Label        string                 `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
+	DisplayOrder int32                  `protobuf:"varint,3,opt,name=display_order,json=displayOrder,proto3" json:"display_order,omitempty"`
+	// IOI/OI 模式的比赛内满分；ICPC 模式必须为 0。
+	MaxScore      int64 `protobuf:"varint,4,opt,name=max_score,json=maxScore,proto3" json:"max_score,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContestProblem) Reset() {
+	*x = ContestProblem{}
+	mi := &file_proto_contest_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContestProblem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContestProblem) ProtoMessage() {}
+
+func (x *ContestProblem) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContestProblem.ProtoReflect.Descriptor instead.
+func (*ContestProblem) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ContestProblem) GetProblemId() int64 {
+	if x != nil {
+		return x.ProblemId
+	}
+	return 0
+}
+
+func (x *ContestProblem) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *ContestProblem) GetDisplayOrder() int32 {
+	if x != nil {
+		return x.DisplayOrder
+	}
+	return 0
+}
+
+func (x *ContestProblem) GetMaxScore() int64 {
+	if x != nil {
+		return x.MaxScore
+	}
+	return 0
+}
+
+// 用户侧安全题目条目。未开赛或无权访问时不得返回该消息。
+type ContestProblemSummary struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ProblemId     int64                  `protobuf:"varint,1,opt,name=problem_id,json=problemId,proto3" json:"problem_id,omitempty"`
+	Label         string                 `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
+	DisplayOrder  int32                  `protobuf:"varint,3,opt,name=display_order,json=displayOrder,proto3" json:"display_order,omitempty"`
+	MaxScore      int64                  `protobuf:"varint,4,opt,name=max_score,json=maxScore,proto3" json:"max_score,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContestProblemSummary) Reset() {
+	*x = ContestProblemSummary{}
+	mi := &file_proto_contest_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContestProblemSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContestProblemSummary) ProtoMessage() {}
+
+func (x *ContestProblemSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContestProblemSummary.ProtoReflect.Descriptor instead.
+func (*ContestProblemSummary) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ContestProblemSummary) GetProblemId() int64 {
+	if x != nil {
+		return x.ProblemId
+	}
+	return 0
+}
+
+func (x *ContestProblemSummary) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *ContestProblemSummary) GetDisplayOrder() int32 {
+	if x != nil {
+		return x.DisplayOrder
+	}
+	return 0
+}
+
+func (x *ContestProblemSummary) GetMaxScore() int64 {
+	if x != nil {
+		return x.MaxScore
+	}
+	return 0
+}
+
+// 报名记录不等同于正式参赛资格；仅 APPROVED 的报名才能产生正常参赛者。
+type ContestRegistration struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	RegistrationId  int64                  `protobuf:"varint,1,opt,name=registration_id,json=registrationId,proto3" json:"registration_id,omitempty"`
+	ContestId       int64                  `protobuf:"varint,2,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	UserId          int64                  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Status          RegistrationStatus     `protobuf:"varint,4,opt,name=status,proto3,enum=contest.RegistrationStatus" json:"status,omitempty"`
+	ApplicationNote string                 `protobuf:"bytes,5,opt,name=application_note,json=applicationNote,proto3" json:"application_note,omitempty"`
+	ReviewerId      int64                  `protobuf:"varint,6,opt,name=reviewer_id,json=reviewerId,proto3" json:"reviewer_id,omitempty"`
+	ReviewNote      string                 `protobuf:"bytes,7,opt,name=review_note,json=reviewNote,proto3" json:"review_note,omitempty"`
+	Revision        int64                  `protobuf:"varint,8,opt,name=revision,proto3" json:"revision,omitempty"`
+	CreatedAt       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	ReviewedAt      *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=reviewed_at,json=reviewedAt,proto3" json:"reviewed_at,omitempty"`
+	CancelledAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=cancelled_at,json=cancelledAt,proto3" json:"cancelled_at,omitempty"`
+	UpdatedAt       *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ContestRegistration) Reset() {
+	*x = ContestRegistration{}
+	mi := &file_proto_contest_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContestRegistration) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContestRegistration) ProtoMessage() {}
+
+func (x *ContestRegistration) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContestRegistration.ProtoReflect.Descriptor instead.
+func (*ContestRegistration) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ContestRegistration) GetRegistrationId() int64 {
+	if x != nil {
+		return x.RegistrationId
+	}
+	return 0
+}
+
+func (x *ContestRegistration) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *ContestRegistration) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *ContestRegistration) GetStatus() RegistrationStatus {
+	if x != nil {
+		return x.Status
+	}
+	return RegistrationStatus_REGISTRATION_STATUS_UNSPECIFIED
+}
+
+func (x *ContestRegistration) GetApplicationNote() string {
+	if x != nil {
+		return x.ApplicationNote
+	}
+	return ""
+}
+
+func (x *ContestRegistration) GetReviewerId() int64 {
+	if x != nil {
+		return x.ReviewerId
+	}
+	return 0
+}
+
+func (x *ContestRegistration) GetReviewNote() string {
+	if x != nil {
+		return x.ReviewNote
+	}
+	return ""
+}
+
+func (x *ContestRegistration) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+func (x *ContestRegistration) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *ContestRegistration) GetReviewedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ReviewedAt
+	}
+	return nil
+}
+
+func (x *ContestRegistration) GetCancelledAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CancelledAt
+	}
+	return nil
+}
+
+func (x *ContestRegistration) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type ContestParticipant struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContestId     int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Status        ParticipantStatus      `protobuf:"varint,3,opt,name=status,proto3,enum=contest.ParticipantStatus" json:"status,omitempty"`
+	QualifiedAt   *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=qualified_at,json=qualifiedAt,proto3" json:"qualified_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ContestParticipant) Reset() {
+	*x = ContestParticipant{}
+	mi := &file_proto_contest_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ContestParticipant) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ContestParticipant) ProtoMessage() {}
+
+func (x *ContestParticipant) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ContestParticipant.ProtoReflect.Descriptor instead.
+func (*ContestParticipant) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ContestParticipant) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *ContestParticipant) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *ContestParticipant) GetStatus() ParticipantStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ParticipantStatus_PARTICIPANT_STATUS_UNSPECIFIED
+}
+
+func (x *ContestParticipant) GetQualifiedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.QualifiedAt
+	}
+	return nil
+}
+
+func (x *ContestParticipant) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+// 当前用户的报名和参赛状态。registration/participant 缺失表示对应记录不存在。
+type MyContestStatus struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ContestId       int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	Registration    *ContestRegistration   `protobuf:"bytes,2,opt,name=registration,proto3" json:"registration,omitempty"`
+	Participant     *ContestParticipant    `protobuf:"bytes,3,opt,name=participant,proto3" json:"participant,omitempty"`
+	CanViewProblems bool                   `protobuf:"varint,4,opt,name=can_view_problems,json=canViewProblems,proto3" json:"can_view_problems,omitempty"`
+	CanSubmit       bool                   `protobuf:"varint,5,opt,name=can_submit,json=canSubmit,proto3" json:"can_submit,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *MyContestStatus) Reset() {
+	*x = MyContestStatus{}
+	mi := &file_proto_contest_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MyContestStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MyContestStatus) ProtoMessage() {}
+
+func (x *MyContestStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MyContestStatus.ProtoReflect.Descriptor instead.
+func (*MyContestStatus) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *MyContestStatus) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *MyContestStatus) GetRegistration() *ContestRegistration {
+	if x != nil {
+		return x.Registration
+	}
+	return nil
+}
+
+func (x *MyContestStatus) GetParticipant() *ContestParticipant {
+	if x != nil {
+		return x.Participant
+	}
+	return nil
+}
+
+func (x *MyContestStatus) GetCanViewProblems() bool {
+	if x != nil {
+		return x.CanViewProblems
+	}
+	return false
+}
+
+func (x *MyContestStatus) GetCanSubmit() bool {
+	if x != nil {
+		return x.CanSubmit
+	}
+	return false
+}
+
+type IcpcProblemResult struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Solved        bool                   `protobuf:"varint,1,opt,name=solved,proto3" json:"solved,omitempty"`
+	WrongAttempts int32                  `protobuf:"varint,2,opt,name=wrong_attempts,json=wrongAttempts,proto3" json:"wrong_attempts,omitempty"`
+	Penalty       *durationpb.Duration   `protobuf:"bytes,3,opt,name=penalty,proto3" json:"penalty,omitempty"`
+	AcceptedAt    *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=accepted_at,json=acceptedAt,proto3" json:"accepted_at,omitempty"`
+	FirstToSolve  bool                   `protobuf:"varint,5,opt,name=first_to_solve,json=firstToSolve,proto3" json:"first_to_solve,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IcpcProblemResult) Reset() {
+	*x = IcpcProblemResult{}
+	mi := &file_proto_contest_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IcpcProblemResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IcpcProblemResult) ProtoMessage() {}
+
+func (x *IcpcProblemResult) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IcpcProblemResult.ProtoReflect.Descriptor instead.
+func (*IcpcProblemResult) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *IcpcProblemResult) GetSolved() bool {
+	if x != nil {
+		return x.Solved
+	}
+	return false
+}
+
+func (x *IcpcProblemResult) GetWrongAttempts() int32 {
+	if x != nil {
+		return x.WrongAttempts
+	}
+	return 0
+}
+
+func (x *IcpcProblemResult) GetPenalty() *durationpb.Duration {
+	if x != nil {
+		return x.Penalty
+	}
+	return nil
+}
+
+func (x *IcpcProblemResult) GetAcceptedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.AcceptedAt
+	}
+	return nil
+}
+
+func (x *IcpcProblemResult) GetFirstToSolve() bool {
+	if x != nil {
+		return x.FirstToSolve
+	}
+	return false
+}
+
+type IoiProblemResult struct {
+	state                     protoimpl.MessageState `protogen:"open.v1"`
+	Score                     int64                  `protobuf:"varint,1,opt,name=score,proto3" json:"score,omitempty"`
+	MaxScore                  int64                  `protobuf:"varint,2,opt,name=max_score,json=maxScore,proto3" json:"max_score,omitempty"`
+	SubmissionCount           int32                  `protobuf:"varint,3,opt,name=submission_count,json=submissionCount,proto3" json:"submission_count,omitempty"`
+	LastEffectiveSubmissionAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=last_effective_submission_at,json=lastEffectiveSubmissionAt,proto3" json:"last_effective_submission_at,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
+}
+
+func (x *IoiProblemResult) Reset() {
+	*x = IoiProblemResult{}
+	mi := &file_proto_contest_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IoiProblemResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IoiProblemResult) ProtoMessage() {}
+
+func (x *IoiProblemResult) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IoiProblemResult.ProtoReflect.Descriptor instead.
+func (*IoiProblemResult) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *IoiProblemResult) GetScore() int64 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+func (x *IoiProblemResult) GetMaxScore() int64 {
+	if x != nil {
+		return x.MaxScore
+	}
+	return 0
+}
+
+func (x *IoiProblemResult) GetSubmissionCount() int32 {
+	if x != nil {
+		return x.SubmissionCount
+	}
+	return 0
+}
+
+func (x *IoiProblemResult) GetLastEffectiveSubmissionAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastEffectiveSubmissionAt
+	}
+	return nil
+}
+
+type OiProblemResult struct {
+	state                     protoimpl.MessageState `protogen:"open.v1"`
+	Score                     int64                  `protobuf:"varint,1,opt,name=score,proto3" json:"score,omitempty"`
+	MaxScore                  int64                  `protobuf:"varint,2,opt,name=max_score,json=maxScore,proto3" json:"max_score,omitempty"`
+	SubmissionCount           int32                  `protobuf:"varint,3,opt,name=submission_count,json=submissionCount,proto3" json:"submission_count,omitempty"`
+	LastEffectiveSubmissionAt *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=last_effective_submission_at,json=lastEffectiveSubmissionAt,proto3" json:"last_effective_submission_at,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
+}
+
+func (x *OiProblemResult) Reset() {
+	*x = OiProblemResult{}
+	mi := &file_proto_contest_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OiProblemResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OiProblemResult) ProtoMessage() {}
+
+func (x *OiProblemResult) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OiProblemResult.ProtoReflect.Descriptor instead.
+func (*OiProblemResult) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *OiProblemResult) GetScore() int64 {
+	if x != nil {
+		return x.Score
+	}
+	return 0
+}
+
+func (x *OiProblemResult) GetMaxScore() int64 {
+	if x != nil {
+		return x.MaxScore
+	}
+	return 0
+}
+
+func (x *OiProblemResult) GetSubmissionCount() int32 {
+	if x != nil {
+		return x.SubmissionCount
+	}
+	return 0
+}
+
+func (x *OiProblemResult) GetLastEffectiveSubmissionAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastEffectiveSubmissionAt
+	}
+	return nil
+}
+
+type ScoreboardProblemResult struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ProblemId int64                  `protobuf:"varint,1,opt,name=problem_id,json=problemId,proto3" json:"problem_id,omitempty"`
+	Label     string                 `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
+	// 必须与 Scoreboard.mode 一致；禁止同时返回多种赛制结果。
+	//
+	// Types that are valid to be assigned to Result:
+	//
+	//	*ScoreboardProblemResult_Icpc
+	//	*ScoreboardProblemResult_Ioi
+	//	*ScoreboardProblemResult_Oi
+	Result        isScoreboardProblemResult_Result `protobuf_oneof:"result"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ScoreboardProblemResult) Reset() {
+	*x = ScoreboardProblemResult{}
+	mi := &file_proto_contest_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScoreboardProblemResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScoreboardProblemResult) ProtoMessage() {}
+
+func (x *ScoreboardProblemResult) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScoreboardProblemResult.ProtoReflect.Descriptor instead.
+func (*ScoreboardProblemResult) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ScoreboardProblemResult) GetProblemId() int64 {
+	if x != nil {
+		return x.ProblemId
+	}
+	return 0
+}
+
+func (x *ScoreboardProblemResult) GetLabel() string {
+	if x != nil {
+		return x.Label
+	}
+	return ""
+}
+
+func (x *ScoreboardProblemResult) GetResult() isScoreboardProblemResult_Result {
+	if x != nil {
+		return x.Result
+	}
+	return nil
+}
+
+func (x *ScoreboardProblemResult) GetIcpc() *IcpcProblemResult {
+	if x != nil {
+		if x, ok := x.Result.(*ScoreboardProblemResult_Icpc); ok {
+			return x.Icpc
+		}
+	}
+	return nil
+}
+
+func (x *ScoreboardProblemResult) GetIoi() *IoiProblemResult {
+	if x != nil {
+		if x, ok := x.Result.(*ScoreboardProblemResult_Ioi); ok {
+			return x.Ioi
+		}
+	}
+	return nil
+}
+
+func (x *ScoreboardProblemResult) GetOi() *OiProblemResult {
+	if x != nil {
+		if x, ok := x.Result.(*ScoreboardProblemResult_Oi); ok {
+			return x.Oi
+		}
+	}
+	return nil
+}
+
+type isScoreboardProblemResult_Result interface {
+	isScoreboardProblemResult_Result()
+}
+
+type ScoreboardProblemResult_Icpc struct {
+	Icpc *IcpcProblemResult `protobuf:"bytes,3,opt,name=icpc,proto3,oneof"`
+}
+
+type ScoreboardProblemResult_Ioi struct {
+	Ioi *IoiProblemResult `protobuf:"bytes,4,opt,name=ioi,proto3,oneof"`
+}
+
+type ScoreboardProblemResult_Oi struct {
+	Oi *OiProblemResult `protobuf:"bytes,5,opt,name=oi,proto3,oneof"`
+}
+
+func (*ScoreboardProblemResult_Icpc) isScoreboardProblemResult_Result() {}
+
+func (*ScoreboardProblemResult_Ioi) isScoreboardProblemResult_Result() {}
+
+func (*ScoreboardProblemResult_Oi) isScoreboardProblemResult_Result() {}
+
+type IcpcScore struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SolvedCount   int32                  `protobuf:"varint,1,opt,name=solved_count,json=solvedCount,proto3" json:"solved_count,omitempty"`
+	TotalPenalty  *durationpb.Duration   `protobuf:"bytes,2,opt,name=total_penalty,json=totalPenalty,proto3" json:"total_penalty,omitempty"`
+	LastSolvedAt  *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=last_solved_at,json=lastSolvedAt,proto3" json:"last_solved_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *IcpcScore) Reset() {
+	*x = IcpcScore{}
+	mi := &file_proto_contest_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IcpcScore) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IcpcScore) ProtoMessage() {}
+
+func (x *IcpcScore) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IcpcScore.ProtoReflect.Descriptor instead.
+func (*IcpcScore) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *IcpcScore) GetSolvedCount() int32 {
+	if x != nil {
+		return x.SolvedCount
+	}
+	return 0
+}
+
+func (x *IcpcScore) GetTotalPenalty() *durationpb.Duration {
+	if x != nil {
+		return x.TotalPenalty
+	}
+	return nil
+}
+
+func (x *IcpcScore) GetLastSolvedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastSolvedAt
+	}
+	return nil
+}
+
+type IoiScore struct {
+	state                     protoimpl.MessageState `protogen:"open.v1"`
+	TotalScore                int64                  `protobuf:"varint,1,opt,name=total_score,json=totalScore,proto3" json:"total_score,omitempty"`
+	LastEffectiveSubmissionAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=last_effective_submission_at,json=lastEffectiveSubmissionAt,proto3" json:"last_effective_submission_at,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
+}
+
+func (x *IoiScore) Reset() {
+	*x = IoiScore{}
+	mi := &file_proto_contest_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *IoiScore) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*IoiScore) ProtoMessage() {}
+
+func (x *IoiScore) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use IoiScore.ProtoReflect.Descriptor instead.
+func (*IoiScore) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *IoiScore) GetTotalScore() int64 {
+	if x != nil {
+		return x.TotalScore
+	}
+	return 0
+}
+
+func (x *IoiScore) GetLastEffectiveSubmissionAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastEffectiveSubmissionAt
+	}
+	return nil
+}
+
+type OiScore struct {
+	state                     protoimpl.MessageState `protogen:"open.v1"`
+	TotalScore                int64                  `protobuf:"varint,1,opt,name=total_score,json=totalScore,proto3" json:"total_score,omitempty"`
+	LastEffectiveSubmissionAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=last_effective_submission_at,json=lastEffectiveSubmissionAt,proto3" json:"last_effective_submission_at,omitempty"`
+	unknownFields             protoimpl.UnknownFields
+	sizeCache                 protoimpl.SizeCache
+}
+
+func (x *OiScore) Reset() {
+	*x = OiScore{}
+	mi := &file_proto_contest_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OiScore) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OiScore) ProtoMessage() {}
+
+func (x *OiScore) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OiScore.ProtoReflect.Descriptor instead.
+func (*OiScore) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *OiScore) GetTotalScore() int64 {
+	if x != nil {
+		return x.TotalScore
+	}
+	return 0
+}
+
+func (x *OiScore) GetLastEffectiveSubmissionAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastEffectiveSubmissionAt
+	}
+	return nil
+}
+
+type ScoreboardRow struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// rank 允许并列；ordinal 是分页和稳定排序使用的唯一顺序位置。
+	Rank           int64                      `protobuf:"varint,1,opt,name=rank,proto3" json:"rank,omitempty"`
+	Ordinal        int64                      `protobuf:"varint,2,opt,name=ordinal,proto3" json:"ordinal,omitempty"`
+	UserId         int64                      `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	DisplayName    string                     `protobuf:"bytes,4,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
+	ProblemResults []*ScoreboardProblemResult `protobuf:"bytes,5,rep,name=problem_results,json=problemResults,proto3" json:"problem_results,omitempty"`
+	// Types that are valid to be assigned to Score:
+	//
+	//	*ScoreboardRow_Icpc
+	//	*ScoreboardRow_Ioi
+	//	*ScoreboardRow_Oi
+	Score         isScoreboardRow_Score `protobuf_oneof:"score"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ScoreboardRow) Reset() {
+	*x = ScoreboardRow{}
+	mi := &file_proto_contest_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ScoreboardRow) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ScoreboardRow) ProtoMessage() {}
+
+func (x *ScoreboardRow) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ScoreboardRow.ProtoReflect.Descriptor instead.
+func (*ScoreboardRow) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *ScoreboardRow) GetRank() int64 {
+	if x != nil {
+		return x.Rank
+	}
+	return 0
+}
+
+func (x *ScoreboardRow) GetOrdinal() int64 {
+	if x != nil {
+		return x.Ordinal
+	}
+	return 0
+}
+
+func (x *ScoreboardRow) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *ScoreboardRow) GetDisplayName() string {
+	if x != nil {
+		return x.DisplayName
+	}
+	return ""
+}
+
+func (x *ScoreboardRow) GetProblemResults() []*ScoreboardProblemResult {
+	if x != nil {
+		return x.ProblemResults
+	}
+	return nil
+}
+
+func (x *ScoreboardRow) GetScore() isScoreboardRow_Score {
+	if x != nil {
+		return x.Score
+	}
+	return nil
+}
+
+func (x *ScoreboardRow) GetIcpc() *IcpcScore {
+	if x != nil {
+		if x, ok := x.Score.(*ScoreboardRow_Icpc); ok {
+			return x.Icpc
+		}
+	}
+	return nil
+}
+
+func (x *ScoreboardRow) GetIoi() *IoiScore {
+	if x != nil {
+		if x, ok := x.Score.(*ScoreboardRow_Ioi); ok {
+			return x.Ioi
+		}
+	}
+	return nil
+}
+
+func (x *ScoreboardRow) GetOi() *OiScore {
+	if x != nil {
+		if x, ok := x.Score.(*ScoreboardRow_Oi); ok {
+			return x.Oi
+		}
+	}
+	return nil
+}
+
+type isScoreboardRow_Score interface {
+	isScoreboardRow_Score()
+}
+
+type ScoreboardRow_Icpc struct {
+	Icpc *IcpcScore `protobuf:"bytes,6,opt,name=icpc,proto3,oneof"`
+}
+
+type ScoreboardRow_Ioi struct {
+	Ioi *IoiScore `protobuf:"bytes,7,opt,name=ioi,proto3,oneof"`
+}
+
+type ScoreboardRow_Oi struct {
+	Oi *OiScore `protobuf:"bytes,8,opt,name=oi,proto3,oneof"`
+}
+
+func (*ScoreboardRow_Icpc) isScoreboardRow_Score() {}
+
+func (*ScoreboardRow_Ioi) isScoreboardRow_Score() {}
+
+func (*ScoreboardRow_Oi) isScoreboardRow_Score() {}
+
+type Scoreboard struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContestId     int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	Mode          ContestMode            `protobuf:"varint,2,opt,name=mode,proto3,enum=contest.ContestMode" json:"mode,omitempty"`
+	GeneratedAt   *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=generated_at,json=generatedAt,proto3" json:"generated_at,omitempty"`
+	Frozen        bool                   `protobuf:"varint,4,opt,name=frozen,proto3" json:"frozen,omitempty"`
+	View          ScoreboardView         `protobuf:"varint,5,opt,name=view,proto3,enum=contest.ScoreboardView" json:"view,omitempty"`
+	Total         int64                  `protobuf:"varint,6,opt,name=total,proto3" json:"total,omitempty"`
+	Rows          []*ScoreboardRow       `protobuf:"bytes,7,rep,name=rows,proto3" json:"rows,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Scoreboard) Reset() {
+	*x = Scoreboard{}
+	mi := &file_proto_contest_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Scoreboard) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Scoreboard) ProtoMessage() {}
+
+func (x *Scoreboard) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Scoreboard.ProtoReflect.Descriptor instead.
+func (*Scoreboard) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *Scoreboard) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *Scoreboard) GetMode() ContestMode {
+	if x != nil {
+		return x.Mode
+	}
+	return ContestMode_CONTEST_MODE_UNSPECIFIED
+}
+
+func (x *Scoreboard) GetGeneratedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.GeneratedAt
+	}
+	return nil
+}
+
+func (x *Scoreboard) GetFrozen() bool {
+	if x != nil {
+		return x.Frozen
+	}
+	return false
+}
+
+func (x *Scoreboard) GetView() ScoreboardView {
+	if x != nil {
+		return x.View
+	}
+	return ScoreboardView_SCOREBOARD_VIEW_UNSPECIFIED
+}
+
+func (x *Scoreboard) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *Scoreboard) GetRows() []*ScoreboardRow {
+	if x != nil {
+		return x.Rows
+	}
+	return nil
+}
+
+type ListContestsReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,2,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	Keyword       string                 `protobuf:"bytes,3,opt,name=keyword,proto3" json:"keyword,omitempty"`
+	Status        ContestStatus          `protobuf:"varint,4,opt,name=status,proto3,enum=contest.ContestStatus" json:"status,omitempty"`
+	Mode          ContestMode            `protobuf:"varint,5,opt,name=mode,proto3,enum=contest.ContestMode" json:"mode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListContestsReq) Reset() {
+	*x = ListContestsReq{}
+	mi := &file_proto_contest_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListContestsReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListContestsReq) ProtoMessage() {}
+
+func (x *ListContestsReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListContestsReq.ProtoReflect.Descriptor instead.
+func (*ListContestsReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *ListContestsReq) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListContestsReq) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListContestsReq) GetKeyword() string {
+	if x != nil {
+		return x.Keyword
+	}
+	return ""
+}
+
+func (x *ListContestsReq) GetStatus() ContestStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ContestStatus_CONTEST_STATUS_UNSPECIFIED
+}
+
+func (x *ListContestsReq) GetMode() ContestMode {
+	if x != nil {
+		return x.Mode
+	}
+	return ContestMode_CONTEST_MODE_UNSPECIFIED
+}
+
+type ListContestsResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Total         int64                  `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
+	Contests      []*ContestSummary      `protobuf:"bytes,2,rep,name=contests,proto3" json:"contests,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListContestsResp) Reset() {
+	*x = ListContestsResp{}
+	mi := &file_proto_contest_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListContestsResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListContestsResp) ProtoMessage() {}
+
+func (x *ListContestsResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListContestsResp.ProtoReflect.Descriptor instead.
+func (*ListContestsResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *ListContestsResp) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListContestsResp) GetContests() []*ContestSummary {
+	if x != nil {
+		return x.Contests
+	}
+	return nil
+}
+
+type GetContestReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContestId     int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetContestReq) Reset() {
+	*x = GetContestReq{}
+	mi := &file_proto_contest_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetContestReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetContestReq) ProtoMessage() {}
+
+func (x *GetContestReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetContestReq.ProtoReflect.Descriptor instead.
+func (*GetContestReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *GetContestReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+type GetContestResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Contest       *ContestDetail         `protobuf:"bytes,1,opt,name=contest,proto3" json:"contest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetContestResp) Reset() {
+	*x = GetContestResp{}
+	mi := &file_proto_contest_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetContestResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetContestResp) ProtoMessage() {}
+
+func (x *GetContestResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetContestResp.ProtoReflect.Descriptor instead.
+func (*GetContestResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *GetContestResp) GetContest() *ContestDetail {
+	if x != nil {
+		return x.Contest
+	}
+	return nil
+}
+
+// 当前用户身份必须来自受信任 gRPC metadata/context，不能由请求体指定。
+type RegisterContestReq struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	ContestId       int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	InviteCode      string                 `protobuf:"bytes,2,opt,name=invite_code,json=inviteCode,proto3" json:"invite_code,omitempty"`
+	ApplicationNote string                 `protobuf:"bytes,3,opt,name=application_note,json=applicationNote,proto3" json:"application_note,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *RegisterContestReq) Reset() {
+	*x = RegisterContestReq{}
+	mi := &file_proto_contest_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterContestReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterContestReq) ProtoMessage() {}
+
+func (x *RegisterContestReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterContestReq.ProtoReflect.Descriptor instead.
+func (*RegisterContestReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *RegisterContestReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *RegisterContestReq) GetInviteCode() string {
+	if x != nil {
+		return x.InviteCode
+	}
+	return ""
+}
+
+func (x *RegisterContestReq) GetApplicationNote() string {
+	if x != nil {
+		return x.ApplicationNote
+	}
+	return ""
+}
+
+type RegisterContestResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Registration  *ContestRegistration   `protobuf:"bytes,1,opt,name=registration,proto3" json:"registration,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegisterContestResp) Reset() {
+	*x = RegisterContestResp{}
+	mi := &file_proto_contest_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterContestResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterContestResp) ProtoMessage() {}
+
+func (x *RegisterContestResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterContestResp.ProtoReflect.Descriptor instead.
+func (*RegisterContestResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *RegisterContestResp) GetRegistration() *ContestRegistration {
+	if x != nil {
+		return x.Registration
+	}
+	return nil
+}
+
+type CancelRegistrationReq struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ContestId        int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	ExpectedRevision int64                  `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *CancelRegistrationReq) Reset() {
+	*x = CancelRegistrationReq{}
+	mi := &file_proto_contest_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelRegistrationReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelRegistrationReq) ProtoMessage() {}
+
+func (x *CancelRegistrationReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelRegistrationReq.ProtoReflect.Descriptor instead.
+func (*CancelRegistrationReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *CancelRegistrationReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *CancelRegistrationReq) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
+}
+
+type CancelRegistrationResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Registration  *ContestRegistration   `protobuf:"bytes,1,opt,name=registration,proto3" json:"registration,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelRegistrationResp) Reset() {
+	*x = CancelRegistrationResp{}
+	mi := &file_proto_contest_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelRegistrationResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelRegistrationResp) ProtoMessage() {}
+
+func (x *CancelRegistrationResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelRegistrationResp.ProtoReflect.Descriptor instead.
+func (*CancelRegistrationResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *CancelRegistrationResp) GetRegistration() *ContestRegistration {
+	if x != nil {
+		return x.Registration
+	}
+	return nil
+}
+
+type GetMyContestStatusReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContestId     int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMyContestStatusReq) Reset() {
+	*x = GetMyContestStatusReq{}
+	mi := &file_proto_contest_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMyContestStatusReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMyContestStatusReq) ProtoMessage() {}
+
+func (x *GetMyContestStatusReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMyContestStatusReq.ProtoReflect.Descriptor instead.
+func (*GetMyContestStatusReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *GetMyContestStatusReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+type GetMyContestStatusResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        *MyContestStatus       `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetMyContestStatusResp) Reset() {
+	*x = GetMyContestStatusResp{}
+	mi := &file_proto_contest_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetMyContestStatusResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetMyContestStatusResp) ProtoMessage() {}
+
+func (x *GetMyContestStatusResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetMyContestStatusResp.ProtoReflect.Descriptor instead.
+func (*GetMyContestStatusResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *GetMyContestStatusResp) GetStatus() *MyContestStatus {
+	if x != nil {
+		return x.Status
+	}
+	return nil
+}
+
+type ListContestProblemsReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContestId     int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListContestProblemsReq) Reset() {
+	*x = ListContestProblemsReq{}
+	mi := &file_proto_contest_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListContestProblemsReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListContestProblemsReq) ProtoMessage() {}
+
+func (x *ListContestProblemsReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListContestProblemsReq.ProtoReflect.Descriptor instead.
+func (*ListContestProblemsReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *ListContestProblemsReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *ListContestProblemsReq) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListContestProblemsReq) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type ListContestProblemsResp struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Total         int64                    `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
+	Problems      []*ContestProblemSummary `protobuf:"bytes,2,rep,name=problems,proto3" json:"problems,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListContestProblemsResp) Reset() {
+	*x = ListContestProblemsResp{}
+	mi := &file_proto_contest_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListContestProblemsResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListContestProblemsResp) ProtoMessage() {}
+
+func (x *ListContestProblemsResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListContestProblemsResp.ProtoReflect.Descriptor instead.
+func (*ListContestProblemsResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{29}
+}
+
+func (x *ListContestProblemsResp) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListContestProblemsResp) GetProblems() []*ContestProblemSummary {
+	if x != nil {
+		return x.Problems
+	}
+	return nil
+}
+
+type GetScoreboardReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContestId     int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetScoreboardReq) Reset() {
+	*x = GetScoreboardReq{}
+	mi := &file_proto_contest_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetScoreboardReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetScoreboardReq) ProtoMessage() {}
+
+func (x *GetScoreboardReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetScoreboardReq.ProtoReflect.Descriptor instead.
+func (*GetScoreboardReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *GetScoreboardReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *GetScoreboardReq) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *GetScoreboardReq) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+type GetScoreboardResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Scoreboard    *Scoreboard            `protobuf:"bytes,1,opt,name=scoreboard,proto3" json:"scoreboard,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetScoreboardResp) Reset() {
+	*x = GetScoreboardResp{}
+	mi := &file_proto_contest_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetScoreboardResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetScoreboardResp) ProtoMessage() {}
+
+func (x *GetScoreboardResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetScoreboardResp.ProtoReflect.Descriptor instead.
+func (*GetScoreboardResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *GetScoreboardResp) GetScoreboard() *Scoreboard {
+	if x != nil {
+		return x.Scoreboard
+	}
+	return nil
+}
+
+type CreateContestReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Contest       *ContestEditableFields `protobuf:"bytes,1,opt,name=contest,proto3" json:"contest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateContestReq) Reset() {
+	*x = CreateContestReq{}
+	mi := &file_proto_contest_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateContestReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateContestReq) ProtoMessage() {}
+
+func (x *CreateContestReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateContestReq.ProtoReflect.Descriptor instead.
+func (*CreateContestReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *CreateContestReq) GetContest() *ContestEditableFields {
+	if x != nil {
+		return x.Contest
+	}
+	return nil
+}
+
+type CreateContestResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Contest       *Contest               `protobuf:"bytes,1,opt,name=contest,proto3" json:"contest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateContestResp) Reset() {
+	*x = CreateContestResp{}
+	mi := &file_proto_contest_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateContestResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateContestResp) ProtoMessage() {}
+
+func (x *CreateContestResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateContestResp.ProtoReflect.Descriptor instead.
+func (*CreateContestResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *CreateContestResp) GetContest() *Contest {
+	if x != nil {
+		return x.Contest
+	}
+	return nil
+}
+
+type GetContestForEditReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContestId     int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetContestForEditReq) Reset() {
+	*x = GetContestForEditReq{}
+	mi := &file_proto_contest_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetContestForEditReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetContestForEditReq) ProtoMessage() {}
+
+func (x *GetContestForEditReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetContestForEditReq.ProtoReflect.Descriptor instead.
+func (*GetContestForEditReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *GetContestForEditReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+type GetContestForEditResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Contest       *Contest               `protobuf:"bytes,1,opt,name=contest,proto3" json:"contest,omitempty"`
+	Problems      []*ContestProblem      `protobuf:"bytes,2,rep,name=problems,proto3" json:"problems,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetContestForEditResp) Reset() {
+	*x = GetContestForEditResp{}
+	mi := &file_proto_contest_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetContestForEditResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetContestForEditResp) ProtoMessage() {}
+
+func (x *GetContestForEditResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetContestForEditResp.ProtoReflect.Descriptor instead.
+func (*GetContestForEditResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *GetContestForEditResp) GetContest() *Contest {
+	if x != nil {
+		return x.Contest
+	}
+	return nil
+}
+
+func (x *GetContestForEditResp) GetProblems() []*ContestProblem {
+	if x != nil {
+		return x.Problems
+	}
+	return nil
+}
+
+type UpdateContestReq struct {
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ContestId int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	Contest   *ContestEditableFields `protobuf:"bytes,2,opt,name=contest,proto3" json:"contest,omitempty"`
+	// 路径相对于 ContestEditableFields，例如 title、start_at、scoreboard_freeze_at。
+	UpdateMask *fieldmaskpb.FieldMask `protobuf:"bytes,3,opt,name=update_mask,json=updateMask,proto3" json:"update_mask,omitempty"`
+	// 与当前比赛 revision 不同必须返回 ABORTED。
+	ExpectedRevision int64 `protobuf:"varint,4,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *UpdateContestReq) Reset() {
+	*x = UpdateContestReq{}
+	mi := &file_proto_contest_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateContestReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateContestReq) ProtoMessage() {}
+
+func (x *UpdateContestReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateContestReq.ProtoReflect.Descriptor instead.
+func (*UpdateContestReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{36}
+}
+
+func (x *UpdateContestReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *UpdateContestReq) GetContest() *ContestEditableFields {
+	if x != nil {
+		return x.Contest
+	}
+	return nil
+}
+
+func (x *UpdateContestReq) GetUpdateMask() *fieldmaskpb.FieldMask {
+	if x != nil {
+		return x.UpdateMask
+	}
+	return nil
+}
+
+func (x *UpdateContestReq) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
+}
+
+type UpdateContestResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Contest       *Contest               `protobuf:"bytes,1,opt,name=contest,proto3" json:"contest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateContestResp) Reset() {
+	*x = UpdateContestResp{}
+	mi := &file_proto_contest_proto_msgTypes[37]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateContestResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateContestResp) ProtoMessage() {}
+
+func (x *UpdateContestResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[37]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateContestResp.ProtoReflect.Descriptor instead.
+func (*UpdateContestResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{37}
+}
+
+func (x *UpdateContestResp) GetContest() *Contest {
+	if x != nil {
+		return x.Contest
+	}
+	return nil
+}
+
+type PublishContestReq struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ContestId        int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	ExpectedRevision int64                  `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *PublishContestReq) Reset() {
+	*x = PublishContestReq{}
+	mi := &file_proto_contest_proto_msgTypes[38]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublishContestReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublishContestReq) ProtoMessage() {}
+
+func (x *PublishContestReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[38]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublishContestReq.ProtoReflect.Descriptor instead.
+func (*PublishContestReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{38}
+}
+
+func (x *PublishContestReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *PublishContestReq) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
+}
+
+type PublishContestResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Contest       *Contest               `protobuf:"bytes,1,opt,name=contest,proto3" json:"contest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PublishContestResp) Reset() {
+	*x = PublishContestResp{}
+	mi := &file_proto_contest_proto_msgTypes[39]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PublishContestResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PublishContestResp) ProtoMessage() {}
+
+func (x *PublishContestResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[39]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PublishContestResp.ProtoReflect.Descriptor instead.
+func (*PublishContestResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{39}
+}
+
+func (x *PublishContestResp) GetContest() *Contest {
+	if x != nil {
+		return x.Contest
+	}
+	return nil
+}
+
+type CancelContestReq struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ContestId        int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	ExpectedRevision int64                  `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	Reason           string                 `protobuf:"bytes,3,opt,name=reason,proto3" json:"reason,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *CancelContestReq) Reset() {
+	*x = CancelContestReq{}
+	mi := &file_proto_contest_proto_msgTypes[40]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelContestReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelContestReq) ProtoMessage() {}
+
+func (x *CancelContestReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[40]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelContestReq.ProtoReflect.Descriptor instead.
+func (*CancelContestReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{40}
+}
+
+func (x *CancelContestReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *CancelContestReq) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
+}
+
+func (x *CancelContestReq) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+type CancelContestResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Contest       *Contest               `protobuf:"bytes,1,opt,name=contest,proto3" json:"contest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelContestResp) Reset() {
+	*x = CancelContestResp{}
+	mi := &file_proto_contest_proto_msgTypes[41]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelContestResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelContestResp) ProtoMessage() {}
+
+func (x *CancelContestResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[41]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelContestResp.ProtoReflect.Descriptor instead.
+func (*CancelContestResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{41}
+}
+
+func (x *CancelContestResp) GetContest() *Contest {
+	if x != nil {
+		return x.Contest
+	}
+	return nil
+}
+
+type ArchiveContestReq struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ContestId        int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	ExpectedRevision int64                  `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ArchiveContestReq) Reset() {
+	*x = ArchiveContestReq{}
+	mi := &file_proto_contest_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArchiveContestReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArchiveContestReq) ProtoMessage() {}
+
+func (x *ArchiveContestReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArchiveContestReq.ProtoReflect.Descriptor instead.
+func (*ArchiveContestReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{42}
+}
+
+func (x *ArchiveContestReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *ArchiveContestReq) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
+}
+
+type ArchiveContestResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Contest       *Contest               `protobuf:"bytes,1,opt,name=contest,proto3" json:"contest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ArchiveContestResp) Reset() {
+	*x = ArchiveContestResp{}
+	mi := &file_proto_contest_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ArchiveContestResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ArchiveContestResp) ProtoMessage() {}
+
+func (x *ArchiveContestResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ArchiveContestResp.ProtoReflect.Descriptor instead.
+func (*ArchiveContestResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{43}
+}
+
+func (x *ArchiveContestResp) GetContest() *Contest {
+	if x != nil {
+		return x.Contest
+	}
+	return nil
+}
+
+// 软删除比赛。
+type DeleteContestReq struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ContestId        int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	ExpectedRevision int64                  `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *DeleteContestReq) Reset() {
+	*x = DeleteContestReq{}
+	mi := &file_proto_contest_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteContestReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteContestReq) ProtoMessage() {}
+
+func (x *DeleteContestReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteContestReq.ProtoReflect.Descriptor instead.
+func (*DeleteContestReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{44}
+}
+
+func (x *DeleteContestReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *DeleteContestReq) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
+}
+
+type DeleteContestResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Revision      int64                  `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteContestResp) Reset() {
+	*x = DeleteContestResp{}
+	mi := &file_proto_contest_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteContestResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteContestResp) ProtoMessage() {}
+
+func (x *DeleteContestResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteContestResp.ProtoReflect.Descriptor instead.
+func (*DeleteContestResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{45}
+}
+
+func (x *DeleteContestResp) GetRevision() int64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+type RestoreContestReq struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ContestId        int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	ExpectedRevision int64                  `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *RestoreContestReq) Reset() {
+	*x = RestoreContestReq{}
+	mi := &file_proto_contest_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreContestReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreContestReq) ProtoMessage() {}
+
+func (x *RestoreContestReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreContestReq.ProtoReflect.Descriptor instead.
+func (*RestoreContestReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{46}
+}
+
+func (x *RestoreContestReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *RestoreContestReq) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
+}
+
+type RestoreContestResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Contest       *Contest               `protobuf:"bytes,1,opt,name=contest,proto3" json:"contest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RestoreContestResp) Reset() {
+	*x = RestoreContestResp{}
+	mi := &file_proto_contest_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RestoreContestResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RestoreContestResp) ProtoMessage() {}
+
+func (x *RestoreContestResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RestoreContestResp.ProtoReflect.Descriptor instead.
+func (*RestoreContestResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{47}
+}
+
+func (x *RestoreContestResp) GetContest() *Contest {
+	if x != nil {
+		return x.Contest
+	}
+	return nil
+}
+
+// 原子替换完整题目编排。problem_id、label、display_order 均不得重复；冲突返回
+// ALREADY_EXISTS，任一条非法时整个请求不得生效。
+type SetContestProblemsReq struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ContestId        int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	Problems         []*ContestProblem      `protobuf:"bytes,2,rep,name=problems,proto3" json:"problems,omitempty"`
+	ExpectedRevision int64                  `protobuf:"varint,3,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *SetContestProblemsReq) Reset() {
+	*x = SetContestProblemsReq{}
+	mi := &file_proto_contest_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetContestProblemsReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetContestProblemsReq) ProtoMessage() {}
+
+func (x *SetContestProblemsReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetContestProblemsReq.ProtoReflect.Descriptor instead.
+func (*SetContestProblemsReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{48}
+}
+
+func (x *SetContestProblemsReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *SetContestProblemsReq) GetProblems() []*ContestProblem {
+	if x != nil {
+		return x.Problems
+	}
+	return nil
+}
+
+func (x *SetContestProblemsReq) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
+}
+
+type SetContestProblemsResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Contest       *Contest               `protobuf:"bytes,1,opt,name=contest,proto3" json:"contest,omitempty"`
+	Problems      []*ContestProblem      `protobuf:"bytes,2,rep,name=problems,proto3" json:"problems,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SetContestProblemsResp) Reset() {
+	*x = SetContestProblemsResp{}
+	mi := &file_proto_contest_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SetContestProblemsResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SetContestProblemsResp) ProtoMessage() {}
+
+func (x *SetContestProblemsResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SetContestProblemsResp.ProtoReflect.Descriptor instead.
+func (*SetContestProblemsResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{49}
+}
+
+func (x *SetContestProblemsResp) GetContest() *Contest {
+	if x != nil {
+		return x.Contest
+	}
+	return nil
+}
+
+func (x *SetContestProblemsResp) GetProblems() []*ContestProblem {
+	if x != nil {
+		return x.Problems
+	}
+	return nil
+}
+
+type ListRegistrationsReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContestId     int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	Status        RegistrationStatus     `protobuf:"varint,4,opt,name=status,proto3,enum=contest.RegistrationStatus" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRegistrationsReq) Reset() {
+	*x = ListRegistrationsReq{}
+	mi := &file_proto_contest_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRegistrationsReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRegistrationsReq) ProtoMessage() {}
+
+func (x *ListRegistrationsReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRegistrationsReq.ProtoReflect.Descriptor instead.
+func (*ListRegistrationsReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{50}
+}
+
+func (x *ListRegistrationsReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *ListRegistrationsReq) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListRegistrationsReq) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListRegistrationsReq) GetStatus() RegistrationStatus {
+	if x != nil {
+		return x.Status
+	}
+	return RegistrationStatus_REGISTRATION_STATUS_UNSPECIFIED
+}
+
+type ListRegistrationsResp struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Total int64                  `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
+	// 按 created_at 升序、registration_id 升序稳定排序。
+	Registrations []*ContestRegistration `protobuf:"bytes,2,rep,name=registrations,proto3" json:"registrations,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRegistrationsResp) Reset() {
+	*x = ListRegistrationsResp{}
+	mi := &file_proto_contest_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRegistrationsResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRegistrationsResp) ProtoMessage() {}
+
+func (x *ListRegistrationsResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRegistrationsResp.ProtoReflect.Descriptor instead.
+func (*ListRegistrationsResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{51}
+}
+
+func (x *ListRegistrationsResp) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListRegistrationsResp) GetRegistrations() []*ContestRegistration {
+	if x != nil {
+		return x.Registrations
+	}
+	return nil
+}
+
+type ReviewRegistrationReq struct {
+	state            protoimpl.MessageState     `protogen:"open.v1"`
+	ContestId        int64                      `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	RegistrationId   int64                      `protobuf:"varint,2,opt,name=registration_id,json=registrationId,proto3" json:"registration_id,omitempty"`
+	Decision         RegistrationReviewDecision `protobuf:"varint,3,opt,name=decision,proto3,enum=contest.RegistrationReviewDecision" json:"decision,omitempty"`
+	ReviewNote       string                     `protobuf:"bytes,4,opt,name=review_note,json=reviewNote,proto3" json:"review_note,omitempty"`
+	ExpectedRevision int64                      `protobuf:"varint,5,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *ReviewRegistrationReq) Reset() {
+	*x = ReviewRegistrationReq{}
+	mi := &file_proto_contest_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReviewRegistrationReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReviewRegistrationReq) ProtoMessage() {}
+
+func (x *ReviewRegistrationReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReviewRegistrationReq.ProtoReflect.Descriptor instead.
+func (*ReviewRegistrationReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{52}
+}
+
+func (x *ReviewRegistrationReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *ReviewRegistrationReq) GetRegistrationId() int64 {
+	if x != nil {
+		return x.RegistrationId
+	}
+	return 0
+}
+
+func (x *ReviewRegistrationReq) GetDecision() RegistrationReviewDecision {
+	if x != nil {
+		return x.Decision
+	}
+	return RegistrationReviewDecision_REGISTRATION_REVIEW_DECISION_UNSPECIFIED
+}
+
+func (x *ReviewRegistrationReq) GetReviewNote() string {
+	if x != nil {
+		return x.ReviewNote
+	}
+	return ""
+}
+
+func (x *ReviewRegistrationReq) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
+}
+
+type ReviewRegistrationResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Registration  *ContestRegistration   `protobuf:"bytes,1,opt,name=registration,proto3" json:"registration,omitempty"`
+	Participant   *ContestParticipant    `protobuf:"bytes,2,opt,name=participant,proto3" json:"participant,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReviewRegistrationResp) Reset() {
+	*x = ReviewRegistrationResp{}
+	mi := &file_proto_contest_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReviewRegistrationResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReviewRegistrationResp) ProtoMessage() {}
+
+func (x *ReviewRegistrationResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReviewRegistrationResp.ProtoReflect.Descriptor instead.
+func (*ReviewRegistrationResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{53}
+}
+
+func (x *ReviewRegistrationResp) GetRegistration() *ContestRegistration {
+	if x != nil {
+		return x.Registration
+	}
+	return nil
+}
+
+func (x *ReviewRegistrationResp) GetParticipant() *ContestParticipant {
+	if x != nil {
+		return x.Participant
+	}
+	return nil
+}
+
+type ListParticipantsReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContestId     int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	Page          int32                  `protobuf:"varint,2,opt,name=page,proto3" json:"page,omitempty"`
+	PageSize      int32                  `protobuf:"varint,3,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	Status        ParticipantStatus      `protobuf:"varint,4,opt,name=status,proto3,enum=contest.ParticipantStatus" json:"status,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListParticipantsReq) Reset() {
+	*x = ListParticipantsReq{}
+	mi := &file_proto_contest_proto_msgTypes[54]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListParticipantsReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListParticipantsReq) ProtoMessage() {}
+
+func (x *ListParticipantsReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[54]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListParticipantsReq.ProtoReflect.Descriptor instead.
+func (*ListParticipantsReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{54}
+}
+
+func (x *ListParticipantsReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *ListParticipantsReq) GetPage() int32 {
+	if x != nil {
+		return x.Page
+	}
+	return 0
+}
+
+func (x *ListParticipantsReq) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListParticipantsReq) GetStatus() ParticipantStatus {
+	if x != nil {
+		return x.Status
+	}
+	return ParticipantStatus_PARTICIPANT_STATUS_UNSPECIFIED
+}
+
+type ListParticipantsResp struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Total int64                  `protobuf:"varint,1,opt,name=total,proto3" json:"total,omitempty"`
+	// 按 qualified_at 升序、user_id 升序稳定排序。
+	Participants  []*ContestParticipant `protobuf:"bytes,2,rep,name=participants,proto3" json:"participants,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListParticipantsResp) Reset() {
+	*x = ListParticipantsResp{}
+	mi := &file_proto_contest_proto_msgTypes[55]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListParticipantsResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListParticipantsResp) ProtoMessage() {}
+
+func (x *ListParticipantsResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[55]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListParticipantsResp.ProtoReflect.Descriptor instead.
+func (*ListParticipantsResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{55}
+}
+
+func (x *ListParticipantsResp) GetTotal() int64 {
+	if x != nil {
+		return x.Total
+	}
+	return 0
+}
+
+func (x *ListParticipantsResp) GetParticipants() []*ContestParticipant {
+	if x != nil {
+		return x.Participants
+	}
+	return nil
+}
+
+type FreezeScoreboardReq struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ContestId        int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	ExpectedRevision int64                  `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *FreezeScoreboardReq) Reset() {
+	*x = FreezeScoreboardReq{}
+	mi := &file_proto_contest_proto_msgTypes[56]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FreezeScoreboardReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FreezeScoreboardReq) ProtoMessage() {}
+
+func (x *FreezeScoreboardReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[56]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FreezeScoreboardReq.ProtoReflect.Descriptor instead.
+func (*FreezeScoreboardReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{56}
+}
+
+func (x *FreezeScoreboardReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *FreezeScoreboardReq) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
+}
+
+type FreezeScoreboardResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Contest       *Contest               `protobuf:"bytes,1,opt,name=contest,proto3" json:"contest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FreezeScoreboardResp) Reset() {
+	*x = FreezeScoreboardResp{}
+	mi := &file_proto_contest_proto_msgTypes[57]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FreezeScoreboardResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FreezeScoreboardResp) ProtoMessage() {}
+
+func (x *FreezeScoreboardResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[57]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FreezeScoreboardResp.ProtoReflect.Descriptor instead.
+func (*FreezeScoreboardResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{57}
+}
+
+func (x *FreezeScoreboardResp) GetContest() *Contest {
+	if x != nil {
+		return x.Contest
+	}
+	return nil
+}
+
+type UnfreezeScoreboardReq struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ContestId        int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	ExpectedRevision int64                  `protobuf:"varint,2,opt,name=expected_revision,json=expectedRevision,proto3" json:"expected_revision,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *UnfreezeScoreboardReq) Reset() {
+	*x = UnfreezeScoreboardReq{}
+	mi := &file_proto_contest_proto_msgTypes[58]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnfreezeScoreboardReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnfreezeScoreboardReq) ProtoMessage() {}
+
+func (x *UnfreezeScoreboardReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[58]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnfreezeScoreboardReq.ProtoReflect.Descriptor instead.
+func (*UnfreezeScoreboardReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{58}
+}
+
+func (x *UnfreezeScoreboardReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *UnfreezeScoreboardReq) GetExpectedRevision() int64 {
+	if x != nil {
+		return x.ExpectedRevision
+	}
+	return 0
+}
+
+type UnfreezeScoreboardResp struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Contest       *Contest               `protobuf:"bytes,1,opt,name=contest,proto3" json:"contest,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnfreezeScoreboardResp) Reset() {
+	*x = UnfreezeScoreboardResp{}
+	mi := &file_proto_contest_proto_msgTypes[59]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnfreezeScoreboardResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnfreezeScoreboardResp) ProtoMessage() {}
+
+func (x *UnfreezeScoreboardResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[59]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnfreezeScoreboardResp.ProtoReflect.Descriptor instead.
+func (*UnfreezeScoreboardResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{59}
+}
+
+func (x *UnfreezeScoreboardResp) GetContest() *Contest {
+	if x != nil {
+		return x.Contest
+	}
+	return nil
+}
+
+// 仅 Problem RPC 可调用。字段号和方法签名保持与现有客户端兼容。
 type CanAccessProblemReq struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ContestId     int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
@@ -34,7 +4523,7 @@ type CanAccessProblemReq struct {
 
 func (x *CanAccessProblemReq) Reset() {
 	*x = CanAccessProblemReq{}
-	mi := &file_contest_proto_msgTypes[0]
+	mi := &file_proto_contest_proto_msgTypes[60]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -46,7 +4535,7 @@ func (x *CanAccessProblemReq) String() string {
 func (*CanAccessProblemReq) ProtoMessage() {}
 
 func (x *CanAccessProblemReq) ProtoReflect() protoreflect.Message {
-	mi := &file_contest_proto_msgTypes[0]
+	mi := &file_proto_contest_proto_msgTypes[60]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -59,7 +4548,7 @@ func (x *CanAccessProblemReq) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CanAccessProblemReq.ProtoReflect.Descriptor instead.
 func (*CanAccessProblemReq) Descriptor() ([]byte, []int) {
-	return file_contest_proto_rawDescGZIP(), []int{0}
+	return file_proto_contest_proto_rawDescGZIP(), []int{60}
 }
 
 func (x *CanAccessProblemReq) GetContestId() int64 {
@@ -84,15 +4573,17 @@ func (x *CanAccessProblemReq) GetUserId() int64 {
 }
 
 type CanAccessProblemResp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Allowed       bool                   `protobuf:"varint,1,opt,name=allowed,proto3" json:"allowed,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Allowed bool                   `protobuf:"varint,1,opt,name=allowed,proto3" json:"allowed,omitempty"`
+	// allowed=false 时给出可判别的业务原因；依赖故障仍通过 gRPC status 返回。
+	DenyReason    SubmissionDenyReason `protobuf:"varint,2,opt,name=deny_reason,json=denyReason,proto3,enum=contest.SubmissionDenyReason" json:"deny_reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CanAccessProblemResp) Reset() {
 	*x = CanAccessProblemResp{}
-	mi := &file_contest_proto_msgTypes[1]
+	mi := &file_proto_contest_proto_msgTypes[61]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -104,7 +4595,7 @@ func (x *CanAccessProblemResp) String() string {
 func (*CanAccessProblemResp) ProtoMessage() {}
 
 func (x *CanAccessProblemResp) ProtoReflect() protoreflect.Message {
-	mi := &file_contest_proto_msgTypes[1]
+	mi := &file_proto_contest_proto_msgTypes[61]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -117,7 +4608,7 @@ func (x *CanAccessProblemResp) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CanAccessProblemResp.ProtoReflect.Descriptor instead.
 func (*CanAccessProblemResp) Descriptor() ([]byte, []int) {
-	return file_contest_proto_rawDescGZIP(), []int{1}
+	return file_proto_contest_proto_rawDescGZIP(), []int{61}
 }
 
 func (x *CanAccessProblemResp) GetAllowed() bool {
@@ -127,69 +4618,869 @@ func (x *CanAccessProblemResp) GetAllowed() bool {
 	return false
 }
 
-var File_contest_proto protoreflect.FileDescriptor
+func (x *CanAccessProblemResp) GetDenyReason() SubmissionDenyReason {
+	if x != nil {
+		return x.DenyReason
+	}
+	return SubmissionDenyReason_SUBMISSION_DENY_REASON_UNSPECIFIED
+}
 
-const file_contest_proto_rawDesc = "" +
+// 仅 Submit RPC 可调用。user_id 和 submitted_at 必须来自受信任服务上下文。
+type ValidateContestSubmissionReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContestId     int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	ProblemId     int64                  `protobuf:"varint,2,opt,name=problem_id,json=problemId,proto3" json:"problem_id,omitempty"`
+	UserId        int64                  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	SubmittedAt   *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=submitted_at,json=submittedAt,proto3" json:"submitted_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateContestSubmissionReq) Reset() {
+	*x = ValidateContestSubmissionReq{}
+	mi := &file_proto_contest_proto_msgTypes[62]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidateContestSubmissionReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateContestSubmissionReq) ProtoMessage() {}
+
+func (x *ValidateContestSubmissionReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[62]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateContestSubmissionReq.ProtoReflect.Descriptor instead.
+func (*ValidateContestSubmissionReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{62}
+}
+
+func (x *ValidateContestSubmissionReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *ValidateContestSubmissionReq) GetProblemId() int64 {
+	if x != nil {
+		return x.ProblemId
+	}
+	return 0
+}
+
+func (x *ValidateContestSubmissionReq) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *ValidateContestSubmissionReq) GetSubmittedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.SubmittedAt
+	}
+	return nil
+}
+
+type ValidateContestSubmissionResp struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Allowed bool                   `protobuf:"varint,1,opt,name=allowed,proto3" json:"allowed,omitempty"`
+	// allowed=true 时必须为 UNSPECIFIED；业务拒绝必须返回具体枚举值。
+	DenyReason    SubmissionDenyReason `protobuf:"varint,2,opt,name=deny_reason,json=denyReason,proto3,enum=contest.SubmissionDenyReason" json:"deny_reason,omitempty"`
+	Mode          ContestMode          `protobuf:"varint,3,opt,name=mode,proto3,enum=contest.ContestMode" json:"mode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateContestSubmissionResp) Reset() {
+	*x = ValidateContestSubmissionResp{}
+	mi := &file_proto_contest_proto_msgTypes[63]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidateContestSubmissionResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateContestSubmissionResp) ProtoMessage() {}
+
+func (x *ValidateContestSubmissionResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[63]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateContestSubmissionResp.ProtoReflect.Descriptor instead.
+func (*ValidateContestSubmissionResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{63}
+}
+
+func (x *ValidateContestSubmissionResp) GetAllowed() bool {
+	if x != nil {
+		return x.Allowed
+	}
+	return false
+}
+
+func (x *ValidateContestSubmissionResp) GetDenyReason() SubmissionDenyReason {
+	if x != nil {
+		return x.DenyReason
+	}
+	return SubmissionDenyReason_SUBMISSION_DENY_REASON_UNSPECIFIED
+}
+
+func (x *ValidateContestSubmissionResp) GetMode() ContestMode {
+	if x != nil {
+		return x.Mode
+	}
+	return ContestMode_CONTEST_MODE_UNSPECIFIED
+}
+
+var File_proto_contest_proto protoreflect.FileDescriptor
+
+const file_proto_contest_proto_rawDesc = "" +
 	"\n" +
-	"\rcontest.proto\x12\acontest\"l\n" +
+	"\x13proto/contest.proto\x12\acontest\x1a\x1egoogle/protobuf/duration.proto\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xdd\x06\n" +
+	"\x15ContestEditableFields\x12\x14\n" +
+	"\x05title\x18\x01 \x01(\tR\x05title\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12(\n" +
+	"\x04mode\x18\x03 \x01(\x0e2\x14.contest.ContestModeR\x04mode\x125\n" +
+	"\bstart_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\astartAt\x121\n" +
+	"\x06end_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x05endAt\x12N\n" +
+	"\x15registration_start_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x13registrationStartAt\x12J\n" +
+	"\x13registration_end_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x11registrationEndAt\x12L\n" +
+	"\x13registration_policy\x18\b \x01(\x0e2\x1b.contest.RegistrationPolicyR\x12registrationPolicy\x12:\n" +
+	"\n" +
+	"visibility\x18\t \x01(\x0e2\x1a.contest.ContestVisibilityR\n" +
+	"visibility\x12R\n" +
+	"\x15scoreboard_visibility\x18\n" +
+	" \x01(\x0e2\x1d.contest.ScoreboardVisibilityR\x14scoreboardVisibility\x12N\n" +
+	"\x14scoreboard_freeze_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampH\x00R\x12scoreboardFreezeAt\x12\\\n" +
+	"\x1cscoreboard_freeze_before_end\x18\f \x01(\v2\x19.google.protobuf.DurationH\x00R\x19scoreboardFreezeBeforeEnd\x12$\n" +
+	"\vinvite_code\x18\r \x01(\tH\x01R\n" +
+	"inviteCode\x88\x01\x01B\x1a\n" +
+	"\x18scoreboard_freeze_policyB\x0e\n" +
+	"\f_invite_code\"\xb6\x05\n" +
+	"\aContest\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12\x1d\n" +
+	"\n" +
+	"creator_id\x18\x02 \x01(\x03R\tcreatorId\x12:\n" +
+	"\beditable\x18\x03 \x01(\v2\x1e.contest.ContestEditableFieldsR\beditable\x12.\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x16.contest.ContestStatusR\x06status\x12\x1a\n" +
+	"\brevision\x18\x05 \x01(\x03R\brevision\x129\n" +
+	"\n" +
+	"created_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12=\n" +
+	"\fpublished_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\vpublishedAt\x12=\n" +
+	"\fcancelled_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\vcancelledAt\x12;\n" +
+	"\varchived_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"archivedAt\x129\n" +
+	"\n" +
+	"deleted_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tdeletedAt\x12+\n" +
+	"\x11scoreboard_frozen\x18\f \x01(\bR\x10scoreboardFrozen\x12L\n" +
+	"\x14scoreboard_frozen_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\x12scoreboardFrozenAt\"\xab\x06\n" +
+	"\rContestDetail\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12 \n" +
+	"\vdescription\x18\x03 \x01(\tR\vdescription\x12(\n" +
+	"\x04mode\x18\x04 \x01(\x0e2\x14.contest.ContestModeR\x04mode\x12.\n" +
+	"\x06status\x18\x05 \x01(\x0e2\x16.contest.ContestStatusR\x06status\x125\n" +
+	"\bstart_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\astartAt\x121\n" +
+	"\x06end_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\x05endAt\x12N\n" +
+	"\x15registration_start_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\x13registrationStartAt\x12J\n" +
+	"\x13registration_end_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\x11registrationEndAt\x12L\n" +
+	"\x13registration_policy\x18\n" +
+	" \x01(\x0e2\x1b.contest.RegistrationPolicyR\x12registrationPolicy\x12:\n" +
+	"\n" +
+	"visibility\x18\v \x01(\x0e2\x1a.contest.ContestVisibilityR\n" +
+	"visibility\x12R\n" +
+	"\x15scoreboard_visibility\x18\f \x01(\x0e2\x1d.contest.ScoreboardVisibilityR\x14scoreboardVisibility\x12+\n" +
+	"\x11registration_open\x18\r \x01(\bR\x10registrationOpen\x12+\n" +
+	"\x11scoreboard_frozen\x18\x0e \x01(\bR\x10scoreboardFrozen\x12+\n" +
+	"\x11participant_count\x18\x0f \x01(\x03R\x10participantCount\"\xed\x03\n" +
+	"\x0eContestSummary\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12\x14\n" +
+	"\x05title\x18\x02 \x01(\tR\x05title\x12(\n" +
+	"\x04mode\x18\x03 \x01(\x0e2\x14.contest.ContestModeR\x04mode\x12.\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x16.contest.ContestStatusR\x06status\x125\n" +
+	"\bstart_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\astartAt\x121\n" +
+	"\x06end_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\x05endAt\x12L\n" +
+	"\x13registration_policy\x18\a \x01(\x0e2\x1b.contest.RegistrationPolicyR\x12registrationPolicy\x12:\n" +
+	"\n" +
+	"visibility\x18\b \x01(\x0e2\x1a.contest.ContestVisibilityR\n" +
+	"visibility\x12+\n" +
+	"\x11registration_open\x18\t \x01(\bR\x10registrationOpen\x12+\n" +
+	"\x11participant_count\x18\n" +
+	" \x01(\x03R\x10participantCount\"\x87\x01\n" +
+	"\x0eContestProblem\x12\x1d\n" +
+	"\n" +
+	"problem_id\x18\x01 \x01(\x03R\tproblemId\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\x12#\n" +
+	"\rdisplay_order\x18\x03 \x01(\x05R\fdisplayOrder\x12\x1b\n" +
+	"\tmax_score\x18\x04 \x01(\x03R\bmaxScore\"\x8e\x01\n" +
+	"\x15ContestProblemSummary\x12\x1d\n" +
+	"\n" +
+	"problem_id\x18\x01 \x01(\x03R\tproblemId\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\x12#\n" +
+	"\rdisplay_order\x18\x03 \x01(\x05R\fdisplayOrder\x12\x1b\n" +
+	"\tmax_score\x18\x04 \x01(\x03R\bmaxScore\"\xa6\x04\n" +
+	"\x13ContestRegistration\x12'\n" +
+	"\x0fregistration_id\x18\x01 \x01(\x03R\x0eregistrationId\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x02 \x01(\x03R\tcontestId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\x03R\x06userId\x123\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x1b.contest.RegistrationStatusR\x06status\x12)\n" +
+	"\x10application_note\x18\x05 \x01(\tR\x0fapplicationNote\x12\x1f\n" +
+	"\vreviewer_id\x18\x06 \x01(\x03R\n" +
+	"reviewerId\x12\x1f\n" +
+	"\vreview_note\x18\a \x01(\tR\n" +
+	"reviewNote\x12\x1a\n" +
+	"\brevision\x18\b \x01(\x03R\brevision\x129\n" +
+	"\n" +
+	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x12;\n" +
+	"\vreviewed_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"reviewedAt\x12=\n" +
+	"\fcancelled_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\vcancelledAt\x129\n" +
+	"\n" +
+	"updated_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xfa\x01\n" +
+	"\x12ContestParticipant\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\x03R\x06userId\x122\n" +
+	"\x06status\x18\x03 \x01(\x0e2\x1a.contest.ParticipantStatusR\x06status\x12=\n" +
+	"\fqualified_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\vqualifiedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xfc\x01\n" +
+	"\x0fMyContestStatus\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12@\n" +
+	"\fregistration\x18\x02 \x01(\v2\x1c.contest.ContestRegistrationR\fregistration\x12=\n" +
+	"\vparticipant\x18\x03 \x01(\v2\x1b.contest.ContestParticipantR\vparticipant\x12*\n" +
+	"\x11can_view_problems\x18\x04 \x01(\bR\x0fcanViewProblems\x12\x1d\n" +
+	"\n" +
+	"can_submit\x18\x05 \x01(\bR\tcanSubmit\"\xea\x01\n" +
+	"\x11IcpcProblemResult\x12\x16\n" +
+	"\x06solved\x18\x01 \x01(\bR\x06solved\x12%\n" +
+	"\x0ewrong_attempts\x18\x02 \x01(\x05R\rwrongAttempts\x123\n" +
+	"\apenalty\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\apenalty\x12;\n" +
+	"\vaccepted_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"acceptedAt\x12$\n" +
+	"\x0efirst_to_solve\x18\x05 \x01(\bR\ffirstToSolve\"\xcd\x01\n" +
+	"\x10IoiProblemResult\x12\x14\n" +
+	"\x05score\x18\x01 \x01(\x03R\x05score\x12\x1b\n" +
+	"\tmax_score\x18\x02 \x01(\x03R\bmaxScore\x12)\n" +
+	"\x10submission_count\x18\x03 \x01(\x05R\x0fsubmissionCount\x12[\n" +
+	"\x1clast_effective_submission_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x19lastEffectiveSubmissionAt\"\xcc\x01\n" +
+	"\x0fOiProblemResult\x12\x14\n" +
+	"\x05score\x18\x01 \x01(\x03R\x05score\x12\x1b\n" +
+	"\tmax_score\x18\x02 \x01(\x03R\bmaxScore\x12)\n" +
+	"\x10submission_count\x18\x03 \x01(\x05R\x0fsubmissionCount\x12[\n" +
+	"\x1clast_effective_submission_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\x19lastEffectiveSubmissionAt\"\xe5\x01\n" +
+	"\x17ScoreboardProblemResult\x12\x1d\n" +
+	"\n" +
+	"problem_id\x18\x01 \x01(\x03R\tproblemId\x12\x14\n" +
+	"\x05label\x18\x02 \x01(\tR\x05label\x120\n" +
+	"\x04icpc\x18\x03 \x01(\v2\x1a.contest.IcpcProblemResultH\x00R\x04icpc\x12-\n" +
+	"\x03ioi\x18\x04 \x01(\v2\x19.contest.IoiProblemResultH\x00R\x03ioi\x12*\n" +
+	"\x02oi\x18\x05 \x01(\v2\x18.contest.OiProblemResultH\x00R\x02oiB\b\n" +
+	"\x06result\"\xb0\x01\n" +
+	"\tIcpcScore\x12!\n" +
+	"\fsolved_count\x18\x01 \x01(\x05R\vsolvedCount\x12>\n" +
+	"\rtotal_penalty\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\ftotalPenalty\x12@\n" +
+	"\x0elast_solved_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\flastSolvedAt\"\x88\x01\n" +
+	"\bIoiScore\x12\x1f\n" +
+	"\vtotal_score\x18\x01 \x01(\x03R\n" +
+	"totalScore\x12[\n" +
+	"\x1clast_effective_submission_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x19lastEffectiveSubmissionAt\"\x87\x01\n" +
+	"\aOiScore\x12\x1f\n" +
+	"\vtotal_score\x18\x01 \x01(\x03R\n" +
+	"totalScore\x12[\n" +
+	"\x1clast_effective_submission_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x19lastEffectiveSubmissionAt\"\xc2\x02\n" +
+	"\rScoreboardRow\x12\x12\n" +
+	"\x04rank\x18\x01 \x01(\x03R\x04rank\x12\x18\n" +
+	"\aordinal\x18\x02 \x01(\x03R\aordinal\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\x03R\x06userId\x12!\n" +
+	"\fdisplay_name\x18\x04 \x01(\tR\vdisplayName\x12I\n" +
+	"\x0fproblem_results\x18\x05 \x03(\v2 .contest.ScoreboardProblemResultR\x0eproblemResults\x12(\n" +
+	"\x04icpc\x18\x06 \x01(\v2\x12.contest.IcpcScoreH\x00R\x04icpc\x12%\n" +
+	"\x03ioi\x18\a \x01(\v2\x11.contest.IoiScoreH\x00R\x03ioi\x12\"\n" +
+	"\x02oi\x18\b \x01(\v2\x10.contest.OiScoreH\x00R\x02oiB\a\n" +
+	"\x05score\"\x9b\x02\n" +
+	"\n" +
+	"Scoreboard\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12(\n" +
+	"\x04mode\x18\x02 \x01(\x0e2\x14.contest.ContestModeR\x04mode\x12=\n" +
+	"\fgenerated_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\vgeneratedAt\x12\x16\n" +
+	"\x06frozen\x18\x04 \x01(\bR\x06frozen\x12+\n" +
+	"\x04view\x18\x05 \x01(\x0e2\x17.contest.ScoreboardViewR\x04view\x12\x14\n" +
+	"\x05total\x18\x06 \x01(\x03R\x05total\x12*\n" +
+	"\x04rows\x18\a \x03(\v2\x16.contest.ScoreboardRowR\x04rows\"\xb6\x01\n" +
+	"\x0fListContestsReq\x12\x12\n" +
+	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x18\n" +
+	"\akeyword\x18\x03 \x01(\tR\akeyword\x12.\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x16.contest.ContestStatusR\x06status\x12(\n" +
+	"\x04mode\x18\x05 \x01(\x0e2\x14.contest.ContestModeR\x04mode\"]\n" +
+	"\x10ListContestsResp\x12\x14\n" +
+	"\x05total\x18\x01 \x01(\x03R\x05total\x123\n" +
+	"\bcontests\x18\x02 \x03(\v2\x17.contest.ContestSummaryR\bcontests\".\n" +
+	"\rGetContestReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\"B\n" +
+	"\x0eGetContestResp\x120\n" +
+	"\acontest\x18\x01 \x01(\v2\x16.contest.ContestDetailR\acontest\"\x7f\n" +
+	"\x12RegisterContestReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12\x1f\n" +
+	"\vinvite_code\x18\x02 \x01(\tR\n" +
+	"inviteCode\x12)\n" +
+	"\x10application_note\x18\x03 \x01(\tR\x0fapplicationNote\"W\n" +
+	"\x13RegisterContestResp\x12@\n" +
+	"\fregistration\x18\x01 \x01(\v2\x1c.contest.ContestRegistrationR\fregistration\"c\n" +
+	"\x15CancelRegistrationReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12+\n" +
+	"\x11expected_revision\x18\x02 \x01(\x03R\x10expectedRevision\"Z\n" +
+	"\x16CancelRegistrationResp\x12@\n" +
+	"\fregistration\x18\x01 \x01(\v2\x1c.contest.ContestRegistrationR\fregistration\"6\n" +
+	"\x15GetMyContestStatusReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\"J\n" +
+	"\x16GetMyContestStatusResp\x120\n" +
+	"\x06status\x18\x01 \x01(\v2\x18.contest.MyContestStatusR\x06status\"h\n" +
+	"\x16ListContestProblemsReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12\x12\n" +
+	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\"k\n" +
+	"\x17ListContestProblemsResp\x12\x14\n" +
+	"\x05total\x18\x01 \x01(\x03R\x05total\x12:\n" +
+	"\bproblems\x18\x02 \x03(\v2\x1e.contest.ContestProblemSummaryR\bproblems\"b\n" +
+	"\x10GetScoreboardReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12\x12\n" +
+	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\"H\n" +
+	"\x11GetScoreboardResp\x123\n" +
+	"\n" +
+	"scoreboard\x18\x01 \x01(\v2\x13.contest.ScoreboardR\n" +
+	"scoreboard\"L\n" +
+	"\x10CreateContestReq\x128\n" +
+	"\acontest\x18\x01 \x01(\v2\x1e.contest.ContestEditableFieldsR\acontest\"?\n" +
+	"\x11CreateContestResp\x12*\n" +
+	"\acontest\x18\x01 \x01(\v2\x10.contest.ContestR\acontest\"5\n" +
+	"\x14GetContestForEditReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\"x\n" +
+	"\x15GetContestForEditResp\x12*\n" +
+	"\acontest\x18\x01 \x01(\v2\x10.contest.ContestR\acontest\x123\n" +
+	"\bproblems\x18\x02 \x03(\v2\x17.contest.ContestProblemR\bproblems\"\xd5\x01\n" +
+	"\x10UpdateContestReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x128\n" +
+	"\acontest\x18\x02 \x01(\v2\x1e.contest.ContestEditableFieldsR\acontest\x12;\n" +
+	"\vupdate_mask\x18\x03 \x01(\v2\x1a.google.protobuf.FieldMaskR\n" +
+	"updateMask\x12+\n" +
+	"\x11expected_revision\x18\x04 \x01(\x03R\x10expectedRevision\"?\n" +
+	"\x11UpdateContestResp\x12*\n" +
+	"\acontest\x18\x01 \x01(\v2\x10.contest.ContestR\acontest\"_\n" +
+	"\x11PublishContestReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12+\n" +
+	"\x11expected_revision\x18\x02 \x01(\x03R\x10expectedRevision\"@\n" +
+	"\x12PublishContestResp\x12*\n" +
+	"\acontest\x18\x01 \x01(\v2\x10.contest.ContestR\acontest\"v\n" +
+	"\x10CancelContestReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12+\n" +
+	"\x11expected_revision\x18\x02 \x01(\x03R\x10expectedRevision\x12\x16\n" +
+	"\x06reason\x18\x03 \x01(\tR\x06reason\"?\n" +
+	"\x11CancelContestResp\x12*\n" +
+	"\acontest\x18\x01 \x01(\v2\x10.contest.ContestR\acontest\"_\n" +
+	"\x11ArchiveContestReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12+\n" +
+	"\x11expected_revision\x18\x02 \x01(\x03R\x10expectedRevision\"@\n" +
+	"\x12ArchiveContestResp\x12*\n" +
+	"\acontest\x18\x01 \x01(\v2\x10.contest.ContestR\acontest\"^\n" +
+	"\x10DeleteContestReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12+\n" +
+	"\x11expected_revision\x18\x02 \x01(\x03R\x10expectedRevision\"/\n" +
+	"\x11DeleteContestResp\x12\x1a\n" +
+	"\brevision\x18\x01 \x01(\x03R\brevision\"_\n" +
+	"\x11RestoreContestReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12+\n" +
+	"\x11expected_revision\x18\x02 \x01(\x03R\x10expectedRevision\"@\n" +
+	"\x12RestoreContestResp\x12*\n" +
+	"\acontest\x18\x01 \x01(\v2\x10.contest.ContestR\acontest\"\x98\x01\n" +
+	"\x15SetContestProblemsReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x123\n" +
+	"\bproblems\x18\x02 \x03(\v2\x17.contest.ContestProblemR\bproblems\x12+\n" +
+	"\x11expected_revision\x18\x03 \x01(\x03R\x10expectedRevision\"y\n" +
+	"\x16SetContestProblemsResp\x12*\n" +
+	"\acontest\x18\x01 \x01(\v2\x10.contest.ContestR\acontest\x123\n" +
+	"\bproblems\x18\x02 \x03(\v2\x17.contest.ContestProblemR\bproblems\"\x9b\x01\n" +
+	"\x14ListRegistrationsReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12\x12\n" +
+	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x123\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x1b.contest.RegistrationStatusR\x06status\"q\n" +
+	"\x15ListRegistrationsResp\x12\x14\n" +
+	"\x05total\x18\x01 \x01(\x03R\x05total\x12B\n" +
+	"\rregistrations\x18\x02 \x03(\v2\x1c.contest.ContestRegistrationR\rregistrations\"\xee\x01\n" +
+	"\x15ReviewRegistrationReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12'\n" +
+	"\x0fregistration_id\x18\x02 \x01(\x03R\x0eregistrationId\x12?\n" +
+	"\bdecision\x18\x03 \x01(\x0e2#.contest.RegistrationReviewDecisionR\bdecision\x12\x1f\n" +
+	"\vreview_note\x18\x04 \x01(\tR\n" +
+	"reviewNote\x12+\n" +
+	"\x11expected_revision\x18\x05 \x01(\x03R\x10expectedRevision\"\x99\x01\n" +
+	"\x16ReviewRegistrationResp\x12@\n" +
+	"\fregistration\x18\x01 \x01(\v2\x1c.contest.ContestRegistrationR\fregistration\x12=\n" +
+	"\vparticipant\x18\x02 \x01(\v2\x1b.contest.ContestParticipantR\vparticipant\"\x99\x01\n" +
+	"\x13ListParticipantsReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12\x12\n" +
+	"\x04page\x18\x02 \x01(\x05R\x04page\x12\x1b\n" +
+	"\tpage_size\x18\x03 \x01(\x05R\bpageSize\x122\n" +
+	"\x06status\x18\x04 \x01(\x0e2\x1a.contest.ParticipantStatusR\x06status\"m\n" +
+	"\x14ListParticipantsResp\x12\x14\n" +
+	"\x05total\x18\x01 \x01(\x03R\x05total\x12?\n" +
+	"\fparticipants\x18\x02 \x03(\v2\x1b.contest.ContestParticipantR\fparticipants\"a\n" +
+	"\x13FreezeScoreboardReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12+\n" +
+	"\x11expected_revision\x18\x02 \x01(\x03R\x10expectedRevision\"B\n" +
+	"\x14FreezeScoreboardResp\x12*\n" +
+	"\acontest\x18\x01 \x01(\v2\x10.contest.ContestR\acontest\"c\n" +
+	"\x15UnfreezeScoreboardReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12+\n" +
+	"\x11expected_revision\x18\x02 \x01(\x03R\x10expectedRevision\"D\n" +
+	"\x16UnfreezeScoreboardResp\x12*\n" +
+	"\acontest\x18\x01 \x01(\v2\x10.contest.ContestR\acontest\"l\n" +
 	"\x13CanAccessProblemReq\x12\x1d\n" +
 	"\n" +
 	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12\x1d\n" +
 	"\n" +
 	"problem_id\x18\x02 \x01(\x03R\tproblemId\x12\x17\n" +
-	"\auser_id\x18\x03 \x01(\x03R\x06userId\"0\n" +
+	"\auser_id\x18\x03 \x01(\x03R\x06userId\"p\n" +
 	"\x14CanAccessProblemResp\x12\x18\n" +
-	"\aallowed\x18\x01 \x01(\bR\aallowed2a\n" +
-	"\x0eContestService\x12O\n" +
-	"\x10CanAccessProblem\x12\x1c.contest.CanAccessProblemReq\x1a\x1d.contest.CanAccessProblemRespB\x06Z\x04./pbb\x06proto3"
+	"\aallowed\x18\x01 \x01(\bR\aallowed\x12>\n" +
+	"\vdeny_reason\x18\x02 \x01(\x0e2\x1d.contest.SubmissionDenyReasonR\n" +
+	"denyReason\"\xb4\x01\n" +
+	"\x1cValidateContestSubmissionReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12\x1d\n" +
+	"\n" +
+	"problem_id\x18\x02 \x01(\x03R\tproblemId\x12\x17\n" +
+	"\auser_id\x18\x03 \x01(\x03R\x06userId\x12=\n" +
+	"\fsubmitted_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\vsubmittedAt\"\xa3\x01\n" +
+	"\x1dValidateContestSubmissionResp\x12\x18\n" +
+	"\aallowed\x18\x01 \x01(\bR\aallowed\x12>\n" +
+	"\vdeny_reason\x18\x02 \x01(\x0e2\x1d.contest.SubmissionDenyReasonR\n" +
+	"denyReason\x12(\n" +
+	"\x04mode\x18\x03 \x01(\x0e2\x14.contest.ContestModeR\x04mode*m\n" +
+	"\vContestMode\x12\x1c\n" +
+	"\x18CONTEST_MODE_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11CONTEST_MODE_ICPC\x10\x01\x12\x14\n" +
+	"\x10CONTEST_MODE_IOI\x10\x02\x12\x13\n" +
+	"\x0fCONTEST_MODE_OI\x10\x03*\xf7\x01\n" +
+	"\rContestStatus\x12\x1e\n" +
+	"\x1aCONTEST_STATUS_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14CONTEST_STATUS_DRAFT\x10\x01\x12\x1c\n" +
+	"\x18CONTEST_STATUS_PUBLISHED\x10\x02\x12\x1a\n" +
+	"\x16CONTEST_STATUS_RUNNING\x10\x03\x12\x1b\n" +
+	"\x17CONTEST_STATUS_FINISHED\x10\x04\x12\x1c\n" +
+	"\x18CONTEST_STATUS_CANCELLED\x10\x05\x12\x1b\n" +
+	"\x17CONTEST_STATUS_ARCHIVED\x10\x06\x12\x1a\n" +
+	"\x16CONTEST_STATUS_DELETED\x10\a*\x97\x01\n" +
+	"\x11ContestVisibility\x12\"\n" +
+	"\x1eCONTEST_VISIBILITY_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19CONTEST_VISIBILITY_PUBLIC\x10\x01\x12\x1f\n" +
+	"\x1bCONTEST_VISIBILITY_UNLISTED\x10\x02\x12\x1e\n" +
+	"\x1aCONTEST_VISIBILITY_PRIVATE\x10\x03*\xa7\x01\n" +
+	"\x12RegistrationPolicy\x12#\n" +
+	"\x1fREGISTRATION_POLICY_UNSPECIFIED\x10\x00\x12\x1c\n" +
+	"\x18REGISTRATION_POLICY_OPEN\x10\x01\x12)\n" +
+	"%REGISTRATION_POLICY_APPROVAL_REQUIRED\x10\x02\x12#\n" +
+	"\x1fREGISTRATION_POLICY_INVITE_ONLY\x10\x03*\xc1\x01\n" +
+	"\x12RegistrationStatus\x12#\n" +
+	"\x1fREGISTRATION_STATUS_UNSPECIFIED\x10\x00\x12\x1f\n" +
+	"\x1bREGISTRATION_STATUS_PENDING\x10\x01\x12 \n" +
+	"\x1cREGISTRATION_STATUS_APPROVED\x10\x02\x12 \n" +
+	"\x1cREGISTRATION_STATUS_REJECTED\x10\x03\x12!\n" +
+	"\x1dREGISTRATION_STATUS_CANCELLED\x10\x04*\x9d\x01\n" +
+	"\x1aRegistrationReviewDecision\x12,\n" +
+	"(REGISTRATION_REVIEW_DECISION_UNSPECIFIED\x10\x00\x12(\n" +
+	"$REGISTRATION_REVIEW_DECISION_APPROVE\x10\x01\x12'\n" +
+	"#REGISTRATION_REVIEW_DECISION_REJECT\x10\x02*\x9d\x01\n" +
+	"\x11ParticipantStatus\x12\"\n" +
+	"\x1ePARTICIPANT_STATUS_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19PARTICIPANT_STATUS_NORMAL\x10\x01\x12#\n" +
+	"\x1fPARTICIPANT_STATUS_DISQUALIFIED\x10\x02\x12 \n" +
+	"\x1cPARTICIPANT_STATUS_WITHDRAWN\x10\x03*\xae\x01\n" +
+	"\x14ScoreboardVisibility\x12%\n" +
+	"!SCOREBOARD_VISIBILITY_UNSPECIFIED\x10\x00\x12 \n" +
+	"\x1cSCOREBOARD_VISIBILITY_PUBLIC\x10\x01\x12+\n" +
+	"'SCOREBOARD_VISIBILITY_PARTICIPANTS_ONLY\x10\x02\x12 \n" +
+	"\x1cSCOREBOARD_VISIBILITY_HIDDEN\x10\x03*\x92\x01\n" +
+	"\x0eScoreboardView\x12\x1f\n" +
+	"\x1bSCOREBOARD_VIEW_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14SCOREBOARD_VIEW_LIVE\x10\x01\x12*\n" +
+	"&SCOREBOARD_VIEW_FROZEN_PUBLIC_SNAPSHOT\x10\x02\x12\x19\n" +
+	"\x15SCOREBOARD_VIEW_FINAL\x10\x03*\x88\x04\n" +
+	"\x14SubmissionDenyReason\x12&\n" +
+	"\"SUBMISSION_DENY_REASON_UNSPECIFIED\x10\x00\x12)\n" +
+	"%SUBMISSION_DENY_REASON_NOT_REGISTERED\x10\x01\x12/\n" +
+	"+SUBMISSION_DENY_REASON_REGISTRATION_PENDING\x10\x02\x12.\n" +
+	"*SUBMISSION_DENY_REASON_CONTEST_NOT_STARTED\x10\x03\x12+\n" +
+	"'SUBMISSION_DENY_REASON_CONTEST_FINISHED\x10\x04\x12,\n" +
+	"(SUBMISSION_DENY_REASON_CONTEST_CANCELLED\x10\x05\x12/\n" +
+	"+SUBMISSION_DENY_REASON_PROBLEM_NOT_ASSIGNED\x10\x06\x123\n" +
+	"/SUBMISSION_DENY_REASON_PARTICIPANT_DISQUALIFIED\x10\a\x120\n" +
+	",SUBMISSION_DENY_REASON_PARTICIPANT_WITHDRAWN\x10\b\x12'\n" +
+	"#SUBMISSION_DENY_REASON_UNAUTHORIZED\x10\t\x12 \n" +
+	"\x1cSUBMISSION_DENY_REASON_OTHER\x10\n" +
+	"2\xbf\x0e\n" +
+	"\x0eContestService\x12C\n" +
+	"\fListContests\x12\x18.contest.ListContestsReq\x1a\x19.contest.ListContestsResp\x12=\n" +
+	"\n" +
+	"GetContest\x12\x16.contest.GetContestReq\x1a\x17.contest.GetContestResp\x12L\n" +
+	"\x0fRegisterContest\x12\x1b.contest.RegisterContestReq\x1a\x1c.contest.RegisterContestResp\x12U\n" +
+	"\x12CancelRegistration\x12\x1e.contest.CancelRegistrationReq\x1a\x1f.contest.CancelRegistrationResp\x12U\n" +
+	"\x12GetMyContestStatus\x12\x1e.contest.GetMyContestStatusReq\x1a\x1f.contest.GetMyContestStatusResp\x12X\n" +
+	"\x13ListContestProblems\x12\x1f.contest.ListContestProblemsReq\x1a .contest.ListContestProblemsResp\x12F\n" +
+	"\rGetScoreboard\x12\x19.contest.GetScoreboardReq\x1a\x1a.contest.GetScoreboardResp\x12F\n" +
+	"\rCreateContest\x12\x19.contest.CreateContestReq\x1a\x1a.contest.CreateContestResp\x12R\n" +
+	"\x11GetContestForEdit\x12\x1d.contest.GetContestForEditReq\x1a\x1e.contest.GetContestForEditResp\x12F\n" +
+	"\rUpdateContest\x12\x19.contest.UpdateContestReq\x1a\x1a.contest.UpdateContestResp\x12I\n" +
+	"\x0ePublishContest\x12\x1a.contest.PublishContestReq\x1a\x1b.contest.PublishContestResp\x12F\n" +
+	"\rCancelContest\x12\x19.contest.CancelContestReq\x1a\x1a.contest.CancelContestResp\x12I\n" +
+	"\x0eArchiveContest\x12\x1a.contest.ArchiveContestReq\x1a\x1b.contest.ArchiveContestResp\x12F\n" +
+	"\rDeleteContest\x12\x19.contest.DeleteContestReq\x1a\x1a.contest.DeleteContestResp\x12I\n" +
+	"\x0eRestoreContest\x12\x1a.contest.RestoreContestReq\x1a\x1b.contest.RestoreContestResp\x12U\n" +
+	"\x12SetContestProblems\x12\x1e.contest.SetContestProblemsReq\x1a\x1f.contest.SetContestProblemsResp\x12R\n" +
+	"\x11ListRegistrations\x12\x1d.contest.ListRegistrationsReq\x1a\x1e.contest.ListRegistrationsResp\x12U\n" +
+	"\x12ReviewRegistration\x12\x1e.contest.ReviewRegistrationReq\x1a\x1f.contest.ReviewRegistrationResp\x12O\n" +
+	"\x10ListParticipants\x12\x1c.contest.ListParticipantsReq\x1a\x1d.contest.ListParticipantsResp\x12O\n" +
+	"\x10FreezeScoreboard\x12\x1c.contest.FreezeScoreboardReq\x1a\x1d.contest.FreezeScoreboardResp\x12U\n" +
+	"\x12UnfreezeScoreboard\x12\x1e.contest.UnfreezeScoreboardReq\x1a\x1f.contest.UnfreezeScoreboardResp\x12O\n" +
+	"\x10CanAccessProblem\x12\x1c.contest.CanAccessProblemReq\x1a\x1d.contest.CanAccessProblemResp\x12j\n" +
+	"\x19ValidateContestSubmission\x12%.contest.ValidateContestSubmissionReq\x1a&.contest.ValidateContestSubmissionRespB\x06Z\x04./pbb\x06proto3"
 
 var (
-	file_contest_proto_rawDescOnce sync.Once
-	file_contest_proto_rawDescData []byte
+	file_proto_contest_proto_rawDescOnce sync.Once
+	file_proto_contest_proto_rawDescData []byte
 )
 
-func file_contest_proto_rawDescGZIP() []byte {
-	file_contest_proto_rawDescOnce.Do(func() {
-		file_contest_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_contest_proto_rawDesc), len(file_contest_proto_rawDesc)))
+func file_proto_contest_proto_rawDescGZIP() []byte {
+	file_proto_contest_proto_rawDescOnce.Do(func() {
+		file_proto_contest_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_contest_proto_rawDesc), len(file_proto_contest_proto_rawDesc)))
 	})
-	return file_contest_proto_rawDescData
+	return file_proto_contest_proto_rawDescData
 }
 
-var file_contest_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_contest_proto_goTypes = []any{
-	(*CanAccessProblemReq)(nil),  // 0: contest.CanAccessProblemReq
-	(*CanAccessProblemResp)(nil), // 1: contest.CanAccessProblemResp
+var file_proto_contest_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
+var file_proto_contest_proto_msgTypes = make([]protoimpl.MessageInfo, 64)
+var file_proto_contest_proto_goTypes = []any{
+	(ContestMode)(0),                      // 0: contest.ContestMode
+	(ContestStatus)(0),                    // 1: contest.ContestStatus
+	(ContestVisibility)(0),                // 2: contest.ContestVisibility
+	(RegistrationPolicy)(0),               // 3: contest.RegistrationPolicy
+	(RegistrationStatus)(0),               // 4: contest.RegistrationStatus
+	(RegistrationReviewDecision)(0),       // 5: contest.RegistrationReviewDecision
+	(ParticipantStatus)(0),                // 6: contest.ParticipantStatus
+	(ScoreboardVisibility)(0),             // 7: contest.ScoreboardVisibility
+	(ScoreboardView)(0),                   // 8: contest.ScoreboardView
+	(SubmissionDenyReason)(0),             // 9: contest.SubmissionDenyReason
+	(*ContestEditableFields)(nil),         // 10: contest.ContestEditableFields
+	(*Contest)(nil),                       // 11: contest.Contest
+	(*ContestDetail)(nil),                 // 12: contest.ContestDetail
+	(*ContestSummary)(nil),                // 13: contest.ContestSummary
+	(*ContestProblem)(nil),                // 14: contest.ContestProblem
+	(*ContestProblemSummary)(nil),         // 15: contest.ContestProblemSummary
+	(*ContestRegistration)(nil),           // 16: contest.ContestRegistration
+	(*ContestParticipant)(nil),            // 17: contest.ContestParticipant
+	(*MyContestStatus)(nil),               // 18: contest.MyContestStatus
+	(*IcpcProblemResult)(nil),             // 19: contest.IcpcProblemResult
+	(*IoiProblemResult)(nil),              // 20: contest.IoiProblemResult
+	(*OiProblemResult)(nil),               // 21: contest.OiProblemResult
+	(*ScoreboardProblemResult)(nil),       // 22: contest.ScoreboardProblemResult
+	(*IcpcScore)(nil),                     // 23: contest.IcpcScore
+	(*IoiScore)(nil),                      // 24: contest.IoiScore
+	(*OiScore)(nil),                       // 25: contest.OiScore
+	(*ScoreboardRow)(nil),                 // 26: contest.ScoreboardRow
+	(*Scoreboard)(nil),                    // 27: contest.Scoreboard
+	(*ListContestsReq)(nil),               // 28: contest.ListContestsReq
+	(*ListContestsResp)(nil),              // 29: contest.ListContestsResp
+	(*GetContestReq)(nil),                 // 30: contest.GetContestReq
+	(*GetContestResp)(nil),                // 31: contest.GetContestResp
+	(*RegisterContestReq)(nil),            // 32: contest.RegisterContestReq
+	(*RegisterContestResp)(nil),           // 33: contest.RegisterContestResp
+	(*CancelRegistrationReq)(nil),         // 34: contest.CancelRegistrationReq
+	(*CancelRegistrationResp)(nil),        // 35: contest.CancelRegistrationResp
+	(*GetMyContestStatusReq)(nil),         // 36: contest.GetMyContestStatusReq
+	(*GetMyContestStatusResp)(nil),        // 37: contest.GetMyContestStatusResp
+	(*ListContestProblemsReq)(nil),        // 38: contest.ListContestProblemsReq
+	(*ListContestProblemsResp)(nil),       // 39: contest.ListContestProblemsResp
+	(*GetScoreboardReq)(nil),              // 40: contest.GetScoreboardReq
+	(*GetScoreboardResp)(nil),             // 41: contest.GetScoreboardResp
+	(*CreateContestReq)(nil),              // 42: contest.CreateContestReq
+	(*CreateContestResp)(nil),             // 43: contest.CreateContestResp
+	(*GetContestForEditReq)(nil),          // 44: contest.GetContestForEditReq
+	(*GetContestForEditResp)(nil),         // 45: contest.GetContestForEditResp
+	(*UpdateContestReq)(nil),              // 46: contest.UpdateContestReq
+	(*UpdateContestResp)(nil),             // 47: contest.UpdateContestResp
+	(*PublishContestReq)(nil),             // 48: contest.PublishContestReq
+	(*PublishContestResp)(nil),            // 49: contest.PublishContestResp
+	(*CancelContestReq)(nil),              // 50: contest.CancelContestReq
+	(*CancelContestResp)(nil),             // 51: contest.CancelContestResp
+	(*ArchiveContestReq)(nil),             // 52: contest.ArchiveContestReq
+	(*ArchiveContestResp)(nil),            // 53: contest.ArchiveContestResp
+	(*DeleteContestReq)(nil),              // 54: contest.DeleteContestReq
+	(*DeleteContestResp)(nil),             // 55: contest.DeleteContestResp
+	(*RestoreContestReq)(nil),             // 56: contest.RestoreContestReq
+	(*RestoreContestResp)(nil),            // 57: contest.RestoreContestResp
+	(*SetContestProblemsReq)(nil),         // 58: contest.SetContestProblemsReq
+	(*SetContestProblemsResp)(nil),        // 59: contest.SetContestProblemsResp
+	(*ListRegistrationsReq)(nil),          // 60: contest.ListRegistrationsReq
+	(*ListRegistrationsResp)(nil),         // 61: contest.ListRegistrationsResp
+	(*ReviewRegistrationReq)(nil),         // 62: contest.ReviewRegistrationReq
+	(*ReviewRegistrationResp)(nil),        // 63: contest.ReviewRegistrationResp
+	(*ListParticipantsReq)(nil),           // 64: contest.ListParticipantsReq
+	(*ListParticipantsResp)(nil),          // 65: contest.ListParticipantsResp
+	(*FreezeScoreboardReq)(nil),           // 66: contest.FreezeScoreboardReq
+	(*FreezeScoreboardResp)(nil),          // 67: contest.FreezeScoreboardResp
+	(*UnfreezeScoreboardReq)(nil),         // 68: contest.UnfreezeScoreboardReq
+	(*UnfreezeScoreboardResp)(nil),        // 69: contest.UnfreezeScoreboardResp
+	(*CanAccessProblemReq)(nil),           // 70: contest.CanAccessProblemReq
+	(*CanAccessProblemResp)(nil),          // 71: contest.CanAccessProblemResp
+	(*ValidateContestSubmissionReq)(nil),  // 72: contest.ValidateContestSubmissionReq
+	(*ValidateContestSubmissionResp)(nil), // 73: contest.ValidateContestSubmissionResp
+	(*timestamppb.Timestamp)(nil),         // 74: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),           // 75: google.protobuf.Duration
+	(*fieldmaskpb.FieldMask)(nil),         // 76: google.protobuf.FieldMask
 }
-var file_contest_proto_depIdxs = []int32{
-	0, // 0: contest.ContestService.CanAccessProblem:input_type -> contest.CanAccessProblemReq
-	1, // 1: contest.ContestService.CanAccessProblem:output_type -> contest.CanAccessProblemResp
-	1, // [1:2] is the sub-list for method output_type
-	0, // [0:1] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+var file_proto_contest_proto_depIdxs = []int32{
+	0,   // 0: contest.ContestEditableFields.mode:type_name -> contest.ContestMode
+	74,  // 1: contest.ContestEditableFields.start_at:type_name -> google.protobuf.Timestamp
+	74,  // 2: contest.ContestEditableFields.end_at:type_name -> google.protobuf.Timestamp
+	74,  // 3: contest.ContestEditableFields.registration_start_at:type_name -> google.protobuf.Timestamp
+	74,  // 4: contest.ContestEditableFields.registration_end_at:type_name -> google.protobuf.Timestamp
+	3,   // 5: contest.ContestEditableFields.registration_policy:type_name -> contest.RegistrationPolicy
+	2,   // 6: contest.ContestEditableFields.visibility:type_name -> contest.ContestVisibility
+	7,   // 7: contest.ContestEditableFields.scoreboard_visibility:type_name -> contest.ScoreboardVisibility
+	74,  // 8: contest.ContestEditableFields.scoreboard_freeze_at:type_name -> google.protobuf.Timestamp
+	75,  // 9: contest.ContestEditableFields.scoreboard_freeze_before_end:type_name -> google.protobuf.Duration
+	10,  // 10: contest.Contest.editable:type_name -> contest.ContestEditableFields
+	1,   // 11: contest.Contest.status:type_name -> contest.ContestStatus
+	74,  // 12: contest.Contest.created_at:type_name -> google.protobuf.Timestamp
+	74,  // 13: contest.Contest.updated_at:type_name -> google.protobuf.Timestamp
+	74,  // 14: contest.Contest.published_at:type_name -> google.protobuf.Timestamp
+	74,  // 15: contest.Contest.cancelled_at:type_name -> google.protobuf.Timestamp
+	74,  // 16: contest.Contest.archived_at:type_name -> google.protobuf.Timestamp
+	74,  // 17: contest.Contest.deleted_at:type_name -> google.protobuf.Timestamp
+	74,  // 18: contest.Contest.scoreboard_frozen_at:type_name -> google.protobuf.Timestamp
+	0,   // 19: contest.ContestDetail.mode:type_name -> contest.ContestMode
+	1,   // 20: contest.ContestDetail.status:type_name -> contest.ContestStatus
+	74,  // 21: contest.ContestDetail.start_at:type_name -> google.protobuf.Timestamp
+	74,  // 22: contest.ContestDetail.end_at:type_name -> google.protobuf.Timestamp
+	74,  // 23: contest.ContestDetail.registration_start_at:type_name -> google.protobuf.Timestamp
+	74,  // 24: contest.ContestDetail.registration_end_at:type_name -> google.protobuf.Timestamp
+	3,   // 25: contest.ContestDetail.registration_policy:type_name -> contest.RegistrationPolicy
+	2,   // 26: contest.ContestDetail.visibility:type_name -> contest.ContestVisibility
+	7,   // 27: contest.ContestDetail.scoreboard_visibility:type_name -> contest.ScoreboardVisibility
+	0,   // 28: contest.ContestSummary.mode:type_name -> contest.ContestMode
+	1,   // 29: contest.ContestSummary.status:type_name -> contest.ContestStatus
+	74,  // 30: contest.ContestSummary.start_at:type_name -> google.protobuf.Timestamp
+	74,  // 31: contest.ContestSummary.end_at:type_name -> google.protobuf.Timestamp
+	3,   // 32: contest.ContestSummary.registration_policy:type_name -> contest.RegistrationPolicy
+	2,   // 33: contest.ContestSummary.visibility:type_name -> contest.ContestVisibility
+	4,   // 34: contest.ContestRegistration.status:type_name -> contest.RegistrationStatus
+	74,  // 35: contest.ContestRegistration.created_at:type_name -> google.protobuf.Timestamp
+	74,  // 36: contest.ContestRegistration.reviewed_at:type_name -> google.protobuf.Timestamp
+	74,  // 37: contest.ContestRegistration.cancelled_at:type_name -> google.protobuf.Timestamp
+	74,  // 38: contest.ContestRegistration.updated_at:type_name -> google.protobuf.Timestamp
+	6,   // 39: contest.ContestParticipant.status:type_name -> contest.ParticipantStatus
+	74,  // 40: contest.ContestParticipant.qualified_at:type_name -> google.protobuf.Timestamp
+	74,  // 41: contest.ContestParticipant.updated_at:type_name -> google.protobuf.Timestamp
+	16,  // 42: contest.MyContestStatus.registration:type_name -> contest.ContestRegistration
+	17,  // 43: contest.MyContestStatus.participant:type_name -> contest.ContestParticipant
+	75,  // 44: contest.IcpcProblemResult.penalty:type_name -> google.protobuf.Duration
+	74,  // 45: contest.IcpcProblemResult.accepted_at:type_name -> google.protobuf.Timestamp
+	74,  // 46: contest.IoiProblemResult.last_effective_submission_at:type_name -> google.protobuf.Timestamp
+	74,  // 47: contest.OiProblemResult.last_effective_submission_at:type_name -> google.protobuf.Timestamp
+	19,  // 48: contest.ScoreboardProblemResult.icpc:type_name -> contest.IcpcProblemResult
+	20,  // 49: contest.ScoreboardProblemResult.ioi:type_name -> contest.IoiProblemResult
+	21,  // 50: contest.ScoreboardProblemResult.oi:type_name -> contest.OiProblemResult
+	75,  // 51: contest.IcpcScore.total_penalty:type_name -> google.protobuf.Duration
+	74,  // 52: contest.IcpcScore.last_solved_at:type_name -> google.protobuf.Timestamp
+	74,  // 53: contest.IoiScore.last_effective_submission_at:type_name -> google.protobuf.Timestamp
+	74,  // 54: contest.OiScore.last_effective_submission_at:type_name -> google.protobuf.Timestamp
+	22,  // 55: contest.ScoreboardRow.problem_results:type_name -> contest.ScoreboardProblemResult
+	23,  // 56: contest.ScoreboardRow.icpc:type_name -> contest.IcpcScore
+	24,  // 57: contest.ScoreboardRow.ioi:type_name -> contest.IoiScore
+	25,  // 58: contest.ScoreboardRow.oi:type_name -> contest.OiScore
+	0,   // 59: contest.Scoreboard.mode:type_name -> contest.ContestMode
+	74,  // 60: contest.Scoreboard.generated_at:type_name -> google.protobuf.Timestamp
+	8,   // 61: contest.Scoreboard.view:type_name -> contest.ScoreboardView
+	26,  // 62: contest.Scoreboard.rows:type_name -> contest.ScoreboardRow
+	1,   // 63: contest.ListContestsReq.status:type_name -> contest.ContestStatus
+	0,   // 64: contest.ListContestsReq.mode:type_name -> contest.ContestMode
+	13,  // 65: contest.ListContestsResp.contests:type_name -> contest.ContestSummary
+	12,  // 66: contest.GetContestResp.contest:type_name -> contest.ContestDetail
+	16,  // 67: contest.RegisterContestResp.registration:type_name -> contest.ContestRegistration
+	16,  // 68: contest.CancelRegistrationResp.registration:type_name -> contest.ContestRegistration
+	18,  // 69: contest.GetMyContestStatusResp.status:type_name -> contest.MyContestStatus
+	15,  // 70: contest.ListContestProblemsResp.problems:type_name -> contest.ContestProblemSummary
+	27,  // 71: contest.GetScoreboardResp.scoreboard:type_name -> contest.Scoreboard
+	10,  // 72: contest.CreateContestReq.contest:type_name -> contest.ContestEditableFields
+	11,  // 73: contest.CreateContestResp.contest:type_name -> contest.Contest
+	11,  // 74: contest.GetContestForEditResp.contest:type_name -> contest.Contest
+	14,  // 75: contest.GetContestForEditResp.problems:type_name -> contest.ContestProblem
+	10,  // 76: contest.UpdateContestReq.contest:type_name -> contest.ContestEditableFields
+	76,  // 77: contest.UpdateContestReq.update_mask:type_name -> google.protobuf.FieldMask
+	11,  // 78: contest.UpdateContestResp.contest:type_name -> contest.Contest
+	11,  // 79: contest.PublishContestResp.contest:type_name -> contest.Contest
+	11,  // 80: contest.CancelContestResp.contest:type_name -> contest.Contest
+	11,  // 81: contest.ArchiveContestResp.contest:type_name -> contest.Contest
+	11,  // 82: contest.RestoreContestResp.contest:type_name -> contest.Contest
+	14,  // 83: contest.SetContestProblemsReq.problems:type_name -> contest.ContestProblem
+	11,  // 84: contest.SetContestProblemsResp.contest:type_name -> contest.Contest
+	14,  // 85: contest.SetContestProblemsResp.problems:type_name -> contest.ContestProblem
+	4,   // 86: contest.ListRegistrationsReq.status:type_name -> contest.RegistrationStatus
+	16,  // 87: contest.ListRegistrationsResp.registrations:type_name -> contest.ContestRegistration
+	5,   // 88: contest.ReviewRegistrationReq.decision:type_name -> contest.RegistrationReviewDecision
+	16,  // 89: contest.ReviewRegistrationResp.registration:type_name -> contest.ContestRegistration
+	17,  // 90: contest.ReviewRegistrationResp.participant:type_name -> contest.ContestParticipant
+	6,   // 91: contest.ListParticipantsReq.status:type_name -> contest.ParticipantStatus
+	17,  // 92: contest.ListParticipantsResp.participants:type_name -> contest.ContestParticipant
+	11,  // 93: contest.FreezeScoreboardResp.contest:type_name -> contest.Contest
+	11,  // 94: contest.UnfreezeScoreboardResp.contest:type_name -> contest.Contest
+	9,   // 95: contest.CanAccessProblemResp.deny_reason:type_name -> contest.SubmissionDenyReason
+	74,  // 96: contest.ValidateContestSubmissionReq.submitted_at:type_name -> google.protobuf.Timestamp
+	9,   // 97: contest.ValidateContestSubmissionResp.deny_reason:type_name -> contest.SubmissionDenyReason
+	0,   // 98: contest.ValidateContestSubmissionResp.mode:type_name -> contest.ContestMode
+	28,  // 99: contest.ContestService.ListContests:input_type -> contest.ListContestsReq
+	30,  // 100: contest.ContestService.GetContest:input_type -> contest.GetContestReq
+	32,  // 101: contest.ContestService.RegisterContest:input_type -> contest.RegisterContestReq
+	34,  // 102: contest.ContestService.CancelRegistration:input_type -> contest.CancelRegistrationReq
+	36,  // 103: contest.ContestService.GetMyContestStatus:input_type -> contest.GetMyContestStatusReq
+	38,  // 104: contest.ContestService.ListContestProblems:input_type -> contest.ListContestProblemsReq
+	40,  // 105: contest.ContestService.GetScoreboard:input_type -> contest.GetScoreboardReq
+	42,  // 106: contest.ContestService.CreateContest:input_type -> contest.CreateContestReq
+	44,  // 107: contest.ContestService.GetContestForEdit:input_type -> contest.GetContestForEditReq
+	46,  // 108: contest.ContestService.UpdateContest:input_type -> contest.UpdateContestReq
+	48,  // 109: contest.ContestService.PublishContest:input_type -> contest.PublishContestReq
+	50,  // 110: contest.ContestService.CancelContest:input_type -> contest.CancelContestReq
+	52,  // 111: contest.ContestService.ArchiveContest:input_type -> contest.ArchiveContestReq
+	54,  // 112: contest.ContestService.DeleteContest:input_type -> contest.DeleteContestReq
+	56,  // 113: contest.ContestService.RestoreContest:input_type -> contest.RestoreContestReq
+	58,  // 114: contest.ContestService.SetContestProblems:input_type -> contest.SetContestProblemsReq
+	60,  // 115: contest.ContestService.ListRegistrations:input_type -> contest.ListRegistrationsReq
+	62,  // 116: contest.ContestService.ReviewRegistration:input_type -> contest.ReviewRegistrationReq
+	64,  // 117: contest.ContestService.ListParticipants:input_type -> contest.ListParticipantsReq
+	66,  // 118: contest.ContestService.FreezeScoreboard:input_type -> contest.FreezeScoreboardReq
+	68,  // 119: contest.ContestService.UnfreezeScoreboard:input_type -> contest.UnfreezeScoreboardReq
+	70,  // 120: contest.ContestService.CanAccessProblem:input_type -> contest.CanAccessProblemReq
+	72,  // 121: contest.ContestService.ValidateContestSubmission:input_type -> contest.ValidateContestSubmissionReq
+	29,  // 122: contest.ContestService.ListContests:output_type -> contest.ListContestsResp
+	31,  // 123: contest.ContestService.GetContest:output_type -> contest.GetContestResp
+	33,  // 124: contest.ContestService.RegisterContest:output_type -> contest.RegisterContestResp
+	35,  // 125: contest.ContestService.CancelRegistration:output_type -> contest.CancelRegistrationResp
+	37,  // 126: contest.ContestService.GetMyContestStatus:output_type -> contest.GetMyContestStatusResp
+	39,  // 127: contest.ContestService.ListContestProblems:output_type -> contest.ListContestProblemsResp
+	41,  // 128: contest.ContestService.GetScoreboard:output_type -> contest.GetScoreboardResp
+	43,  // 129: contest.ContestService.CreateContest:output_type -> contest.CreateContestResp
+	45,  // 130: contest.ContestService.GetContestForEdit:output_type -> contest.GetContestForEditResp
+	47,  // 131: contest.ContestService.UpdateContest:output_type -> contest.UpdateContestResp
+	49,  // 132: contest.ContestService.PublishContest:output_type -> contest.PublishContestResp
+	51,  // 133: contest.ContestService.CancelContest:output_type -> contest.CancelContestResp
+	53,  // 134: contest.ContestService.ArchiveContest:output_type -> contest.ArchiveContestResp
+	55,  // 135: contest.ContestService.DeleteContest:output_type -> contest.DeleteContestResp
+	57,  // 136: contest.ContestService.RestoreContest:output_type -> contest.RestoreContestResp
+	59,  // 137: contest.ContestService.SetContestProblems:output_type -> contest.SetContestProblemsResp
+	61,  // 138: contest.ContestService.ListRegistrations:output_type -> contest.ListRegistrationsResp
+	63,  // 139: contest.ContestService.ReviewRegistration:output_type -> contest.ReviewRegistrationResp
+	65,  // 140: contest.ContestService.ListParticipants:output_type -> contest.ListParticipantsResp
+	67,  // 141: contest.ContestService.FreezeScoreboard:output_type -> contest.FreezeScoreboardResp
+	69,  // 142: contest.ContestService.UnfreezeScoreboard:output_type -> contest.UnfreezeScoreboardResp
+	71,  // 143: contest.ContestService.CanAccessProblem:output_type -> contest.CanAccessProblemResp
+	73,  // 144: contest.ContestService.ValidateContestSubmission:output_type -> contest.ValidateContestSubmissionResp
+	122, // [122:145] is the sub-list for method output_type
+	99,  // [99:122] is the sub-list for method input_type
+	99,  // [99:99] is the sub-list for extension type_name
+	99,  // [99:99] is the sub-list for extension extendee
+	0,   // [0:99] is the sub-list for field type_name
 }
 
-func init() { file_contest_proto_init() }
-func file_contest_proto_init() {
-	if File_contest_proto != nil {
+func init() { file_proto_contest_proto_init() }
+func file_proto_contest_proto_init() {
+	if File_proto_contest_proto != nil {
 		return
+	}
+	file_proto_contest_proto_msgTypes[0].OneofWrappers = []any{
+		(*ContestEditableFields_ScoreboardFreezeAt)(nil),
+		(*ContestEditableFields_ScoreboardFreezeBeforeEnd)(nil),
+	}
+	file_proto_contest_proto_msgTypes[12].OneofWrappers = []any{
+		(*ScoreboardProblemResult_Icpc)(nil),
+		(*ScoreboardProblemResult_Ioi)(nil),
+		(*ScoreboardProblemResult_Oi)(nil),
+	}
+	file_proto_contest_proto_msgTypes[16].OneofWrappers = []any{
+		(*ScoreboardRow_Icpc)(nil),
+		(*ScoreboardRow_Ioi)(nil),
+		(*ScoreboardRow_Oi)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_contest_proto_rawDesc), len(file_contest_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   2,
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_contest_proto_rawDesc), len(file_proto_contest_proto_rawDesc)),
+			NumEnums:      10,
+			NumMessages:   64,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_contest_proto_goTypes,
-		DependencyIndexes: file_contest_proto_depIdxs,
-		MessageInfos:      file_contest_proto_msgTypes,
+		GoTypes:           file_proto_contest_proto_goTypes,
+		DependencyIndexes: file_proto_contest_proto_depIdxs,
+		EnumInfos:         file_proto_contest_proto_enumTypes,
+		MessageInfos:      file_proto_contest_proto_msgTypes,
 	}.Build()
-	File_contest_proto = out.File
-	file_contest_proto_goTypes = nil
-	file_contest_proto_depIdxs = nil
+	File_proto_contest_proto = out.File
+	file_proto_contest_proto_goTypes = nil
+	file_proto_contest_proto_depIdxs = nil
 }
