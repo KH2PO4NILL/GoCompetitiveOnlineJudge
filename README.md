@@ -2,7 +2,7 @@
 
 一个使用 Go 构建的分布式程序设计竞赛在线评测系统，覆盖用户认证、题目管理、代码提交、沙箱评测、比赛组织和实时排行榜等完整 OJ 业务。
 
-项目基于 go-zero 拆分 HTTP 网关与 gRPC 服务，通过 etcd 完成服务发现，使用 MySQL 持久化业务数据、Redis 承载缓存与异步任务、MinIO/S3 保存测试数据，并通过可水平扩展的 Judge Worker 执行用户代码。
+项目基于 go-zero 拆分 HTTP 网关与 gRPC 服务，通过 etcd 完成服务发现，使用 MySQL 持久化业务数据、Redis 承载缓存与限流、RocketMQ 分发异步评测任务、MinIO/S3 保存测试数据，并通过可水平扩展的 Judge Worker 执行用户代码。
 
 ## 功能特性
 
@@ -50,7 +50,7 @@
 
 - 用户端与管理端独立 HTTP API
 - gRPC 内部服务通信与 etcd 服务发现
-- MySQL 数据迁移、Redis 持久化和 S3 兼容对象存储
+- MySQL 数据迁移、Redis 缓存、RocketMQ 异步消息和 S3 兼容对象存储
 - 结构化日志、健康检查、限流、超时和优雅退出
 - 单元测试、集成测试、覆盖率和代码生成工作流
 
@@ -70,7 +70,7 @@ flowchart LR
     AdminAPI --> Contest
     AdminAPI --> Submit
 
-    Submit --> Queue[(Redis Streams<br/>评测队列)]
+    Submit --> Queue[(RocketMQ<br/>评测队列)]
     Queue --> Worker1[Judge Worker]
     Queue --> WorkerN[Judge Worker ...]
     Worker1 --> Sandbox[隔离沙箱]
@@ -101,7 +101,7 @@ flowchart LR
 
 1. App API 校验用户身份并将提交交给 Submit RPC。
 2. Submit RPC 向 Problem RPC 获取绑定 revision 的判题配置；比赛提交还会向 Contest RPC 校验参赛资格和时间窗口。
-3. 提交记录写入 MySQL，评测任务以幂等消息写入 Redis Streams。
+3. 提交记录与 Outbox 事件在同一 MySQL 事务中落库，由发布器将评测任务投递到 RocketMQ。
 4. Judge Worker 获取测试数据，在无网络的受限沙箱中完成编译和运行。
 5. Worker 回报逐测试点结果，Submit RPC 聚合最终状态并更新比赛榜单。
 
@@ -113,7 +113,8 @@ flowchart LR
 | 微服务框架 | go-zero、gRPC、Protocol Buffers |
 | 服务发现 | etcd |
 | 数据库 | MySQL 8.4 |
-| 缓存与任务队列 | Redis 8、Redis Streams |
+| 缓存与限流 | Redis 8 |
+| 消息队列 | RocketMQ |
 | 对象存储 | MinIO / Amazon S3 兼容存储 |
 | 沙箱 | Docker、Linux namespaces、cgroups |
 | 本地编排 | Docker Compose |
@@ -130,12 +131,16 @@ flowchart LR
 | `problem-rpc` | 8006 | 题目、测试数据与判题配置 |
 | `contest-rpc` | 8007 | 比赛、报名与排行榜 |
 | MySQL | 3307 | 本地映射端口，容器内为 3306 |
-| Redis | 6379 | 缓存、限流与任务队列 |
+| Redis | 6379 | 缓存与限流 |
+| RocketMQ NameServer | 9876 | Broker 注册与路由发现 |
+| RocketMQ Broker | 10911 | 评测任务消息存储与投递 |
 | etcd | 2379 | 服务注册与发现 |
 | MinIO API | 9000 | 测试数据对象存储 |
 | MinIO Console | 9001 | 对象存储管理界面 |
 
 Judge Worker 为异步消费者，不对公网暴露固定端口。
+
+评测队列使用 `judge-task` Topic 和 `judge-workers` Consumer Group，以 `submission_id` 作为消息 Key 与消费端幂等键。Worker 在评测结果成功持久化后再确认消息，队列采用“至少一次”投递，并为超出重试上限的任务保留死信消息。
 
 ## 快速开始
 
@@ -163,6 +168,8 @@ make infra-up
 ```
 
 `make infra-env` 会创建权限为 `0600` 的 `.env`，并为 MySQL、Redis、JWT、MinIO 和内部服务调用生成随机密钥。`make infra-up` 会启动 MySQL、Redis、etcd、MinIO，执行数据库迁移并创建测试数据 Bucket。
+
+> RocketMQ 的 Docker Compose 服务与环境变量尚待随 Submit RPC 和 Judge Worker 一起落地，当前 `make infra-up` 不会启动 RocketMQ。
 
 若要启用邮件验证码，请在 `.env` 中补充：
 
@@ -227,6 +234,7 @@ make infra-reset
 |---|---|
 | `MYSQL_*` | 本地 MySQL 容器与数据库账号 |
 | `REDIS_*` | Redis 地址与认证信息 |
+| `ROCKETMQ_*` | RocketMQ NameServer、Topic、Producer Group 与 Consumer Group 配置 |
 | `AUTH_*` | Auth RPC 数据库、JWT 和 SMTP 配置 |
 | `PROBLEM_*` | Problem RPC 数据库、Redis、对象存储和内部调用凭据 |
 | `CONTEST_*` | Contest RPC 数据库、缓存和内部调用凭据 |
@@ -238,7 +246,7 @@ make infra-reset
 
 - 替换所有开发密钥并定期轮换内部服务 Token。
 - 使用 TLS 保护公网 HTTP、服务间 gRPC、数据库和对象存储连接。
-- 将 MySQL、Redis、etcd 与 MinIO 端口限制在可信网络内。
+- 将 MySQL、Redis、RocketMQ、etcd 与 MinIO 端口限制在可信网络内。
 - 以非特权用户运行 Judge Worker，并为沙箱设置严格的 seccomp、cgroups 和存储配额。
 - 配置日志采集、指标监控、告警、数据库备份和对象存储生命周期策略。
 
