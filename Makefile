@@ -19,7 +19,7 @@ PROTOBUF_INCLUDE ?= $(shell $(GO) list -m -f '{{.Dir}}/third_party' github.com/g
 	problem-rpc \
 	fmt vet test coverage build tidy clean \
 	tools-infra infra-env infra-up infra-migrate infra-down infra-reset infra-logs infra-ps \
-	mysql-shell redis-shell run-auth run-problem
+	mysql-shell redis-shell run-auth run-problem run-contest
 
 help:
 	@printf '%s\n' \
@@ -44,7 +44,7 @@ help:
 		'' \
 		'Local infrastructure:' \
 		'  infra-up         Start MySQL, Redis, etcd and MinIO and wait until healthy' \
-		'  infra-migrate    Apply pending Auth and Problem MySQL migrations' \
+		'  infra-migrate    Apply pending Auth, Problem and Contest MySQL migrations' \
 		'  infra-down       Stop local infrastructure and keep its data' \
 		'  infra-reset      Stop infrastructure and delete all local data' \
 		'  infra-logs       Follow infrastructure logs' \
@@ -53,6 +53,7 @@ help:
 		'  redis-shell      Open an authenticated Redis CLI' \
 		'  run-auth         Start infrastructure, then run the auth RPC service' \
 		'  run-problem      Start infrastructure, then run the problem RPC service' \
+		'  run-contest      Start infrastructure, then run the contest RPC service' \
 		'' \
 		'Checks:' \
 		'  tools            Check Go and goctl' \
@@ -109,6 +110,7 @@ tools-infra:
 		printf '%s\n' "PROBLEM_OBJECT_STORAGE_SECRET_KEY=$$minio_password"; \
 		printf '%s\n' "PROBLEM_INTERNAL_SUBMIT_TOKEN=$$submit_service_token"; \
 		printf '%s\n' "PROBLEM_INTERNAL_JUDGE_TOKEN=$$judge_service_token"; \
+		printf '%s\n' "CONTEST_MYSQL_DSN='go_coj:$$mysql_password@tcp(127.0.0.1:3307)/go_coj?charset=utf8mb4&parseTime=true&loc=UTC'"; \
 	} > .env
 	@echo 'Created .env with random local-development secrets.'
 
@@ -151,6 +153,10 @@ run-auth: infra-up
 run-problem: infra-up
 	@set -a; . ./.env; set +a; \
 	"$(GO)" run ./services/grpc/problem -f services/grpc/problem/etc/problem.yaml
+
+run-contest: infra-up
+	@set -a; . ./.env; set +a; \
+	"$(GO)" run ./services/grpc/contest -f services/grpc/contest/etc/contest.yaml
 
 generate: api rpc
 
