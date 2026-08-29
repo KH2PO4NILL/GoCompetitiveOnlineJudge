@@ -1,6 +1,6 @@
 # GoCompetitiveOnlineJudge
 
-一个使用 Go 构建的分布式程序设计竞赛在线评测系统，覆盖用户认证、题目管理、代码提交、沙箱评测、比赛组织和实时排行榜等完整 OJ 业务。
+GoCompetitiveOnlineJudge是一个安全隔离的分布式代码执行与调度平台，覆盖用户认证、题目管理、代码提交、沙箱评测、比赛组织和实时排行榜等完整 OJ 业务。
 
 项目基于 go-zero 拆分 HTTP 网关与 gRPC 服务，通过 etcd 完成服务发现，使用 MySQL 持久化业务数据、Redis 承载缓存与限流、RocketMQ 分发异步评测任务、MinIO/S3 保存测试数据，并通过可水平扩展的 Judge Worker 执行用户代码。
 
