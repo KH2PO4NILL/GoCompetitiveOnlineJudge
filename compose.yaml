@@ -39,6 +39,7 @@ services:
       - ./infra/mysql/migrate.sh:/migrate.sh:ro
       - ./services/grpc/auth/migrations:/migrations/auth:ro
       - ./services/grpc/problem/migrations:/migrations/problem:ro
+      - ./services/grpc/contest/migrations:/migrations/contest:ro
     entrypoint:
       - /bin/sh
       - /migrate.sh

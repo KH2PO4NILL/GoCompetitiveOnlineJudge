@@ -94,4 +94,20 @@ apply_migration \
         AND
         (SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'test_data_uploads' AND column_name IN ('finalized_test_data_version_id', 'finalized_revision')) = 2"
 
+apply_migration \
+    'contest/001_create_contest.sql' \
+    '/migrations/contest/001_create_contest.sql' \
+    "SELECT COUNT(*) = 10 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN (
+        'contests',
+        'contest_problems',
+        'contest_registrations',
+        'contest_participants',
+        'contest_scoreboard_state',
+        'contest_scoreboard_rows',
+        'contest_scoreboard_problem_results',
+        'contest_scoreboard_snapshots',
+        'contest_scoreboard_snapshot_rows',
+        'contest_scoreboard_snapshot_problem_results'
+    )"
+
 echo 'MySQL migrations are up to date.'
