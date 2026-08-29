@@ -6,7 +6,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/authctx"
+	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/svc"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/model"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/pb"
@@ -54,12 +54,12 @@ func (l *ChangePasswordLogic) ChangePassword(in *pb.ChangePasswordReq) (*pb.Empt
 		return nil, status.Error(codes.InvalidArgument, "新密码必须包含至少 6 个字符且不能超过 72 字节")
 	}
 
-	claims, ok := authctx.ClaimsFromContext(l.ctx)
+	principal, ok := sharedauth.PrincipalFromContext(l.ctx)
 	if !ok {
 		return nil, status.Error(codes.Unauthenticated, "用户未登录")
 	}
 
-	passwordHash, err := l.svcCtx.UsersModel.GetUserPasswordHash(l.ctx, claims.UserID)
+	passwordHash, err := l.svcCtx.UsersModel.GetUserPasswordHash(l.ctx, principal.UserID)
 	if err != nil {
 		l.Errorf("get user password hash: %v", err)
 		return nil, status.Error(codes.Internal, "内部服务器错误")
@@ -72,7 +72,7 @@ func (l *ChangePasswordLogic) ChangePassword(in *pb.ChangePasswordReq) (*pb.Empt
 		if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
 			return nil, status.Error(codes.InvalidArgument, "当前密码错误")
 		}
-		l.Errorf("compare current password for user %d: %v", claims.UserID, err)
+		l.Errorf("compare current password for user %d: %v", principal.UserID, err)
 		return nil, status.Error(codes.Internal, "内部服务器错误")
 	}
 	if currentPassword == newPassword {
@@ -88,7 +88,7 @@ func (l *ChangePasswordLogic) ChangePassword(in *pb.ChangePasswordReq) (*pb.Empt
 	now := time.Now().UTC()
 	err = l.svcCtx.DB.WithContext(l.ctx).Transaction(func(tx *gorm.DB) error {
 		result := tx.Model(&model.Users{}).
-			Where("id = ? AND password_hash = ? AND deleted_at IS NULL", claims.UserID, passwordHash).
+			Where("id = ? AND password_hash = ? AND deleted_at IS NULL", principal.UserID, passwordHash).
 			Update("password_hash", string(newPasswordHash))
 		if result.Error != nil {
 			return result.Error
@@ -98,7 +98,7 @@ func (l *ChangePasswordLogic) ChangePassword(in *pb.ChangePasswordReq) (*pb.Empt
 		}
 
 		return tx.Model(&model.UserSessions{}).
-			Where("user_id = ? AND id <> ? AND revoked_at IS NULL", claims.UserID, claims.SessionID).
+			Where("user_id = ? AND id <> ? AND revoked_at IS NULL", principal.UserID, principal.SessionID).
 			Updates(map[string]any{
 				"revoked_at":     now,
 				"revoked_reason": "password_changed",
@@ -108,7 +108,7 @@ func (l *ChangePasswordLogic) ChangePassword(in *pb.ChangePasswordReq) (*pb.Empt
 		if errors.Is(err, errPasswordUpdateConflict) {
 			return nil, status.Error(codes.Aborted, "密码状态已发生变化，请重试")
 		}
-		l.Errorf("change password for user %d: %v", claims.UserID, err)
+		l.Errorf("change password for user %d: %v", principal.UserID, err)
 		return nil, status.Error(codes.Internal, "内部服务器错误")
 	}
 

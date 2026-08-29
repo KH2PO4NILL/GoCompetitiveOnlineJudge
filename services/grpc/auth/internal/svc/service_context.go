@@ -9,10 +9,12 @@ import (
 	"os"
 	"time"
 
+	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/config"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/mailer"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/token"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/model"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/pb"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/zeromicro/go-zero/core/logx"
@@ -24,12 +26,14 @@ import (
 type ServiceContext struct {
 	Config config.Config
 
-	DB           *gorm.DB
-	Redis        *redis.Client
-	Token        *token.Manager
-	Mailer       mailer.Sender
-	UsersModel   model.UsersModel
-	SchoolsModel model.SchoolsModel
+	DB                  *gorm.DB
+	Redis               *redis.Client
+	Token               *token.Manager
+	Mailer              mailer.Sender
+	UsersModel          model.UsersModel
+	SchoolsModel        model.SchoolsModel
+	InternalCredentials map[string]string
+	InternalCallers     map[string][]string
 
 	sqlDB         *sql.DB
 	cleanupCancel context.CancelFunc
@@ -39,6 +43,13 @@ type ServiceContext struct {
 func NewServiceContext(c config.Config) (*ServiceContext, error) {
 	if c.Token.RefreshExpireSeconds <= 0 {
 		return nil, fmt.Errorf("refresh token expiration must be positive")
+	}
+	credentials, callers, err := sharedauth.BuildServiceAuthentication(
+		c.InternalAuth,
+		pb.AuthService_ValidateToken_FullMethodName,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("configure internal authentication: %w", err)
 	}
 
 	gormLogger := logger.New(
@@ -107,9 +118,11 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 		Token:  tokenManager,
 		Mailer: mailSender,
 
-		UsersModel:   model.NewUsersModel(db),
-		SchoolsModel: model.NewSchoolsModel(db),
-		sqlDB:        sqlDB,
+		UsersModel:          model.NewUsersModel(db),
+		SchoolsModel:        model.NewSchoolsModel(db),
+		InternalCredentials: credentials,
+		InternalCallers:     callers,
+		sqlDB:               sqlDB,
 	}
 	serviceContext.startSessionCleanup()
 	return serviceContext, nil

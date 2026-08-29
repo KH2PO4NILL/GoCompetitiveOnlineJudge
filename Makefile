@@ -84,6 +84,10 @@ tools-infra:
 	minio_password=$$(openssl rand -hex 16); \
 	submit_service_token=$$(openssl rand -hex 32); \
 	judge_service_token=$$(openssl rand -hex 32); \
+	contest_problem_service_token=$$(openssl rand -hex 32); \
+	contest_submit_service_token=$$(openssl rand -hex 32); \
+	auth_problem_service_token=$$(openssl rand -hex 32); \
+	auth_contest_service_token=$$(openssl rand -hex 32); \
 	{ \
 		printf '%s\n' 'MYSQL_PORT=3307'; \
 		printf '%s\n' 'MYSQL_DATABASE=go_coj'; \
@@ -101,6 +105,8 @@ tools-infra:
 		printf '%s\n' "AUTH_MYSQL_DSN='go_coj:$$mysql_password@tcp(127.0.0.1:3307)/go_coj?charset=utf8mb4&parseTime=true&loc=UTC'"; \
 		printf '%s\n' "AUTH_REDIS_PASSWORD=$$redis_password"; \
 		printf '%s\n' "AUTH_TOKEN_SECRET=$$token_secret"; \
+		printf '%s\n' "AUTH_INTERNAL_PROBLEM_TOKEN=$$auth_problem_service_token"; \
+		printf '%s\n' "AUTH_INTERNAL_CONTEST_TOKEN=$$auth_contest_service_token"; \
 		printf '%s\n' "PROBLEM_MYSQL_DSN='go_coj:$$mysql_password@tcp(127.0.0.1:3307)/go_coj?charset=utf8mb4&parseTime=true&loc=UTC'"; \
 		printf '%s\n' "PROBLEM_REDIS_PASSWORD=$$redis_password"; \
 		printf '%s\n' 'PROBLEM_OBJECT_STORAGE_ENDPOINT=http://127.0.0.1:9000'; \
@@ -111,6 +117,8 @@ tools-infra:
 		printf '%s\n' "PROBLEM_INTERNAL_SUBMIT_TOKEN=$$submit_service_token"; \
 		printf '%s\n' "PROBLEM_INTERNAL_JUDGE_TOKEN=$$judge_service_token"; \
 		printf '%s\n' "CONTEST_MYSQL_DSN='go_coj:$$mysql_password@tcp(127.0.0.1:3307)/go_coj?charset=utf8mb4&parseTime=true&loc=UTC'"; \
+		printf '%s\n' "CONTEST_INTERNAL_PROBLEM_TOKEN=$$contest_problem_service_token"; \
+		printf '%s\n' "CONTEST_INTERNAL_SUBMIT_TOKEN=$$contest_submit_service_token"; \
 	} > .env
 	@echo 'Created .env with random local-development secrets.'
 

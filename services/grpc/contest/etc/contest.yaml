@@ -5,5 +5,26 @@ Etcd:
   - 127.0.0.1:2379
   Key: contest.rpc
 
+AuthRPC:
+  Etcd:
+    Hosts:
+    - 127.0.0.1:2379
+    Key: auth.rpc
+
+AuthRPCAuth:
+  Name: contest.rpc
+  Token: "${AUTH_INTERNAL_CONTEST_TOKEN}"
+
+InternalAuth:
+  Callers:
+  - Name: problem.rpc
+    Token: "${CONTEST_INTERNAL_PROBLEM_TOKEN}"
+    Methods:
+    - /contest.ContestService/CanAccessProblem
+  - Name: submit.rpc
+    Token: "${CONTEST_INTERNAL_SUBMIT_TOKEN}"
+    Methods:
+    - /contest.ContestService/ValidateContestSubmission
+
 Mysql:
   DSN: "${CONTEST_MYSQL_DSN}"

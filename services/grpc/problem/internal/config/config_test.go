@@ -17,6 +17,8 @@ func TestProblemConfigLoadsAuthAndContestRPCClients(t *testing.T) {
 	t.Setenv("PROBLEM_OBJECT_STORAGE_SECRET_KEY", "secret-key")
 	t.Setenv("PROBLEM_INTERNAL_SUBMIT_TOKEN", "submit-token")
 	t.Setenv("PROBLEM_INTERNAL_JUDGE_TOKEN", "judge-token")
+	t.Setenv("CONTEST_INTERNAL_PROBLEM_TOKEN", "contest-token")
+	t.Setenv("AUTH_INTERNAL_PROBLEM_TOKEN", "auth-token")
 
 	var c Config
 	if err := conf.Load(filepath.Join("..", "..", "etc", "problem.yaml"), &c, conf.UseEnv()); err != nil {
@@ -25,7 +27,13 @@ func TestProblemConfigLoadsAuthAndContestRPCClients(t *testing.T) {
 	if c.AuthRPC.Etcd.Key != "auth.rpc" {
 		t.Fatalf("AuthRPC key = %q", c.AuthRPC.Etcd.Key)
 	}
+	if c.AuthRPCAuth.Name != "problem.rpc" || c.AuthRPCAuth.Token != "auth-token" {
+		t.Fatalf("AuthRPCAuth = %+v", c.AuthRPCAuth)
+	}
 	if c.ContestRPC.Etcd.Key != "contest.rpc" {
 		t.Fatalf("ContestRPC key = %q", c.ContestRPC.Etcd.Key)
+	}
+	if c.ContestRPCAuth.Name != "problem.rpc" || c.ContestRPCAuth.Token != "contest-token" {
+		t.Fatalf("ContestRPCAuth = %+v", c.ContestRPCAuth)
 	}
 }

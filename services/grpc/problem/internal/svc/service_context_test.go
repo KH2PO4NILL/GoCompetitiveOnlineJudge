@@ -3,16 +3,16 @@ package svc
 import (
 	"testing"
 
-	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/config"
+	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
 )
 
 func TestInternalAuthConfigurationBuildsPerMethodAllowlist(t *testing.T) {
-	credentials, callers, err := internalAuthConfiguration(config.InternalAuthConf{Callers: []config.InternalCallerConf{
+	credentials, callers, err := sharedauth.BuildServiceAuthentication(sharedauth.InternalAuthConf{Callers: []sharedauth.InternalCallerConf{
 		{Name: "submit.rpc", Token: "secret", Methods: []string{
 			"/problem.ProblemService/BatchGetProblems",
 			"/problem.ProblemService/GetJudgeProblemSpec",
 		}},
-	}})
+	}}, "/problem.ProblemService/BatchGetProblems", "/problem.ProblemService/GetJudgeProblemSpec")
 	if err != nil {
 		t.Fatalf("internalAuthConfiguration() error = %v", err)
 	}
@@ -22,9 +22,9 @@ func TestInternalAuthConfigurationBuildsPerMethodAllowlist(t *testing.T) {
 }
 
 func TestInternalAuthConfigurationRejectsMissingCoverage(t *testing.T) {
-	_, _, err := internalAuthConfiguration(config.InternalAuthConf{Callers: []config.InternalCallerConf{
+	_, _, err := sharedauth.BuildServiceAuthentication(sharedauth.InternalAuthConf{Callers: []sharedauth.InternalCallerConf{
 		{Name: "submit.rpc", Token: "secret", Methods: []string{"/problem.ProblemService/BatchGetProblems"}},
-	}})
+	}}, "/problem.ProblemService/BatchGetProblems", "/problem.ProblemService/GetJudgeProblemSpec")
 	if err == nil {
 		t.Fatal("internalAuthConfiguration() unexpectedly succeeded")
 	}

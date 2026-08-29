@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"log"
 
+	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/authenticator"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/config"
-	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/interceptor"
 	authserviceServer "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/server/authservice"
 	userserviceServer "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/server/userservice"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/svc"
@@ -44,9 +45,17 @@ func main() {
 			reflection.Register(grpcServer)
 		}
 	})
-	s.AddUnaryInterceptors(
-		interceptor.NewAuthInterceptor(svcCtx),
+	tokenAuthenticator := authenticator.New(svcCtx.Token, svcCtx.DB)
+	servicePolicy := func(fullMethod string) []string { return svcCtx.InternalCallers[fullMethod] }
+	authInterceptors := sharedauth.NewServerAuthInterceptors(
+		tokenAuthenticator,
+		svcCtx.InternalCredentials,
+		servicePolicy,
+		sharedauth.WithMethodAuthentication(authMethodAuthentication),
+		sharedauth.WithRequestAuthentication(authRequestAuthentication),
 	)
+	s.AddUnaryInterceptors(authInterceptors.Unary...)
+	s.AddStreamInterceptors(authInterceptors.Stream...)
 	defer s.Stop()
 
 	fmt.Printf("Starting rpc server at %s...\n", c.ListenOn)

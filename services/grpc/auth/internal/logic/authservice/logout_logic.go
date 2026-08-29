@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/authctx"
+	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/authenticator"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/rediskey"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/svc"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/token"
@@ -35,9 +36,9 @@ func NewLogoutLogic(ctx context.Context, svcCtx *svc.ServiceContext) *LogoutLogi
 }
 
 func (l *LogoutLogic) Logout(in *pb.LogoutReq) (*pb.EmptyResp, error) {
-	claims, ok := authctx.ClaimsFromContext(l.ctx)
+	principal, ok := sharedauth.PrincipalFromContext(l.ctx)
 	if ok {
-		if err := l.revokeLogoutSession(claims.SessionID, claims.UserID); err != nil {
+		if err := l.revokeLogoutSession(principal.SessionID, principal.UserID); err != nil {
 			return nil, err
 		}
 		return &pb.EmptyResp{}, nil
@@ -45,8 +46,21 @@ func (l *LogoutLogic) Logout(in *pb.LogoutReq) (*pb.EmptyResp, error) {
 	if in == nil {
 		return nil, status.Error(codes.Unauthenticated, "用户未登录")
 	}
-
+	rawAccessToken := strings.TrimSpace(in.AccessToken)
 	rawRefreshToken := strings.TrimSpace(in.RefreshToken)
+	if rawAccessToken != "" {
+		principal, err := authenticator.New(l.svcCtx.Token, l.svcCtx.DB).Authenticate(l.ctx, rawAccessToken)
+		if err != nil && rawRefreshToken == "" {
+			return nil, err
+		}
+		if err == nil {
+			if err := l.revokeLogoutSession(principal.SessionID, principal.UserID); err != nil {
+				return nil, err
+			}
+			return &pb.EmptyResp{}, nil
+		}
+	}
+
 	if rawRefreshToken == "" || len(rawRefreshToken) > 512 {
 		return nil, status.Error(codes.Unauthenticated, "退出令牌无效")
 	}

@@ -242,6 +242,18 @@ make infra-reset
 | `JUDGE_*` | Worker 标识、并发度、沙箱、语言与服务间鉴权配置 |
 | `MINIO_*` | 本地对象存储账号、端口和 Bucket |
 
+### gRPC 统一鉴权
+
+所有 gRPC 服务统一使用 `infra/interceptor` 中的鉴权拦截器，不在各服务内重复解析 Token 或实现独立鉴权中间件：
+
+- 用户请求通过 `authorization: Bearer <access-token>` 传递身份。Auth RPC 使用本地校验后端，其他 RPC 统一调用 Auth RPC 校验，并将最新用户身份写入请求 Context。
+- 公开方法跳过用户鉴权；可匿名查询使用可选鉴权，携带 Token 时仍会严格校验并注入身份；其他方法默认必须登录。
+- 内部 RPC（包括业务服务调用 Auth RPC 的 `ValidateToken`）使用 `x-service-name` 和 `x-service-token` 验证调用方，并按完整 RPC 方法维护调用方白名单。内部凭据不得从外部请求透传。
+- 缺少或无效凭据统一返回 `Unauthenticated`，身份有效但无权限统一返回 `PermissionDenied`，鉴权依赖不可用统一返回 `Unavailable`。
+- Unary RPC 与 Stream RPC 使用相同策略；业务代码统一通过公共 Context 方法读取用户或内部服务身份。
+
+本地的 Problem/Contest → Auth 调用分别使用 `AUTH_INTERNAL_PROBLEM_TOKEN`、`AUTH_INTERNAL_CONTEST_TOKEN`，Problem → Contest 使用 `CONTEST_INTERNAL_PROBLEM_TOKEN`，Submit → Contest 使用 `CONTEST_INTERNAL_SUBMIT_TOKEN`。已有 `.env` 不会被 `make infra-env` 覆盖，需要手动补充这些变量或重新生成本地配置。
+
 生产环境应使用独立的 Secret 管理系统，并至少完成以下调整：
 
 - 替换所有开发密钥并定期轮换内部服务 Token。

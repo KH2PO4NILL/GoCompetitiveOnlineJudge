@@ -6,7 +6,7 @@ import (
 	"net/mail"
 	"strings"
 
-	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/authctx"
+	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/rediskey"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/svc"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/model"
@@ -52,14 +52,14 @@ return 1
 `
 
 func authenticatedUser(ctx context.Context, svcCtx *svc.ServiceContext, logger logx.Logger) (*model.Users, error) {
-	claims, ok := authctx.ClaimsFromContext(ctx)
+	principal, ok := sharedauth.PrincipalFromContext(ctx)
 	if !ok {
 		return nil, status.Error(codes.Unauthenticated, "用户未登录")
 	}
 
-	user, err := findActiveUserByID(ctx, svcCtx.DB, claims.UserID)
+	user, err := findActiveUserByID(ctx, svcCtx.DB, principal.UserID)
 	if err != nil {
-		logger.Errorf("find authenticated user %d: %v", claims.UserID, err)
+		logger.Errorf("find authenticated user %d: %v", principal.UserID, err)
 		return nil, status.Error(codes.Internal, "读取用户信息失败")
 	}
 	if user == nil {

@@ -1,6 +1,10 @@
 package config
 
-import "github.com/zeromicro/go-zero/zrpc"
+import (
+	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
+
+	"github.com/zeromicro/go-zero/zrpc"
+)
 
 type MysqlConf struct {
 	DSN string
@@ -10,16 +14,6 @@ type RedisConf struct {
 	Addr     string
 	Password string
 	DB       int
-}
-
-type InternalCallerConf struct {
-	Name    string
-	Token   string
-	Methods []string
-}
-
-type InternalAuthConf struct {
-	Callers []InternalCallerConf
 }
 
 type UploadConf struct {
@@ -44,12 +38,14 @@ type ObjectStorageConf struct {
 type Config struct {
 	zrpc.RpcServerConf
 
-	AuthRPC    zrpc.RpcClientConf
-	ContestRPC zrpc.RpcClientConf
+	AuthRPC        zrpc.RpcClientConf
+	AuthRPCAuth    sharedauth.ServiceClientAuthConf
+	ContestRPC     zrpc.RpcClientConf
+	ContestRPCAuth sharedauth.ServiceClientAuthConf
 
 	Mysql         MysqlConf
 	RedisDB       RedisConf
-	InternalAuth  InternalAuthConf
+	InternalAuth  sharedauth.InternalAuthConf
 	Upload        UploadConf
 	ObjectStorage ObjectStorageConf
 }

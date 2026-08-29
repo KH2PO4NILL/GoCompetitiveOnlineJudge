@@ -1,6 +1,10 @@
 package config
 
-import "github.com/zeromicro/go-zero/zrpc"
+import (
+	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
+
+	"github.com/zeromicro/go-zero/zrpc"
+)
 
 type MysqlConf struct {
 	DSN string
@@ -9,5 +13,8 @@ type MysqlConf struct {
 type Config struct {
 	zrpc.RpcServerConf
 
-	Mysql MysqlConf
+	AuthRPC      zrpc.RpcClientConf
+	AuthRPCAuth  sharedauth.ServiceClientAuthConf
+	InternalAuth sharedauth.InternalAuthConf
+	Mysql        MysqlConf
 }

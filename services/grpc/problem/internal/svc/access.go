@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
 	contestpb "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/contest/pb"
 
 	"google.golang.org/grpc"
@@ -26,11 +27,18 @@ type contestAccessClient interface {
 }
 
 type contestAccessRPCChecker struct {
-	client contestAccessClient
+	client     contestAccessClient
+	credential sharedauth.ServiceClientAuthConf
 }
 
-func NewContestAccessChecker(connection grpc.ClientConnInterface) ContestAccessChecker {
-	return &contestAccessRPCChecker{client: contestpb.NewContestServiceClient(connection)}
+func NewContestAccessChecker(
+	connection grpc.ClientConnInterface,
+	credential sharedauth.ServiceClientAuthConf,
+) ContestAccessChecker {
+	return &contestAccessRPCChecker{
+		client:     contestpb.NewContestServiceClient(connection),
+		credential: credential,
+	}
 }
 
 func (c *contestAccessRPCChecker) CanAccessProblem(
@@ -39,6 +47,9 @@ func (c *contestAccessRPCChecker) CanAccessProblem(
 ) (bool, error) {
 	if c == nil || c.client == nil {
 		return false, errors.New("contest RPC client is unavailable")
+	}
+	if c.credential.Name != "" || c.credential.Token != "" {
+		ctx = sharedauth.WithOutgoingServiceCredentials(ctx, c.credential.Name, c.credential.Token)
 	}
 	response, err := c.client.CanAccessProblem(ctx, &contestpb.CanAccessProblemReq{
 		ContestId: contestID,
