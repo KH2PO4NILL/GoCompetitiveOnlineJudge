@@ -9,9 +9,13 @@ import (
 	"os"
 	"time"
 
+	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
+	authservice "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/client/authservice"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/contest/internal/config"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/contest/model"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/contest/pb"
 
+	"github.com/zeromicro/go-zero/zrpc"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -21,14 +25,30 @@ type ServiceContext struct {
 	Config config.Config
 
 	ContestModel model.ContestModel
+	AuthClient   authservice.AuthService
 
-	db    *gorm.DB
-	sqlDB *sql.DB
+	InternalCredentials map[string]string
+	InternalCallers     map[string][]string
+
+	authRPC zrpc.Client
+	db      *gorm.DB
+	sqlDB   *sql.DB
 }
 
 func NewServiceContext(c config.Config) (*ServiceContext, error) {
 	if c.Mysql.DSN == "" {
 		return nil, errors.New("mysql DSN is required")
+	}
+	credentials, callers, err := sharedauth.BuildServiceAuthentication(
+		c.InternalAuth,
+		pb.ContestService_CanAccessProblem_FullMethodName,
+		pb.ContestService_ValidateContestSubmission_FullMethodName,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("configure internal authentication: %w", err)
+	}
+	if err := c.AuthRPCAuth.Validate(); err != nil {
+		return nil, fmt.Errorf("configure auth RPC authentication: %w", err)
 	}
 	gormLogger := logger.New(
 		log.New(os.Stdout, "", log.LstdFlags),
@@ -54,14 +74,31 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("ping mysql: %w", err)
 	}
+	authRPC, err := zrpc.NewClient(c.AuthRPC)
+	if err != nil {
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("create auth rpc client: %w", err)
+	}
 	return &ServiceContext{
-		Config: c, ContestModel: model.NewContestModel(db), db: db, sqlDB: sqlDB,
+		Config:              c,
+		ContestModel:        model.NewContestModel(db),
+		AuthClient:          authservice.NewAuthService(authRPC),
+		InternalCredentials: credentials,
+		InternalCallers:     callers,
+		authRPC:             authRPC,
+		db:                  db,
+		sqlDB:               sqlDB,
 	}, nil
 }
 
 func (s *ServiceContext) Close() error {
-	if s.sqlDB == nil {
-		return nil
+	var authErr error
+	if s.authRPC != nil && s.authRPC.Conn() != nil {
+		authErr = s.authRPC.Conn().Close()
 	}
-	return s.sqlDB.Close()
+	var sqlErr error
+	if s.sqlDB != nil {
+		sqlErr = s.sqlDB.Close()
+	}
+	return errors.Join(authErr, sqlErr)
 }

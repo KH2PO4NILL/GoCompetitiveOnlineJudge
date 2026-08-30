@@ -40,11 +40,11 @@ func ServicePrincipalFromContext(ctx context.Context) (ServicePrincipal, bool) {
 // client call. Callers should obtain token from their own secret configuration
 // and must never forward these metadata values from an external request.
 func WithOutgoingServiceCredentials(ctx context.Context, name, token string) context.Context {
-	return metadata.AppendToOutgoingContext(
-		ctx,
-		ServiceNameMetadataKey, strings.TrimSpace(name),
-		ServiceTokenMetadataKey, token,
-	)
+	md, _ := metadata.FromOutgoingContext(ctx)
+	md = md.Copy()
+	md.Set(ServiceNameMetadataKey, strings.TrimSpace(name))
+	md.Set(ServiceTokenMetadataKey, token)
+	return metadata.NewOutgoingContext(ctx, md)
 }
 
 // ServiceAuthenticationPolicy returns the service names allowed to call a
@@ -65,27 +65,61 @@ func NewServiceAuthInterceptor(
 		info *grpc.UnaryServerInfo,
 		handler grpc.UnaryHandler,
 	) (any, error) {
-		if policy == nil {
-			return handler(ctx, req)
-		}
-		allowed := policy(info.FullMethod)
-		if len(allowed) == 0 {
-			return handler(ctx, req)
-		}
-
-		name, token, err := serviceCredentialsFromContext(ctx)
+		authenticatedCtx, err := authenticateServiceContext(ctx, info.FullMethod, trusted, policy)
 		if err != nil {
-			return nil, status.Error(codes.Unauthenticated, "missing or invalid service credentials")
+			return nil, err
 		}
-		if !containsService(allowed, name) {
-			return nil, status.Error(codes.PermissionDenied, "service caller is not allowed")
-		}
-		expected, ok := trusted[name]
-		if !ok || !constantTimeStringEqual(expected, token) {
-			return nil, status.Error(codes.Unauthenticated, "missing or invalid service credentials")
-		}
-		return handler(WithServicePrincipal(ctx, ServicePrincipal{Name: name}), req)
+		return handler(authenticatedCtx, req)
 	}
+}
+
+// NewServiceAuthStreamInterceptor applies service-to-service authentication to
+// stream RPCs and exposes the trusted caller through ServerStream.Context().
+func NewServiceAuthStreamInterceptor(
+	credentials map[string]string,
+	policy ServiceAuthenticationPolicy,
+) grpc.StreamServerInterceptor {
+	trusted := cloneServiceCredentials(credentials)
+	return func(
+		srv any,
+		stream grpc.ServerStream,
+		info *grpc.StreamServerInfo,
+		handler grpc.StreamHandler,
+	) error {
+		ctx, err := authenticateServiceContext(stream.Context(), info.FullMethod, trusted, policy)
+		if err != nil {
+			return err
+		}
+		return handler(srv, &contextServerStream{ServerStream: stream, ctx: ctx})
+	}
+}
+
+func authenticateServiceContext(
+	ctx context.Context,
+	fullMethod string,
+	trusted map[string]string,
+	policy ServiceAuthenticationPolicy,
+) (context.Context, error) {
+	if policy == nil {
+		return ctx, nil
+	}
+	allowed := policy(fullMethod)
+	if len(allowed) == 0 {
+		return ctx, nil
+	}
+
+	name, token, err := serviceCredentialsFromContext(ctx)
+	if err != nil {
+		return nil, status.Error(codes.Unauthenticated, "missing or invalid service credentials")
+	}
+	if !containsService(allowed, name) {
+		return nil, status.Error(codes.PermissionDenied, "service caller is not allowed")
+	}
+	expected, ok := trusted[name]
+	if !ok || !constantTimeStringEqual(expected, token) {
+		return nil, status.Error(codes.Unauthenticated, "missing or invalid service credentials")
+	}
+	return WithServicePrincipal(ctx, ServicePrincipal{Name: name}), nil
 }
 
 func cloneServiceCredentials(credentials map[string]string) map[string]string {

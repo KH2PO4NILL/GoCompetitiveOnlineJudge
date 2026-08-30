@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strings"
 	"time"
 
+	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
 	authservice "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/client/authservice"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/config"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/model"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/pb"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/zeromicro/go-zero/zrpc"
@@ -55,9 +56,19 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 	if err != nil {
 		return nil, fmt.Errorf("configure test data storage: %w", err)
 	}
-	credentials, callers, err := internalAuthConfiguration(c.InternalAuth)
+	credentials, callers, err := sharedauth.BuildServiceAuthentication(
+		c.InternalAuth,
+		pb.ProblemService_BatchGetProblems_FullMethodName,
+		pb.ProblemService_GetJudgeProblemSpec_FullMethodName,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("configure internal authentication: %w", err)
+	}
+	if err := c.AuthRPCAuth.Validate(); err != nil {
+		return nil, fmt.Errorf("configure auth RPC authentication: %w", err)
+	}
+	if err := c.ContestRPCAuth.Validate(); err != nil {
+		return nil, fmt.Errorf("configure contest RPC authentication: %w", err)
 	}
 
 	gormLogger := logger.New(
@@ -116,7 +127,7 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 		Config:              c,
 		ProblemModel:        model.NewProblemModel(db),
 		AuthClient:          authservice.NewAuthService(authRPC),
-		ContestAccess:       NewContestAccessChecker(contestRPC.Conn()),
+		ContestAccess:       NewContestAccessChecker(contestRPC.Conn(), c.ContestRPCAuth),
 		TestDataStorage:     storage,
 		UploadPolicy:        uploadPolicy,
 		InternalCredentials: credentials,
@@ -127,36 +138,6 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 		redis:               redisClient,
 		sqlDB:               sqlDB,
 	}, nil
-}
-
-func internalAuthConfiguration(c config.InternalAuthConf) (map[string]string, map[string][]string, error) {
-	if len(c.Callers) == 0 {
-		return nil, nil, errors.New("at least one internal caller is required")
-	}
-	credentials := make(map[string]string, len(c.Callers))
-	callers := make(map[string][]string)
-	for _, caller := range c.Callers {
-		name := strings.TrimSpace(caller.Name)
-		if name == "" || caller.Token == "" || len(caller.Methods) == 0 {
-			return nil, nil, errors.New("each internal caller requires name, token and methods")
-		}
-		if _, exists := credentials[name]; exists {
-			return nil, nil, fmt.Errorf("duplicate internal caller %q", name)
-		}
-		credentials[name] = caller.Token
-		for _, method := range caller.Methods {
-			method = strings.TrimSpace(method)
-			if method == "" {
-				return nil, nil, fmt.Errorf("internal caller %q has an empty method", name)
-			}
-			callers[method] = append(callers[method], name)
-		}
-	}
-	if len(callers["/problem.ProblemService/BatchGetProblems"]) == 0 ||
-		len(callers["/problem.ProblemService/GetJudgeProblemSpec"]) == 0 {
-		return nil, nil, errors.New("internal callers must cover BatchGetProblems and GetJudgeProblemSpec")
-	}
-	return credentials, callers, nil
 }
 
 func (s *ServiceContext) Close() error {

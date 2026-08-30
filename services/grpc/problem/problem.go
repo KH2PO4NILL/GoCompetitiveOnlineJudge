@@ -20,6 +20,19 @@ import (
 
 var configFile = flag.String("f", "etc/problem.yaml", "the config file")
 
+func problemMethodAuthentication(fullMethod string) interceptor.AuthenticationMode {
+	switch fullMethod {
+	case pb.ProblemService_BatchGetProblems_FullMethodName,
+		pb.ProblemService_GetJudgeProblemSpec_FullMethodName:
+		return interceptor.AuthenticationSkipped
+	case pb.ProblemService_GetProblem_FullMethodName,
+		pb.ProblemService_ListProblems_FullMethodName:
+		return interceptor.AuthenticationOptional
+	default:
+		return interceptor.AuthenticationRequired
+	}
+}
+
 func main() {
 	flag.Parse()
 
@@ -43,29 +56,16 @@ func main() {
 		}
 	})
 
-	s.AddUnaryInterceptors(
-		interceptor.NewServiceAuthInterceptor(
-			svcCtx.InternalCredentials,
-			func(fullMethod string) []string { return svcCtx.InternalCallers[fullMethod] },
-		),
-		interceptor.NewAuthInterceptor(
-			svcCtx.AuthClient,
-			interceptor.WithMethodAuthentication(
-				func(fullMethod string) interceptor.AuthenticationMode {
-					switch fullMethod {
-					case pb.ProblemService_BatchGetProblems_FullMethodName,
-						pb.ProblemService_GetJudgeProblemSpec_FullMethodName:
-						return interceptor.AuthenticationSkipped
-					case pb.ProblemService_GetProblem_FullMethodName,
-						pb.ProblemService_ListProblems_FullMethodName:
-						return interceptor.AuthenticationOptional
-					default:
-						return interceptor.AuthenticationRequired
-					}
-				},
-			),
-		),
+	authenticator := interceptor.NewRPCAuthenticator(svcCtx.AuthClient, c.AuthRPCAuth)
+	servicePolicy := func(fullMethod string) []string { return svcCtx.InternalCallers[fullMethod] }
+	authInterceptors := interceptor.NewServerAuthInterceptors(
+		authenticator,
+		svcCtx.InternalCredentials,
+		servicePolicy,
+		interceptor.WithMethodAuthentication(problemMethodAuthentication),
 	)
+	s.AddUnaryInterceptors(authInterceptors.Unary...)
+	s.AddStreamInterceptors(authInterceptors.Stream...)
 	defer s.Stop()
 
 	fmt.Printf("Starting rpc server at %s...\n", c.ListenOn)

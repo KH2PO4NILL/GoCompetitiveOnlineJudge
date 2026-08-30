@@ -9,6 +9,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
@@ -18,16 +19,35 @@ type stubAccessTokenValidator struct {
 	err      error
 	calls    int
 	token    string
+	ctx      context.Context
 }
 
 func (s *stubAccessTokenValidator) ValidateToken(
-	_ context.Context,
+	ctx context.Context,
 	in *pb.ValidateTokenReq,
 	_ ...grpc.CallOption,
 ) (*pb.ValidateTokenResp, error) {
 	s.calls++
 	s.token = in.AccessToken
+	s.ctx = ctx
 	return s.response, s.err
+}
+
+func TestRPCAuthenticatorAddsServiceCredentials(t *testing.T) {
+	validator := &stubAccessTokenValidator{response: &pb.ValidateTokenResp{Claims: &pb.AuthClaims{
+		UserId: 1,
+		Role:   pb.UserRole_USER_ROLE_USER,
+		Status: pb.UserStatus_USER_STATUS_NORMAL,
+	}}}
+	authenticator := NewRPCAuthenticator(validator, ServiceClientAuthConf{Name: "problem.rpc", Token: "secret"})
+	if _, err := authenticator.Authenticate(context.Background(), "access-token"); err != nil {
+		t.Fatalf("Authenticate() error = %v", err)
+	}
+	md, ok := metadata.FromOutgoingContext(validator.ctx)
+	if !ok || len(md.Get(ServiceNameMetadataKey)) != 1 || md.Get(ServiceNameMetadataKey)[0] != "problem.rpc" ||
+		len(md.Get(ServiceTokenMetadataKey)) != 1 || md.Get(ServiceTokenMetadataKey)[0] != "secret" {
+		t.Fatalf("outgoing service metadata = %v", md)
+	}
 }
 
 func TestAuthInterceptorInjectsValidatedPrincipal(t *testing.T) {
@@ -37,7 +57,7 @@ func TestAuthInterceptorInjectsValidatedPrincipal(t *testing.T) {
 			Status: pb.UserStatus_USER_STATUS_NORMAL, SchoolId: 7,
 		},
 	}}
-	interceptor := NewAuthInterceptor(validator)
+	interceptor := NewAuthInterceptor(NewRPCAuthenticator(validator))
 	ctx := metadata.NewIncomingContext(
 		context.Background(),
 		metadata.Pairs("authorization", "Bearer access-token"),
@@ -76,6 +96,7 @@ func TestAuthInterceptorAuthenticationModes(t *testing.T) {
 		{name: "required token missing", mode: AuthenticationRequired, wantCode: codes.Unauthenticated},
 		{name: "optional token missing", mode: AuthenticationOptional, wantCode: codes.OK, wantHandle: true},
 		{name: "optional malformed token", mode: AuthenticationOptional, metadata: metadata.Pairs("authorization", "not-bearer"), wantCode: codes.Unauthenticated},
+		{name: "alternative malformed token", mode: AuthenticationAlternative, metadata: metadata.Pairs("authorization", "not-bearer"), wantCode: codes.OK, wantHandle: true},
 		{name: "skipped malformed token", mode: AuthenticationSkipped, metadata: metadata.Pairs("authorization", "not-bearer"), wantCode: codes.OK, wantHandle: true},
 	}
 
@@ -83,7 +104,7 @@ func TestAuthInterceptorAuthenticationModes(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			validator := &stubAccessTokenValidator{}
 			interceptor := NewAuthInterceptor(
-				validator,
+				NewRPCAuthenticator(validator),
 				WithMethodAuthentication(func(string) AuthenticationMode { return test.mode }),
 			)
 			ctx := metadata.NewIncomingContext(context.Background(), test.metadata)
@@ -116,7 +137,7 @@ func TestAuthInterceptorRejectsInvalidAuthorizationMetadata(t *testing.T) {
 
 	for _, md := range tests {
 		validator := &stubAccessTokenValidator{}
-		interceptor := NewAuthInterceptor(validator)
+		interceptor := NewAuthInterceptor(NewRPCAuthenticator(validator))
 		ctx := metadata.NewIncomingContext(context.Background(), md)
 
 		_, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{}, func(context.Context, any) (any, error) {
@@ -148,7 +169,7 @@ func TestAuthInterceptorMapsAuthenticationErrors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			validator := &stubAccessTokenValidator{err: test.err}
-			interceptor := NewAuthInterceptor(validator)
+			interceptor := NewAuthInterceptor(NewRPCAuthenticator(validator))
 			ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer token"))
 
 			_, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{}, func(context.Context, any) (any, error) {
@@ -176,7 +197,7 @@ func TestAuthInterceptorRejectsInvalidAuthResponse(t *testing.T) {
 
 	for _, test := range tests {
 		validator := &stubAccessTokenValidator{response: test.response}
-		interceptor := NewAuthInterceptor(validator)
+		interceptor := NewAuthInterceptor(NewRPCAuthenticator(validator))
 		ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer token"))
 
 		_, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{}, func(context.Context, any) (any, error) {
@@ -187,4 +208,141 @@ func TestAuthInterceptorRejectsInvalidAuthResponse(t *testing.T) {
 			t.Fatalf("interceptor() code = %s, want %s", status.Code(err), test.wantCode)
 		}
 	}
+}
+
+func TestAuthStreamInterceptorInjectsPrincipal(t *testing.T) {
+	authenticator := TokenAuthenticatorFunc(func(_ context.Context, token string) (Principal, error) {
+		if token != "stream-token" {
+			t.Fatalf("Authenticate() token = %q", token)
+		}
+		return Principal{
+			UserID: 9,
+			Role:   pb.UserRole_USER_ROLE_USER,
+			Status: pb.UserStatus_USER_STATUS_NORMAL,
+		}, nil
+	})
+	stream := &stubServerStream{ctx: metadata.NewIncomingContext(
+		context.Background(),
+		metadata.Pairs("authorization", "Bearer stream-token"),
+	)}
+	interceptor := NewAuthStreamInterceptor(authenticator)
+
+	err := interceptor(nil, stream, &grpc.StreamServerInfo{FullMethod: "/test.Service/Stream"}, func(_ any, stream grpc.ServerStream) error {
+		principal, ok := PrincipalFromContext(stream.Context())
+		if !ok || principal.UserID != 9 {
+			t.Fatalf("PrincipalFromContext() = (%+v, %t)", principal, ok)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("stream interceptor error = %v", err)
+	}
+}
+
+func TestAuthInterceptorUsesRequestPolicy(t *testing.T) {
+	interceptor := NewAuthInterceptor(
+		nil,
+		WithRequestAuthentication(func(_ string, request any) AuthenticationMode {
+			if request == "public" {
+				return AuthenticationSkipped
+			}
+			return AuthenticationRequired
+		}),
+	)
+
+	response, err := interceptor(context.Background(), "public", &grpc.UnaryServerInfo{}, func(_ context.Context, request any) (any, error) {
+		return request, nil
+	})
+	if err != nil || response != "public" {
+		t.Fatalf("interceptor() = (%v, %v), want (public, nil)", response, err)
+	}
+}
+
+func TestAuthInterceptorAlwaysAllowsHealthCheck(t *testing.T) {
+	requestPolicyCalled := false
+	interceptor := NewAuthInterceptor(
+		nil,
+		WithMethodAuthentication(func(string) AuthenticationMode { return AuthenticationRequired }),
+		WithRequestAuthentication(func(string, any) AuthenticationMode {
+			requestPolicyCalled = true
+			return AuthenticationRequired
+		}),
+	)
+	handled := false
+
+	_, err := interceptor(
+		context.Background(),
+		&healthpb.HealthCheckRequest{},
+		&grpc.UnaryServerInfo{FullMethod: healthpb.Health_Check_FullMethodName},
+		func(context.Context, any) (any, error) {
+			handled = true
+			return &healthpb.HealthCheckResponse{}, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("health check interceptor error = %v", err)
+	}
+	if !handled {
+		t.Fatal("health check handler was not called")
+	}
+	if requestPolicyCalled {
+		t.Fatal("request authentication policy must not override the health check allowlist")
+	}
+}
+
+func TestAuthStreamInterceptorAlwaysAllowsHealthWatch(t *testing.T) {
+	interceptor := NewAuthStreamInterceptor(
+		nil,
+		WithMethodAuthentication(func(string) AuthenticationMode { return AuthenticationRequired }),
+	)
+	stream := &stubServerStream{ctx: context.Background()}
+	handled := false
+
+	err := interceptor(
+		nil,
+		stream,
+		&grpc.StreamServerInfo{FullMethod: healthpb.Health_Watch_FullMethodName},
+		func(any, grpc.ServerStream) error {
+			handled = true
+			return nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("health watch interceptor error = %v", err)
+	}
+	if !handled {
+		t.Fatal("health watch handler was not called")
+	}
+}
+
+func TestAuthInterceptorAlternativeCredentialFallback(t *testing.T) {
+	authenticator := TokenAuthenticatorFunc(func(context.Context, string) (Principal, error) {
+		return Principal{}, status.Error(codes.Unauthenticated, "expired")
+	})
+	interceptor := NewAuthInterceptor(
+		authenticator,
+		WithMethodAuthentication(func(string) AuthenticationMode { return AuthenticationAlternative }),
+	)
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer expired"))
+	handled := false
+
+	_, err := interceptor(ctx, nil, &grpc.UnaryServerInfo{}, func(ctx context.Context, _ any) (any, error) {
+		handled = true
+		if _, ok := PrincipalFromContext(ctx); ok {
+			t.Fatal("invalid access token unexpectedly injected a principal")
+		}
+		return nil, nil
+	})
+	if err != nil || !handled {
+		t.Fatalf("interceptor() = handled %t, error %v", handled, err)
+	}
+}
+
+type stubServerStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (s *stubServerStream) Context() context.Context {
+	return s.ctx
 }

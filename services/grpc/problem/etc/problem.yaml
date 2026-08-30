@@ -20,11 +20,19 @@ AuthRPC:
     - 127.0.0.1:2379
     Key: auth.rpc
 
+AuthRPCAuth:
+  Name: problem.rpc
+  Token: "${AUTH_INTERNAL_PROBLEM_TOKEN}"
+
 ContestRPC:
   Etcd:
     Hosts:
     - 127.0.0.1:2379
     Key: contest.rpc
+
+ContestRPCAuth:
+  Name: problem.rpc
+  Token: "${CONTEST_INTERNAL_PROBLEM_TOKEN}"
 
 InternalAuth:
   Callers:

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/contest/internal/config"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/contest/internal/server"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/contest/internal/svc"
@@ -18,6 +19,21 @@ import (
 )
 
 var configFile = flag.String("f", "etc/contest.yaml", "the config file")
+
+func contestMethodAuthentication(fullMethod string) interceptor.AuthenticationMode {
+	switch fullMethod {
+	case pb.ContestService_CanAccessProblem_FullMethodName,
+		pb.ContestService_ValidateContestSubmission_FullMethodName:
+		return interceptor.AuthenticationSkipped
+	case pb.ContestService_ListContests_FullMethodName,
+		pb.ContestService_GetContest_FullMethodName,
+		pb.ContestService_ListContestProblems_FullMethodName,
+		pb.ContestService_GetScoreboard_FullMethodName:
+		return interceptor.AuthenticationOptional
+	default:
+		return interceptor.AuthenticationRequired
+	}
+}
 
 func main() {
 	flag.Parse()
@@ -41,6 +57,16 @@ func main() {
 			reflection.Register(grpcServer)
 		}
 	})
+	authenticator := interceptor.NewRPCAuthenticator(ctx.AuthClient, c.AuthRPCAuth)
+	servicePolicy := func(fullMethod string) []string { return ctx.InternalCallers[fullMethod] }
+	authInterceptors := interceptor.NewServerAuthInterceptors(
+		authenticator,
+		ctx.InternalCredentials,
+		servicePolicy,
+		interceptor.WithMethodAuthentication(contestMethodAuthentication),
+	)
+	s.AddUnaryInterceptors(authInterceptors.Unary...)
+	s.AddStreamInterceptors(authInterceptors.Stream...)
 	defer s.Stop()
 
 	fmt.Printf("Starting rpc server at %s...\n", c.ListenOn)

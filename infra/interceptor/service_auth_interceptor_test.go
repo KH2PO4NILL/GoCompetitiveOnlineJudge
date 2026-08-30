@@ -72,10 +72,33 @@ func TestServiceAuthInterceptorSkipsUnselectedMethods(t *testing.T) {
 }
 
 func TestWithOutgoingServiceCredentials(t *testing.T) {
-	ctx := WithOutgoingServiceCredentials(context.Background(), "submit.rpc", "secret")
+	ctx := WithOutgoingServiceCredentials(context.Background(), "old.rpc", "old-secret")
+	ctx = WithOutgoingServiceCredentials(ctx, "submit.rpc", "secret")
 	md, ok := metadata.FromOutgoingContext(ctx)
 	if !ok || len(md.Get(ServiceNameMetadataKey)) != 1 || md.Get(ServiceNameMetadataKey)[0] != "submit.rpc" ||
 		len(md.Get(ServiceTokenMetadataKey)) != 1 || md.Get(ServiceTokenMetadataKey)[0] != "secret" {
 		t.Fatalf("outgoing metadata = %v", md)
+	}
+}
+
+func TestServiceAuthStreamInterceptorInjectsTrustedCaller(t *testing.T) {
+	interceptor := NewServiceAuthStreamInterceptor(
+		map[string]string{"submit.rpc": "secret"},
+		func(string) []string { return []string{"submit.rpc"} },
+	)
+	stream := &stubServerStream{ctx: metadata.NewIncomingContext(context.Background(), metadata.Pairs(
+		ServiceNameMetadataKey, "submit.rpc",
+		ServiceTokenMetadataKey, "secret",
+	))}
+
+	err := interceptor(nil, stream, &grpc.StreamServerInfo{FullMethod: "/test.Service/Stream"}, func(_ any, stream grpc.ServerStream) error {
+		principal, ok := ServicePrincipalFromContext(stream.Context())
+		if !ok || principal.Name != "submit.rpc" {
+			t.Fatalf("ServicePrincipalFromContext() = (%+v, %t)", principal, ok)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("stream interceptor error = %v", err)
 	}
 }

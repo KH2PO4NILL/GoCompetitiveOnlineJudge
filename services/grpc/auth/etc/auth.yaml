@@ -53,3 +53,14 @@ Mail:
 Session:
   CleanupIntervalSeconds: 21600
   RevokedRetentionSeconds: 2592000
+
+InternalAuth:
+  Callers:
+  - Name: problem.rpc
+    Token: "${AUTH_INTERNAL_PROBLEM_TOKEN}"
+    Methods:
+    - /auth.AuthService/ValidateToken
+  - Name: contest.rpc
+    Token: "${AUTH_INTERNAL_CONTEST_TOKEN}"
+    Methods:
+    - /auth.AuthService/ValidateToken
