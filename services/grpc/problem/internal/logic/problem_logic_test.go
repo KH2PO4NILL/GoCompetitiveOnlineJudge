@@ -31,6 +31,7 @@ type logicProblemModel struct {
 	listPublicFn          func(context.Context, model.ProblemListFilter) ([]model.ProblemSummary, int64, error)
 	listManagementFn      func(context.Context, model.ProblemListFilter) ([]model.ProblemSummary, int64, error)
 	batchFn               func(context.Context, []int64) ([]*model.ProblemSummary, error)
+	batchPublishedFn      func(context.Context, []int64) ([]*model.ProblemSummary, error)
 	judgeSpecFn           func(context.Context, int64, int64) (*model.JudgeProblemSpec, error)
 	getTestDataVersionFn  func(context.Context, int64, int64) (string, error)
 	createUploadFn        func(context.Context, model.CreateTestDataUploadInput) (*model.TestDataUpload, error)
@@ -84,6 +85,10 @@ func (m *logicProblemModel) ListForManagement(ctx context.Context, filter model.
 
 func (m *logicProblemModel) BatchGetPublicSummaries(ctx context.Context, ids []int64) ([]*model.ProblemSummary, error) {
 	return m.batchFn(ctx, ids)
+}
+
+func (m *logicProblemModel) BatchGetPublishedSummaries(ctx context.Context, ids []int64) ([]*model.ProblemSummary, error) {
+	return m.batchPublishedFn(ctx, ids)
 }
 
 func (m *logicProblemModel) GetJudgeSpec(ctx context.Context, problemID, revision int64) (*model.JudgeProblemSpec, error) {
@@ -239,6 +244,25 @@ func TestBatchGetProblemsRequiresTrustedServiceAndOmitsMissing(t *testing.T) {
 	response, err := internalLogic.BatchGetProblems(&pb.BatchGetProblemsReq{ProblemIds: []int64{1, 2}})
 	if err != nil || len(response.Problems) != 1 || response.Problems[0].ProblemId != 2 {
 		t.Fatalf("internal BatchGetProblems() = (%+v, %v)", response, err)
+	}
+}
+
+func TestBatchGetProblemsLetsContestCatalogReadContestOnlyPublishedProblems(t *testing.T) {
+	summary := &model.ProblemSummary{
+		ProblemID: 3, Title: "Contest", Status: model.ProblemStatusPublished,
+		Visibility: model.ProblemVisibilityContestOnly, UpdatedAt: time.Now().UTC(),
+	}
+	repository := &logicProblemModel{batchPublishedFn: func(_ context.Context, ids []int64) ([]*model.ProblemSummary, error) {
+		if len(ids) != 1 || ids[0] != 3 {
+			t.Fatalf("BatchGetPublishedSummaries() IDs = %v", ids)
+		}
+		return []*model.ProblemSummary{summary}, nil
+	}}
+	logic := NewBatchGetProblemsLogic(serviceContext("contest.rpc"), &svc.ServiceContext{ProblemModel: repository})
+	response, err := logic.BatchGetProblems(&pb.BatchGetProblemsReq{ProblemIds: []int64{3}})
+	if err != nil || len(response.Problems) != 1 ||
+		response.Problems[0].Visibility != pb.ProblemVisibility_PROBLEM_VISIBILITY_CONTEST_ONLY {
+		t.Fatalf("contest BatchGetProblems() = (%+v, %v)", response, err)
 	}
 }
 

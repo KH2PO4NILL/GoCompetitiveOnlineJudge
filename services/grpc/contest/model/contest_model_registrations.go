@@ -371,6 +371,7 @@ func (m *defaultContestModel) GetAccessSnapshot(ctx context.Context, contestID, 
 	}
 	type accessRow struct {
 		ContestID          int64     `gorm:"column:contest_id"`
+		CreatorID          int64     `gorm:"column:creator_id"`
 		Mode               int64     `gorm:"column:mode"`
 		Status             int64     `gorm:"column:status"`
 		Visibility         int64     `gorm:"column:visibility"`
@@ -382,7 +383,7 @@ func (m *defaultContestModel) GetAccessSnapshot(ctx context.Context, contestID, 
 	}
 	var row accessRow
 	err := m.db.WithContext(ctx).Table("contests AS c").
-		Select(`c.id AS contest_id, c.mode, c.status, c.visibility, c.start_at, c.end_at,
+		Select(`c.id AS contest_id, c.creator_id, c.mode, c.status, c.visibility, c.start_at, c.end_at,
 			cp.problem_id AS assigned_problem_id, cr.status AS registration_status,
 			pt.status AS participant_status`).
 		Joins("LEFT JOIN contest_problems AS cp ON cp.contest_id = c.id AND cp.problem_id = ?", problemID).
@@ -399,7 +400,8 @@ func (m *defaultContestModel) GetAccessSnapshot(ctx context.Context, contestID, 
 	return &ContestAccessSnapshot{
 		ContestID: row.ContestID, Mode: row.Mode, LifecycleStatus: row.Status,
 		EffectiveStatus: EffectiveContestStatus(row.Status, row.StartAt, row.EndAt, at),
-		Visibility:      row.Visibility, StartAt: row.StartAt.UTC(), EndAt: row.EndAt.UTC(),
+		Visibility:      row.Visibility, Manager: row.CreatorID == userID,
+		StartAt: row.StartAt.UTC(), EndAt: row.EndAt.UTC(),
 		ProblemAssigned:    row.AssignedProblemID != nil,
 		RegistrationStatus: cloneInt64Pointer(row.RegistrationStatus),
 		ParticipantStatus:  cloneInt64Pointer(row.ParticipantStatus),

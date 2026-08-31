@@ -307,6 +307,22 @@ func (m *defaultProblemModel) list(ctx context.Context, filter ProblemListFilter
 }
 
 func (m *defaultProblemModel) BatchGetPublicSummaries(ctx context.Context, problemIDs []int64) ([]*ProblemSummary, error) {
+	return m.batchGetPublishedSummaries(ctx, problemIDs, true)
+}
+
+// BatchGetPublishedSummaries is an internal catalog query used by Contest RPC
+// when validating an assignment. Unlike the public variant it also includes
+// CONTEST_ONLY revisions, but still excludes drafts, archived and deleted
+// problems and never returns judge/test-data secrets.
+func (m *defaultProblemModel) BatchGetPublishedSummaries(ctx context.Context, problemIDs []int64) ([]*ProblemSummary, error) {
+	return m.batchGetPublishedSummaries(ctx, problemIDs, false)
+}
+
+func (m *defaultProblemModel) batchGetPublishedSummaries(
+	ctx context.Context,
+	problemIDs []int64,
+	publicOnly bool,
+) ([]*ProblemSummary, error) {
 	result := make([]*ProblemSummary, len(problemIDs))
 	if len(problemIDs) == 0 {
 		return result, nil
@@ -323,12 +339,17 @@ func (m *defaultProblemModel) BatchGetPublicSummaries(ctx context.Context, probl
 		}
 	}
 	var rows []summaryRow
-	err := m.db.WithContext(ctx).Table("problems AS p").
+	query := m.db.WithContext(ctx).Table("problems AS p").
 		Select(`p.id AS problem_id, pr.id AS problem_revision_id, pr.title, pr.difficulty,
 			p.status, pr.visibility, p.author_id, pr.created_at AS updated_at, pr.revision`).
 		Joins("JOIN problem_revisions AS pr ON pr.problem_id = p.id AND pr.revision = p.latest_published_revision").
-		Where("p.id IN ? AND p.status = ? AND p.deleted_at IS NULL AND pr.visibility = ?", unique, ProblemStatusPublished, ProblemVisibilityPublic).
-		Find(&rows).Error
+		Where("p.id IN ? AND p.status = ? AND p.deleted_at IS NULL", unique, ProblemStatusPublished)
+	if publicOnly {
+		query = query.Where("pr.visibility = ?", ProblemVisibilityPublic)
+	} else {
+		query = query.Where("pr.visibility IN ?", []int64{ProblemVisibilityPublic, ProblemVisibilityContestOnly})
+	}
+	err := query.Find(&rows).Error
 	if err != nil {
 		return nil, fmt.Errorf("batch get public problems: %w", err)
 	}

@@ -203,6 +203,7 @@ type ContestAccessSnapshot struct {
 	LifecycleStatus    int64
 	EffectiveStatus    int64
 	Visibility         int64
+	Manager            bool
 	StartAt            time.Time
 	EndAt              time.Time
 	ProblemAssigned    bool

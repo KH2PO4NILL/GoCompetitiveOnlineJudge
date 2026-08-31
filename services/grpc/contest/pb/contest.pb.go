@@ -4513,12 +4513,14 @@ func (x *UnfreezeScoreboardResp) GetContest() *Contest {
 
 // 仅 Problem RPC 可调用。字段号和方法签名保持与现有客户端兼容。
 type CanAccessProblemReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ContestId     int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
-	ProblemId     int64                  `protobuf:"varint,2,opt,name=problem_id,json=problemId,proto3" json:"problem_id,omitempty"`
-	UserId        int64                  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	ContestId int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	ProblemId int64                  `protobuf:"varint,2,opt,name=problem_id,json=problemId,proto3" json:"problem_id,omitempty"`
+	UserId    int64                  `protobuf:"varint,3,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	// 由受信任的 Problem RPC 根据已认证用户上下文设置；普通客户端不得控制该值。
+	RequesterIsAdmin bool `protobuf:"varint,4,opt,name=requester_is_admin,json=requesterIsAdmin,proto3" json:"requester_is_admin,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *CanAccessProblemReq) Reset() {
@@ -4570,6 +4572,13 @@ func (x *CanAccessProblemReq) GetUserId() int64 {
 		return x.UserId
 	}
 	return 0
+}
+
+func (x *CanAccessProblemReq) GetRequesterIsAdmin() bool {
+	if x != nil {
+		return x.RequesterIsAdmin
+	}
+	return false
 }
 
 type CanAccessProblemResp struct {
@@ -5089,13 +5098,14 @@ const file_proto_contest_proto_rawDesc = "" +
 	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12+\n" +
 	"\x11expected_revision\x18\x02 \x01(\x03R\x10expectedRevision\"D\n" +
 	"\x16UnfreezeScoreboardResp\x12*\n" +
-	"\acontest\x18\x01 \x01(\v2\x10.contest.ContestR\acontest\"l\n" +
+	"\acontest\x18\x01 \x01(\v2\x10.contest.ContestR\acontest\"\x9a\x01\n" +
 	"\x13CanAccessProblemReq\x12\x1d\n" +
 	"\n" +
 	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12\x1d\n" +
 	"\n" +
 	"problem_id\x18\x02 \x01(\x03R\tproblemId\x12\x17\n" +
-	"\auser_id\x18\x03 \x01(\x03R\x06userId\"p\n" +
+	"\auser_id\x18\x03 \x01(\x03R\x06userId\x12,\n" +
+	"\x12requester_is_admin\x18\x04 \x01(\bR\x10requesterIsAdmin\"p\n" +
 	"\x14CanAccessProblemResp\x12\x18\n" +
 	"\aallowed\x18\x01 \x01(\bR\aallowed\x12>\n" +
 	"\vdeny_reason\x18\x02 \x01(\x0e2\x1d.contest.SubmissionDenyReasonR\n" +

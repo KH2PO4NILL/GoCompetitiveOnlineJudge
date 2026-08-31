@@ -121,6 +121,10 @@ func TestContestModelLifecycleProblemsAndRegistration(t *testing.T) {
 	if err != nil || !access.ProblemAssigned || access.ParticipantStatus == nil || *access.ParticipantStatus != ParticipantStatusNormal {
 		t.Fatalf("GetAccessSnapshot() = %+v err=%v", access, err)
 	}
+	managerAccess, err := repository.GetAccessSnapshot(ctx, created.ContestID, 101, created.CreatorID, current)
+	if err != nil || !managerAccess.Manager || !managerAccess.ProblemAssigned {
+		t.Fatalf("GetAccessSnapshot(manager) = %+v err=%v", managerAccess, err)
+	}
 	detailBeforeStart, err := repository.GetDetail(ctx, created.ContestID, current)
 	if err != nil || detailBeforeStart.ParticipantCount != 2 {
 		t.Fatalf("participant counter = %+v err=%v", detailBeforeStart, err)

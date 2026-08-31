@@ -18,15 +18,17 @@ import (
 )
 
 type stubContestAccess struct {
-	allowed bool
-	err     error
-	calls   int
-	userID  int64
+	allowed          bool
+	err              error
+	calls            int
+	userID           int64
+	requesterIsAdmin bool
 }
 
-func (s *stubContestAccess) CanAccessProblem(_ context.Context, _, _, userID int64) (bool, error) {
+func (s *stubContestAccess) CanAccessProblem(_ context.Context, _, _, userID int64, requesterIsAdmin bool) (bool, error) {
 	s.calls++
 	s.userID = userID
+	s.requesterIsAdmin = requesterIsAdmin
 	return s.allowed, s.err
 }
 
@@ -58,8 +60,15 @@ func TestGetProblemPublicAndContestVisibility(t *testing.T) {
 	})
 	contestID := int64(10)
 	response, err = contestLogic.GetProblem(&pb.GetProblemReq{ProblemId: 2, ContestId: &contestID})
-	if err != nil || response.Problem.ProblemId != 2 || checker.calls != 1 || checker.userID != 7 {
+	if err != nil || response.Problem.ProblemId != 2 || checker.calls != 1 || checker.userID != 7 || checker.requesterIsAdmin {
 		t.Fatalf("contest GetProblem() = (%+v, %v), checker = %+v", response, err, checker)
+	}
+	adminLogic := NewGetProblemLogic(principalContext(8, authpb.UserRole_USER_ROLE_ADMIN), &svc.ServiceContext{
+		ProblemModel: repository, ContestAccess: checker,
+	})
+	response, err = adminLogic.GetProblem(&pb.GetProblemReq{ProblemId: 2, ContestId: &contestID})
+	if err != nil || response.Problem.ProblemId != 2 || checker.userID != 8 || !checker.requesterIsAdmin {
+		t.Fatalf("admin contest GetProblem() = (%+v, %v), checker = %+v", response, err, checker)
 	}
 
 	checker.allowed = false

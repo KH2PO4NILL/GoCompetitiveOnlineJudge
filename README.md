@@ -140,6 +140,8 @@ flowchart LR
 
 Judge Worker 为异步消费者，不对公网暴露固定端口。
 
+Contest RPC 使用 `ScoreboardFreeze` 配置定期扫描已到封榜时间的 ICPC 比赛，并通过比赛 revision 与事务快照保证多实例竞争下只有一个实例完成封榜。该任务只冻结已有排行榜投影，不负责实时计分；默认扫描间隔 10 秒、批量 100 场、单场超时 5 秒。
+
 评测队列使用 `judge-task` Topic 和 `judge-workers` Consumer Group，以 `submission_id` 作为消息 Key 与消费端幂等键。Worker 在评测结果成功持久化后再确认消息，队列采用“至少一次”投递，并为超出重试上限的任务保留死信消息。
 
 ## 快速开始
@@ -252,7 +254,7 @@ make infra-reset
 - 缺少或无效凭据统一返回 `Unauthenticated`，身份有效但无权限统一返回 `PermissionDenied`，鉴权依赖不可用统一返回 `Unavailable`。
 - Unary RPC 与 Stream RPC 使用相同策略；业务代码统一通过公共 Context 方法读取用户或内部服务身份。
 
-本地的 Problem/Contest → Auth 调用分别使用 `AUTH_INTERNAL_PROBLEM_TOKEN`、`AUTH_INTERNAL_CONTEST_TOKEN`，Problem → Contest 使用 `CONTEST_INTERNAL_PROBLEM_TOKEN`，Submit → Contest 使用 `CONTEST_INTERNAL_SUBMIT_TOKEN`。已有 `.env` 不会被 `make infra-env` 覆盖，需要手动补充这些变量或重新生成本地配置。
+本地的 Problem/Contest → Auth 调用分别使用 `AUTH_INTERNAL_PROBLEM_TOKEN`、`AUTH_INTERNAL_CONTEST_TOKEN`，Problem → Contest 使用 `CONTEST_INTERNAL_PROBLEM_TOKEN`，Contest → Problem 使用 `PROBLEM_INTERNAL_CONTEST_TOKEN`，Submit → Contest 使用 `CONTEST_INTERNAL_SUBMIT_TOKEN`。已有 `.env` 不会被 `make infra-env` 覆盖，需要手动补充这些变量或重新生成本地配置。
 
 生产环境应使用独立的 Secret 管理系统，并至少完成以下调整：
 

@@ -12,6 +12,7 @@ func TestContestConfigLoadsMySQLDSNFromEnvironment(t *testing.T) {
 	t.Setenv("CONTEST_INTERNAL_PROBLEM_TOKEN", "problem-token")
 	t.Setenv("CONTEST_INTERNAL_SUBMIT_TOKEN", "submit-token")
 	t.Setenv("AUTH_INTERNAL_CONTEST_TOKEN", "auth-token")
+	t.Setenv("PROBLEM_INTERNAL_CONTEST_TOKEN", "problem-catalog-token")
 	var c Config
 	if err := conf.Load(filepath.Join("..", "..", "etc", "contest.yaml"), &c, conf.UseEnv()); err != nil {
 		t.Fatalf("load contest config: %v", err)
@@ -25,7 +26,17 @@ func TestContestConfigLoadsMySQLDSNFromEnvironment(t *testing.T) {
 	if c.AuthRPCAuth.Name != "contest.rpc" || c.AuthRPCAuth.Token != "auth-token" {
 		t.Fatalf("AuthRPCAuth = %+v", c.AuthRPCAuth)
 	}
+	if c.ProblemRPC.Etcd.Key != "problem.rpc" {
+		t.Fatalf("ProblemRPC key = %q", c.ProblemRPC.Etcd.Key)
+	}
+	if c.ProblemRPCAuth.Name != "contest.rpc" || c.ProblemRPCAuth.Token != "problem-catalog-token" {
+		t.Fatalf("ProblemRPCAuth = %+v", c.ProblemRPCAuth)
+	}
 	if len(c.InternalAuth.Callers) != 2 || c.InternalAuth.Callers[0].Token != "problem-token" {
 		t.Fatalf("InternalAuth = %+v", c.InternalAuth)
+	}
+	if c.ScoreboardFreeze.IntervalSeconds != 10 || c.ScoreboardFreeze.BatchSize != 100 ||
+		c.ScoreboardFreeze.OperationTimeoutSeconds != 5 {
+		t.Fatalf("ScoreboardFreeze = %+v", c.ScoreboardFreeze)
 	}
 }

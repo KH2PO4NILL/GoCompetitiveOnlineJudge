@@ -15,7 +15,7 @@ import (
 // interface once its protocol is defined, while Logic remains independently
 // testable in the meantime.
 type ContestAccessChecker interface {
-	CanAccessProblem(ctx context.Context, contestID, problemID, userID int64) (bool, error)
+	CanAccessProblem(ctx context.Context, contestID, problemID, userID int64, requesterIsAdmin bool) (bool, error)
 }
 
 type contestAccessClient interface {
@@ -44,6 +44,7 @@ func NewContestAccessChecker(
 func (c *contestAccessRPCChecker) CanAccessProblem(
 	ctx context.Context,
 	contestID, problemID, userID int64,
+	requesterIsAdmin bool,
 ) (bool, error) {
 	if c == nil || c.client == nil {
 		return false, errors.New("contest RPC client is unavailable")
@@ -52,9 +53,10 @@ func (c *contestAccessRPCChecker) CanAccessProblem(
 		ctx = sharedauth.WithOutgoingServiceCredentials(ctx, c.credential.Name, c.credential.Token)
 	}
 	response, err := c.client.CanAccessProblem(ctx, &contestpb.CanAccessProblemReq{
-		ContestId: contestID,
-		ProblemId: problemID,
-		UserId:    userID,
+		ContestId:        contestID,
+		ProblemId:        problemID,
+		UserId:           userID,
+		RequesterIsAdmin: requesterIsAdmin,
 	})
 	if err != nil {
 		return false, err
