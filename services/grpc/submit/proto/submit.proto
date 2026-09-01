@@ -1,0 +1,275 @@
+syntax = "proto3";
+
+package submit;
+option go_package = "./pb";
+
+import "google/protobuf/timestamp.proto";
+
+// UNSPECIFIED values represent missing input or a redacted result and must not
+// be persisted as a valid business state.
+enum SubmissionStatus {
+  SUBMISSION_STATUS_UNSPECIFIED = 0;
+  SUBMISSION_STATUS_QUEUED = 1;
+  SUBMISSION_STATUS_JUDGING = 2;
+  SUBMISSION_STATUS_FINISHED = 3;
+}
+
+enum Verdict {
+  VERDICT_UNSPECIFIED = 0;
+  VERDICT_ACCEPTED = 1;
+  VERDICT_PARTIAL_ACCEPTED = 2;
+  VERDICT_WRONG_ANSWER = 3;
+  VERDICT_TIME_LIMIT_EXCEEDED = 4;
+  VERDICT_MEMORY_LIMIT_EXCEEDED = 5;
+  VERDICT_RUNTIME_ERROR = 6;
+  VERDICT_COMPILE_ERROR = 7;
+  VERDICT_OUTPUT_LIMIT_EXCEEDED = 8;
+  VERDICT_SYSTEM_ERROR = 9;
+}
+
+// The Submit RPC performs result projection. Callers must not infer hidden
+// values from zero-valued score or verdict fields.
+enum ResultVisibility {
+  RESULT_VISIBILITY_UNSPECIFIED = 0;
+  RESULT_VISIBILITY_STATUS_ONLY = 1;
+  RESULT_VISIBILITY_FULL = 2;
+}
+
+enum AcquireDenyReason {
+  ACQUIRE_DENY_REASON_UNSPECIFIED = 0;
+  ACQUIRE_DENY_REASON_ALREADY_FINISHED = 1;
+  ACQUIRE_DENY_REASON_STALE_ATTEMPT = 2;
+  ACQUIRE_DENY_REASON_LEASED_BY_OTHER_WORKER = 3;
+}
+
+enum ReportDisposition {
+  REPORT_DISPOSITION_UNSPECIFIED = 0;
+  REPORT_DISPOSITION_APPLIED = 1;
+  REPORT_DISPOSITION_DUPLICATE = 2;
+  REPORT_DISPOSITION_STALE_ATTEMPT = 3;
+}
+
+message SubmissionSummary {
+  int64 submission_id = 1;
+  int64 user_id = 2;
+  int64 problem_id = 3;
+  optional int64 contest_id = 4;
+  string language = 5;
+  SubmissionStatus status = 6;
+  Verdict verdict = 7;
+  int64 score = 8;
+  int64 max_score = 9;
+  int64 problem_revision = 10;
+  int32 attempt_count = 11;
+  ResultVisibility result_visibility = 12;
+  google.protobuf.Timestamp submitted_at = 13;
+  google.protobuf.Timestamp judging_started_at = 14;
+  google.protobuf.Timestamp finished_at = 15;
+}
+
+// This is a public-safe projection. It deliberately excludes judge_message,
+// private test data paths, checker output, and sandbox diagnostics.
+message TestCaseResult {
+  int64 test_case_id = 1;
+  int32 ordinal = 2;
+  string group_name = 3;
+  Verdict verdict = 4;
+  int64 score = 5;
+  int64 time_used_ms = 6;
+  int64 memory_used_kb = 7;
+}
+
+message SubmissionDetail {
+  SubmissionSummary summary = 1;
+  string source_code = 2;
+  string compile_output = 3;
+  repeated TestCaseResult case_results = 4;
+}
+
+//////////////////// User-facing submission APIs ////////////////////
+
+message CreateSubmissionReq {
+  int64 problem_id = 1;
+  optional int64 contest_id = 2;
+  string language = 3;
+  string source_code = 4;
+  // Idempotency key scoped to the authenticated user.
+  string client_request_id = 5;
+}
+
+message CreateSubmissionResp {
+  SubmissionDetail submission = 1;
+  bool deduplicated = 2;
+}
+
+message GetSubmissionReq {
+  int64 submission_id = 1;
+}
+
+message GetSubmissionResp {
+  SubmissionDetail submission = 1;
+}
+
+message ListSubmissionsReq {
+  int32 page = 1;
+  int32 page_size = 2;
+  // Ordinary users may only select themselves; administrators may select any
+  // user. If omitted, this defaults to the authenticated user.
+  optional int64 user_id = 3;
+  optional int64 problem_id = 4;
+  optional int64 contest_id = 5;
+  optional SubmissionStatus status = 6;
+  optional Verdict verdict = 7;
+  string language = 8;
+}
+
+message ListSubmissionsResp {
+  int64 total = 1;
+  repeated SubmissionSummary submissions = 2;
+}
+
+//////////////////// Administrator rejudge APIs ////////////////////
+
+message RejudgeSubmissionReq {
+  int64 submission_id = 1;
+  string reason = 2;
+}
+
+message RejudgeSubmissionResp {
+  SubmissionSummary submission = 1;
+  int64 attempt_id = 2;
+}
+
+message BatchRejudgeSubmissionsReq {
+  repeated int64 submission_ids = 1;
+  string reason = 2;
+}
+
+message BatchRejudgeItem {
+  int64 submission_id = 1;
+  int64 attempt_id = 2;
+}
+
+message BatchRejudgeSubmissionsResp {
+  repeated BatchRejudgeItem accepted = 1;
+}
+
+//////////////////// Queue and judge-worker contracts ////////////////////
+
+// RocketMQ judge-task payload. submission_id is also used as the message key.
+// Source code and judge configuration must not be copied into the queue.
+message JudgeTaskEvent {
+  string event_id = 1;
+  int64 submission_id = 2;
+  int64 attempt_id = 3;
+  google.protobuf.Timestamp enqueued_at = 4;
+}
+
+// Returned only after a trusted worker acquires the current attempt. The worker
+// fetches JudgeProblemSpec from Problem RPC with problem_id + problem_revision.
+message JudgeTask {
+  int64 submission_id = 1;
+  int64 attempt_id = 2;
+  int64 problem_id = 3;
+  int64 problem_revision = 4;
+  string language = 5;
+  string source_code = 6;
+}
+
+message AcquireJudgeTaskReq {
+  string worker_id = 1;
+  int64 submission_id = 2;
+  int64 attempt_id = 3;
+  // RocketMQ delivery identifier, used for diagnostics and duplicate delivery
+  // correlation. It is not an authorization credential.
+  string delivery_id = 4;
+}
+
+message AcquireJudgeTaskResp {
+  bool acquired = 1;
+  // acquired=true requires UNSPECIFIED; a business rejection requires a
+  // concrete reason. Dependency failures use gRPC status instead.
+  AcquireDenyReason deny_reason = 2;
+  JudgeTask task = 3;
+  string lease_token = 4;
+  google.protobuf.Timestamp lease_expires_at = 5;
+}
+
+message HeartbeatJudgeTaskReq {
+  string worker_id = 1;
+  int64 submission_id = 2;
+  int64 attempt_id = 3;
+  string lease_token = 4;
+  int32 completed_test_cases = 5;
+}
+
+message HeartbeatJudgeTaskResp {
+  google.protobuf.Timestamp lease_expires_at = 1;
+}
+
+// Internal worker result. judge_message may contain sensitive diagnostics and
+// must never be copied into the public TestCaseResult projection.
+message JudgeTestCaseResult {
+  int64 test_case_id = 1;
+  int32 ordinal = 2;
+  string group_name = 3;
+  Verdict verdict = 4;
+  int64 score = 5;
+  int64 time_used_ms = 6;
+  int64 memory_used_kb = 7;
+  string judge_message = 8;
+}
+
+message ReportJudgeResultReq {
+  string worker_id = 1;
+  int64 submission_id = 2;
+  int64 attempt_id = 3;
+  string lease_token = 4;
+  // Idempotency key scoped to attempt_id.
+  string report_id = 5;
+  // Worker aggregates are advisory. Submit RPC validates case results and
+  // recomputes the persisted verdict and score.
+  Verdict verdict = 6;
+  int64 score = 7;
+  int64 max_score = 8;
+  string compile_output = 9;
+  repeated JudgeTestCaseResult case_results = 10;
+}
+
+message ReportJudgeResultResp {
+  ReportDisposition disposition = 1;
+  SubmissionSummary submission = 2;
+}
+
+// Contest projection event. Non-contest submissions do not produce it.
+message SubmissionJudgedEvent {
+  string event_id = 1;
+  int64 submission_id = 2;
+  int64 attempt_id = 3;
+  int64 contest_id = 4;
+  int64 problem_id = 5;
+  int64 user_id = 6;
+  Verdict verdict = 7;
+  int64 score = 8;
+  int64 max_score = 9;
+  google.protobuf.Timestamp submitted_at = 10;
+  google.protobuf.Timestamp judged_at = 11;
+}
+
+// User identity and role are derived from trusted gRPC metadata. Worker methods
+// only accept the judge.worker service identity and are never exposed via HTTP.
+service SubmitService {
+  rpc CreateSubmission(CreateSubmissionReq) returns (CreateSubmissionResp);
+  rpc GetSubmission(GetSubmissionReq) returns (GetSubmissionResp);
+  rpc ListSubmissions(ListSubmissionsReq) returns (ListSubmissionsResp);
+
+  rpc RejudgeSubmission(RejudgeSubmissionReq) returns (RejudgeSubmissionResp);
+  rpc BatchRejudgeSubmissions(BatchRejudgeSubmissionsReq)
+      returns (BatchRejudgeSubmissionsResp);
+
+  rpc AcquireJudgeTask(AcquireJudgeTaskReq) returns (AcquireJudgeTaskResp);
+  rpc HeartbeatJudgeTask(HeartbeatJudgeTaskReq)
+      returns (HeartbeatJudgeTaskResp);
+  rpc ReportJudgeResult(ReportJudgeResultReq)
+      returns (ReportJudgeResultResp);
+}

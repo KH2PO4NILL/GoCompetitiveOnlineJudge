@@ -19,7 +19,7 @@ PROTOBUF_INCLUDE ?= $(shell $(GO) list -m -f '{{.Dir}}/third_party' github.com/g
 	problem-rpc \
 	fmt vet test coverage build tidy clean \
 	tools-infra infra-env infra-up infra-migrate infra-down infra-reset infra-logs infra-ps \
-	mysql-shell redis-shell run-auth run-problem run-contest
+	mysql-shell redis-shell run-auth run-problem run-contest run-submit
 
 help:
 	@printf '%s\n' \
@@ -54,6 +54,7 @@ help:
 		'  run-auth         Start infrastructure, then run the auth RPC service' \
 		'  run-problem      Start infrastructure, then run the problem RPC service' \
 		'  run-contest      Start infrastructure, then run the contest RPC service' \
+		'  run-submit       Start infrastructure, then run the submit RPC service' \
 		'' \
 		'Checks:' \
 		'  tools            Check Go and goctl' \
@@ -167,6 +168,10 @@ run-problem: infra-up
 run-contest: infra-up
 	@set -a; . ./.env; set +a; \
 	"$(GO)" run ./services/grpc/contest -f services/grpc/contest/etc/contest.yaml
+
+run-submit: infra-up
+	@set -a; . ./.env; set +a; \
+	"$(GO)" run ./services/grpc/submit -f services/grpc/submit/etc/submit.yaml
 
 generate: api rpc
 
