@@ -1,0 +1,17 @@
+Name: submit.rpc
+ListenOn: 0.0.0.0:8004
+Etcd:
+  Hosts:
+  - 127.0.0.1:2379
+  Key: submit.rpc
+
+Middlewares:
+  StatConf:
+    # These methods contain source code, compiler output, worker diagnostics,
+    # or lease credentials. Never include their payloads in RPC access logs.
+    IgnoreContentMethods:
+    - /submit.SubmitService/CreateSubmission
+    - /submit.SubmitService/GetSubmission
+    - /submit.SubmitService/AcquireJudgeTask
+    - /submit.SubmitService/HeartbeatJudgeTask
+    - /submit.SubmitService/ReportJudgeResult
