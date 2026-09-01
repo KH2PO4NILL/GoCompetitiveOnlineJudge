@@ -36,14 +36,15 @@ func TestContestAccessRPCCheckerForwardsIdentityAndDecision(t *testing.T) {
 		credential: sharedauth.ServiceClientAuthConf{Name: "problem.rpc", Token: "secret"},
 	}
 
-	allowed, err := checker.CanAccessProblem(context.Background(), 11, 22, 33)
+	allowed, err := checker.CanAccessProblem(context.Background(), 11, 22, 33, true)
 	if err != nil {
 		t.Fatalf("CanAccessProblem() error = %v", err)
 	}
 	if !allowed {
 		t.Fatal("CanAccessProblem() denied an allowed request")
 	}
-	if client.request.GetContestId() != 11 || client.request.GetProblemId() != 22 || client.request.GetUserId() != 33 {
+	if client.request.GetContestId() != 11 || client.request.GetProblemId() != 22 || client.request.GetUserId() != 33 ||
+		!client.request.GetRequesterIsAdmin() {
 		t.Fatalf("forwarded request = %+v", client.request)
 	}
 	md, ok := metadata.FromOutgoingContext(client.ctx)
@@ -56,13 +57,13 @@ func TestContestAccessRPCCheckerForwardsIdentityAndDecision(t *testing.T) {
 func TestContestAccessRPCCheckerFailsClosed(t *testing.T) {
 	expected := errors.New("contest unavailable")
 	checker := &contestAccessRPCChecker{client: &fakeContestAccessClient{err: expected}}
-	allowed, err := checker.CanAccessProblem(context.Background(), 1, 2, 3)
+	allowed, err := checker.CanAccessProblem(context.Background(), 1, 2, 3, false)
 	if allowed || !errors.Is(err, expected) {
 		t.Fatalf("allowed = %v, error = %v", allowed, err)
 	}
 
 	checker = &contestAccessRPCChecker{client: &fakeContestAccessClient{}}
-	allowed, err = checker.CanAccessProblem(context.Background(), 1, 2, 3)
+	allowed, err = checker.CanAccessProblem(context.Background(), 1, 2, 3, false)
 	if allowed || err == nil {
 		t.Fatalf("empty response allowed = %v, error = %v", allowed, err)
 	}

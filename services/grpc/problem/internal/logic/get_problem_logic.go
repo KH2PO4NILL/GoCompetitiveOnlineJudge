@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	infraauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
+	authpb "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/pb"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/svc"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/model"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/pb"
@@ -61,7 +62,11 @@ func (l *GetProblemLogic) GetProblem(in *pb.GetProblemReq) (*pb.GetProblemResp, 
 	if l.svcCtx.ContestAccess == nil {
 		return nil, invalidDependency("contest access service")
 	}
-	allowed, err := l.svcCtx.ContestAccess.CanAccessProblem(l.ctx, *in.ContestId, in.ProblemId, principal.UserID)
+	requesterIsAdmin := principal.Role == authpb.UserRole_USER_ROLE_ADMIN ||
+		principal.Role == authpb.UserRole_USER_ROLE_SUPER_ADMIN
+	allowed, err := l.svcCtx.ContestAccess.CanAccessProblem(
+		l.ctx, *in.ContestId, in.ProblemId, principal.UserID, requesterIsAdmin,
+	)
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return nil, status.Error(codes.Canceled, "contest access check was canceled")

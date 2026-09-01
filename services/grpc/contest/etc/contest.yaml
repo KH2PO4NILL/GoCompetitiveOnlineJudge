@@ -15,6 +15,16 @@ AuthRPCAuth:
   Name: contest.rpc
   Token: "${AUTH_INTERNAL_CONTEST_TOKEN}"
 
+ProblemRPC:
+  Etcd:
+    Hosts:
+    - 127.0.0.1:2379
+    Key: problem.rpc
+
+ProblemRPCAuth:
+  Name: contest.rpc
+  Token: "${PROBLEM_INTERNAL_CONTEST_TOKEN}"
+
 InternalAuth:
   Callers:
   - Name: problem.rpc
@@ -28,3 +38,8 @@ InternalAuth:
 
 Mysql:
   DSN: "${CONTEST_MYSQL_DSN}"
+
+ScoreboardFreeze:
+  IntervalSeconds: 10
+  BatchSize: 100
+  OperationTimeoutSeconds: 5

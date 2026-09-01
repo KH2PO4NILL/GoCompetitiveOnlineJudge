@@ -36,6 +36,10 @@ ContestRPCAuth:
 
 InternalAuth:
   Callers:
+  - Name: contest.rpc
+    Token: "${PROBLEM_INTERNAL_CONTEST_TOKEN}"
+    Methods:
+    - /problem.ProblemService/BatchGetProblems
   - Name: submit.rpc
     Token: "${PROBLEM_INTERNAL_SUBMIT_TOKEN}"
     Methods:

@@ -17,6 +17,7 @@ func TestProblemConfigLoadsAuthAndContestRPCClients(t *testing.T) {
 	t.Setenv("PROBLEM_OBJECT_STORAGE_SECRET_KEY", "secret-key")
 	t.Setenv("PROBLEM_INTERNAL_SUBMIT_TOKEN", "submit-token")
 	t.Setenv("PROBLEM_INTERNAL_JUDGE_TOKEN", "judge-token")
+	t.Setenv("PROBLEM_INTERNAL_CONTEST_TOKEN", "contest-problem-token")
 	t.Setenv("CONTEST_INTERNAL_PROBLEM_TOKEN", "contest-token")
 	t.Setenv("AUTH_INTERNAL_PROBLEM_TOKEN", "auth-token")
 
@@ -35,5 +36,9 @@ func TestProblemConfigLoadsAuthAndContestRPCClients(t *testing.T) {
 	}
 	if c.ContestRPCAuth.Name != "problem.rpc" || c.ContestRPCAuth.Token != "contest-token" {
 		t.Fatalf("ContestRPCAuth = %+v", c.ContestRPCAuth)
+	}
+	if len(c.InternalAuth.Callers) != 3 || c.InternalAuth.Callers[0].Name != "contest.rpc" ||
+		c.InternalAuth.Callers[0].Token != "contest-problem-token" {
+		t.Fatalf("InternalAuth = %+v", c.InternalAuth)
 	}
 }

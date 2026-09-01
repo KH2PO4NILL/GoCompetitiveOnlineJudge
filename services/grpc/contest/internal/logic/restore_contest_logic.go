@@ -7,6 +7,8 @@ import (
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/contest/pb"
 
 	"github.com/zeromicro/go-zero/core/logx"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type RestoreContestLogic struct {
@@ -24,7 +26,23 @@ func NewRestoreContestLogic(ctx context.Context, svcCtx *svc.ServiceContext) *Re
 }
 
 func (l *RestoreContestLogic) RestoreContest(in *pb.RestoreContestReq) (*pb.RestoreContestResp, error) {
-	// todo: add your logic here and delete this line
-
-	return &pb.RestoreContestResp{}, nil
+	if in == nil || in.ContestId <= 0 || in.ExpectedRevision <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "contest_id and expected_revision must be positive")
+	}
+	if _, _, err := authorizeContest(l.ctx, l.svcCtx, in.ContestId); err != nil {
+		return nil, err
+	}
+	repository, err := requireContestModel(l.svcCtx)
+	if err != nil {
+		return nil, err
+	}
+	contest, err := repository.Restore(l.ctx, in.ContestId, in.ExpectedRevision)
+	if err != nil {
+		return nil, mapModelError(err)
+	}
+	converted, err := contestProto(contest)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.RestoreContestResp{Contest: converted}, nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/svc"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/model"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/pb"
 
 	"github.com/zeromicro/go-zero/core/logx"
@@ -39,10 +40,16 @@ func (l *BatchGetProblemsLogic) BatchGetProblems(in *pb.BatchGetProblemsReq) (*p
 			return nil, status.Error(codes.InvalidArgument, "problem_ids must be positive")
 		}
 	}
-	if _, err := requireInternalService(l.ctx); err != nil {
+	caller, err := requireInternalService(l.ctx)
+	if err != nil {
 		return nil, err
 	}
-	problems, err := l.svcCtx.ProblemModel.BatchGetPublicSummaries(l.ctx, in.ProblemIds)
+	var problems []*model.ProblemSummary
+	if caller.Name == "contest.rpc" {
+		problems, err = l.svcCtx.ProblemModel.BatchGetPublishedSummaries(l.ctx, in.ProblemIds)
+	} else {
+		problems, err = l.svcCtx.ProblemModel.BatchGetPublicSummaries(l.ctx, in.ProblemIds)
+	}
 	if err != nil {
 		return nil, mapModelError(err)
 	}

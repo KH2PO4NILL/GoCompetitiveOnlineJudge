@@ -14,6 +14,7 @@ import (
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/contest/internal/config"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/contest/model"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/contest/pb"
+	problemservice "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/problemservice"
 
 	"github.com/zeromicro/go-zero/zrpc"
 	"gorm.io/driver/mysql"
@@ -24,15 +25,19 @@ import (
 type ServiceContext struct {
 	Config config.Config
 
-	ContestModel model.ContestModel
-	AuthClient   authservice.AuthService
+	ContestModel   model.ContestModel
+	AuthClient     authservice.AuthService
+	ProblemCatalog ProblemCatalog
+	Now            func() time.Time
 
 	InternalCredentials map[string]string
 	InternalCallers     map[string][]string
 
-	authRPC zrpc.Client
-	db      *gorm.DB
-	sqlDB   *sql.DB
+	authRPC      zrpc.Client
+	problemRPC   zrpc.Client
+	freezeWorker *ScoreboardFreezeWorker
+	db           *gorm.DB
+	sqlDB        *sql.DB
 }
 
 func NewServiceContext(c config.Config) (*ServiceContext, error) {
@@ -49,6 +54,9 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 	}
 	if err := c.AuthRPCAuth.Validate(); err != nil {
 		return nil, fmt.Errorf("configure auth RPC authentication: %w", err)
+	}
+	if err := c.ProblemRPCAuth.Validate(); err != nil {
+		return nil, fmt.Errorf("configure problem RPC authentication: %w", err)
 	}
 	gormLogger := logger.New(
 		log.New(os.Stdout, "", log.LstdFlags),
@@ -79,26 +87,55 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 		_ = sqlDB.Close()
 		return nil, fmt.Errorf("create auth rpc client: %w", err)
 	}
-	return &ServiceContext{
+	problemRPC, err := zrpc.NewClient(c.ProblemRPC)
+	if err != nil {
+		_ = authRPC.Conn().Close()
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("create problem rpc client: %w", err)
+	}
+	clock := func() time.Time { return time.Now().UTC() }
+	contestModel := model.NewContestModel(db, model.WithClock(clock))
+	ctx := &ServiceContext{
 		Config:              c,
-		ContestModel:        model.NewContestModel(db),
+		ContestModel:        contestModel,
 		AuthClient:          authservice.NewAuthService(authRPC),
+		ProblemCatalog:      NewRPCProblemCatalog(problemservice.NewProblemService(problemRPC), c.ProblemRPCAuth),
+		Now:                 clock,
 		InternalCredentials: credentials,
 		InternalCallers:     callers,
 		authRPC:             authRPC,
+		problemRPC:          problemRPC,
 		db:                  db,
 		sqlDB:               sqlDB,
-	}, nil
+	}
+	worker, err := NewScoreboardFreezeWorker(contestModel, c.ScoreboardFreeze, ctx.Now)
+	if err != nil {
+		_ = problemRPC.Conn().Close()
+		_ = authRPC.Conn().Close()
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("configure scoreboard freeze worker: %w", err)
+	}
+	ctx.freezeWorker = worker
+	worker.Start()
+	return ctx, nil
 }
 
 func (s *ServiceContext) Close() error {
+	var workerErr error
+	if s.freezeWorker != nil {
+		workerErr = s.freezeWorker.Stop()
+	}
 	var authErr error
 	if s.authRPC != nil && s.authRPC.Conn() != nil {
 		authErr = s.authRPC.Conn().Close()
+	}
+	var problemErr error
+	if s.problemRPC != nil && s.problemRPC.Conn() != nil {
+		problemErr = s.problemRPC.Conn().Close()
 	}
 	var sqlErr error
 	if s.sqlDB != nil {
 		sqlErr = s.sqlDB.Close()
 	}
-	return errors.Join(authErr, sqlErr)
+	return errors.Join(workerErr, authErr, problemErr, sqlErr)
 }

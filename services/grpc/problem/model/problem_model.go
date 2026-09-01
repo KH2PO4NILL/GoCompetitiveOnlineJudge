@@ -59,6 +59,7 @@ type ProblemModel interface {
 	ListPublic(ctx context.Context, filter ProblemListFilter) ([]ProblemSummary, int64, error)
 	ListForManagement(ctx context.Context, filter ProblemListFilter) ([]ProblemSummary, int64, error)
 	BatchGetPublicSummaries(ctx context.Context, problemIDs []int64) ([]*ProblemSummary, error)
+	BatchGetPublishedSummaries(ctx context.Context, problemIDs []int64) ([]*ProblemSummary, error)
 
 	CreateTestDataUpload(ctx context.Context, input CreateTestDataUploadInput) (*TestDataUpload, error)
 	GetTestDataUpload(ctx context.Context, uploadID string) (*TestDataUpload, error)

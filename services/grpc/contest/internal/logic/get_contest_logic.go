@@ -7,6 +7,8 @@ import (
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/contest/pb"
 
 	"github.com/zeromicro/go-zero/core/logx"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type GetContestLogic struct {
@@ -24,7 +26,16 @@ func NewGetContestLogic(ctx context.Context, svcCtx *svc.ServiceContext) *GetCon
 }
 
 func (l *GetContestLogic) GetContest(in *pb.GetContestReq) (*pb.GetContestResp, error) {
-	// todo: add your logic here and delete this line
-
-	return &pb.GetContestResp{}, nil
+	if in == nil || in.ContestId <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "contest_id must be positive")
+	}
+	visible, err := loadVisibleContest(l.ctx, l.svcCtx, in.ContestId)
+	if err != nil {
+		return nil, err
+	}
+	contest, err := contestDetailProto(visible.Detail)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.GetContestResp{Contest: contest}, nil
 }
