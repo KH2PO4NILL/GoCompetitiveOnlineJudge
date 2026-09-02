@@ -197,7 +197,7 @@ func (m *defaultSubmitModel) HeartbeatAttempt(ctx context.Context, input Heartbe
 	input.WorkerID = strings.TrimSpace(input.WorkerID)
 	if input.SubmissionID <= 0 || input.AttemptID <= 0 || input.WorkerID == "" || len(input.WorkerID) > 128 ||
 		!validASCII(input.WorkerID) || input.LeaseToken == "" || len(input.LeaseToken) > 256 ||
-		input.CompletedTestCases < 0 || input.TotalTestCases < 0 || input.CompletedTestCases > input.TotalTestCases ||
+		input.CompletedTestCases < 0 ||
 		input.LeaseDuration <= 0 || input.LeaseDuration > 24*time.Hour {
 		return nil, fmt.Errorf("%w: invalid heartbeat input", ErrInvalidSubmissionInput)
 	}

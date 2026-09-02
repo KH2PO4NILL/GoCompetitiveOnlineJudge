@@ -103,6 +103,14 @@ enum SubmissionDenyReason {
   SUBMISSION_DENY_REASON_OTHER = 10;
 }
 
+// Submit RPC 对历史提交做结果投影时使用。该策略独立于“当前是否允许继续提交”，
+// 因此比赛归档、取消或删除后仍能稳定返回历史结果的可见性。
+enum SubmissionResultVisibility {
+  SUBMISSION_RESULT_VISIBILITY_UNSPECIFIED = 0;
+  SUBMISSION_RESULT_VISIBILITY_STATUS_ONLY = 1;
+  SUBMISSION_RESULT_VISIBILITY_FULL = 2;
+}
+
 //////////////////// 比赛配置与展示 ////////////////////
 
 // 创建者可以提供或修改的字段。creator_id、status、revision 和审计时间由服务端维护。
@@ -566,6 +574,18 @@ message ValidateContestSubmissionResp {
   ContestMode mode = 3;
 }
 
+// 仅 Submit RPC 可调用。user_id 和 observed_at 必须来自受信任服务上下文。
+// user_id 当前用于保留按参赛者扩展策略的能力，普通客户端不得控制该值。
+message ResolveSubmissionResultVisibilityReq {
+  int64 contest_id = 1;
+  int64 user_id = 2;
+  google.protobuf.Timestamp observed_at = 3;
+}
+
+message ResolveSubmissionResultVisibilityResp {
+  SubmissionResultVisibility visibility = 1;
+}
+
 // 权限边界：用户侧方法从 metadata/context 解析当前用户；管理方法再次校验创建者或
 // 管理员权限；内部方法只接受受信任服务身份，不得直接暴露到 HTTP API。
 //
@@ -606,4 +626,6 @@ service ContestService {
   rpc CanAccessProblem(CanAccessProblemReq) returns (CanAccessProblemResp);
   rpc ValidateContestSubmission(ValidateContestSubmissionReq)
       returns (ValidateContestSubmissionResp);
+  rpc ResolveSubmissionResultVisibility(ResolveSubmissionResultVisibilityReq)
+      returns (ResolveSubmissionResultVisibilityResp);
 }

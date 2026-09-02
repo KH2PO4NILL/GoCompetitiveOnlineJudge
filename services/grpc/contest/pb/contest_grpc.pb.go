@@ -19,29 +19,30 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ContestService_ListContests_FullMethodName              = "/contest.ContestService/ListContests"
-	ContestService_GetContest_FullMethodName                = "/contest.ContestService/GetContest"
-	ContestService_RegisterContest_FullMethodName           = "/contest.ContestService/RegisterContest"
-	ContestService_CancelRegistration_FullMethodName        = "/contest.ContestService/CancelRegistration"
-	ContestService_GetMyContestStatus_FullMethodName        = "/contest.ContestService/GetMyContestStatus"
-	ContestService_ListContestProblems_FullMethodName       = "/contest.ContestService/ListContestProblems"
-	ContestService_GetScoreboard_FullMethodName             = "/contest.ContestService/GetScoreboard"
-	ContestService_CreateContest_FullMethodName             = "/contest.ContestService/CreateContest"
-	ContestService_GetContestForEdit_FullMethodName         = "/contest.ContestService/GetContestForEdit"
-	ContestService_UpdateContest_FullMethodName             = "/contest.ContestService/UpdateContest"
-	ContestService_PublishContest_FullMethodName            = "/contest.ContestService/PublishContest"
-	ContestService_CancelContest_FullMethodName             = "/contest.ContestService/CancelContest"
-	ContestService_ArchiveContest_FullMethodName            = "/contest.ContestService/ArchiveContest"
-	ContestService_DeleteContest_FullMethodName             = "/contest.ContestService/DeleteContest"
-	ContestService_RestoreContest_FullMethodName            = "/contest.ContestService/RestoreContest"
-	ContestService_SetContestProblems_FullMethodName        = "/contest.ContestService/SetContestProblems"
-	ContestService_ListRegistrations_FullMethodName         = "/contest.ContestService/ListRegistrations"
-	ContestService_ReviewRegistration_FullMethodName        = "/contest.ContestService/ReviewRegistration"
-	ContestService_ListParticipants_FullMethodName          = "/contest.ContestService/ListParticipants"
-	ContestService_FreezeScoreboard_FullMethodName          = "/contest.ContestService/FreezeScoreboard"
-	ContestService_UnfreezeScoreboard_FullMethodName        = "/contest.ContestService/UnfreezeScoreboard"
-	ContestService_CanAccessProblem_FullMethodName          = "/contest.ContestService/CanAccessProblem"
-	ContestService_ValidateContestSubmission_FullMethodName = "/contest.ContestService/ValidateContestSubmission"
+	ContestService_ListContests_FullMethodName                      = "/contest.ContestService/ListContests"
+	ContestService_GetContest_FullMethodName                        = "/contest.ContestService/GetContest"
+	ContestService_RegisterContest_FullMethodName                   = "/contest.ContestService/RegisterContest"
+	ContestService_CancelRegistration_FullMethodName                = "/contest.ContestService/CancelRegistration"
+	ContestService_GetMyContestStatus_FullMethodName                = "/contest.ContestService/GetMyContestStatus"
+	ContestService_ListContestProblems_FullMethodName               = "/contest.ContestService/ListContestProblems"
+	ContestService_GetScoreboard_FullMethodName                     = "/contest.ContestService/GetScoreboard"
+	ContestService_CreateContest_FullMethodName                     = "/contest.ContestService/CreateContest"
+	ContestService_GetContestForEdit_FullMethodName                 = "/contest.ContestService/GetContestForEdit"
+	ContestService_UpdateContest_FullMethodName                     = "/contest.ContestService/UpdateContest"
+	ContestService_PublishContest_FullMethodName                    = "/contest.ContestService/PublishContest"
+	ContestService_CancelContest_FullMethodName                     = "/contest.ContestService/CancelContest"
+	ContestService_ArchiveContest_FullMethodName                    = "/contest.ContestService/ArchiveContest"
+	ContestService_DeleteContest_FullMethodName                     = "/contest.ContestService/DeleteContest"
+	ContestService_RestoreContest_FullMethodName                    = "/contest.ContestService/RestoreContest"
+	ContestService_SetContestProblems_FullMethodName                = "/contest.ContestService/SetContestProblems"
+	ContestService_ListRegistrations_FullMethodName                 = "/contest.ContestService/ListRegistrations"
+	ContestService_ReviewRegistration_FullMethodName                = "/contest.ContestService/ReviewRegistration"
+	ContestService_ListParticipants_FullMethodName                  = "/contest.ContestService/ListParticipants"
+	ContestService_FreezeScoreboard_FullMethodName                  = "/contest.ContestService/FreezeScoreboard"
+	ContestService_UnfreezeScoreboard_FullMethodName                = "/contest.ContestService/UnfreezeScoreboard"
+	ContestService_CanAccessProblem_FullMethodName                  = "/contest.ContestService/CanAccessProblem"
+	ContestService_ValidateContestSubmission_FullMethodName         = "/contest.ContestService/ValidateContestSubmission"
+	ContestService_ResolveSubmissionResultVisibility_FullMethodName = "/contest.ContestService/ResolveSubmissionResultVisibility"
 )
 
 // ContestServiceClient is the client API for ContestService service.
@@ -85,6 +86,7 @@ type ContestServiceClient interface {
 	// 受信任内部服务接口。预期业务拒绝使用响应字段，系统故障使用 gRPC status。
 	CanAccessProblem(ctx context.Context, in *CanAccessProblemReq, opts ...grpc.CallOption) (*CanAccessProblemResp, error)
 	ValidateContestSubmission(ctx context.Context, in *ValidateContestSubmissionReq, opts ...grpc.CallOption) (*ValidateContestSubmissionResp, error)
+	ResolveSubmissionResultVisibility(ctx context.Context, in *ResolveSubmissionResultVisibilityReq, opts ...grpc.CallOption) (*ResolveSubmissionResultVisibilityResp, error)
 }
 
 type contestServiceClient struct {
@@ -325,6 +327,16 @@ func (c *contestServiceClient) ValidateContestSubmission(ctx context.Context, in
 	return out, nil
 }
 
+func (c *contestServiceClient) ResolveSubmissionResultVisibility(ctx context.Context, in *ResolveSubmissionResultVisibilityReq, opts ...grpc.CallOption) (*ResolveSubmissionResultVisibilityResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResolveSubmissionResultVisibilityResp)
+	err := c.cc.Invoke(ctx, ContestService_ResolveSubmissionResultVisibility_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ContestServiceServer is the server API for ContestService service.
 // All implementations must embed UnimplementedContestServiceServer
 // for forward compatibility.
@@ -366,6 +378,7 @@ type ContestServiceServer interface {
 	// 受信任内部服务接口。预期业务拒绝使用响应字段，系统故障使用 gRPC status。
 	CanAccessProblem(context.Context, *CanAccessProblemReq) (*CanAccessProblemResp, error)
 	ValidateContestSubmission(context.Context, *ValidateContestSubmissionReq) (*ValidateContestSubmissionResp, error)
+	ResolveSubmissionResultVisibility(context.Context, *ResolveSubmissionResultVisibilityReq) (*ResolveSubmissionResultVisibilityResp, error)
 	mustEmbedUnimplementedContestServiceServer()
 }
 
@@ -444,6 +457,9 @@ func (UnimplementedContestServiceServer) CanAccessProblem(context.Context, *CanA
 }
 func (UnimplementedContestServiceServer) ValidateContestSubmission(context.Context, *ValidateContestSubmissionReq) (*ValidateContestSubmissionResp, error) {
 	return nil, status.Error(codes.Unimplemented, "method ValidateContestSubmission not implemented")
+}
+func (UnimplementedContestServiceServer) ResolveSubmissionResultVisibility(context.Context, *ResolveSubmissionResultVisibilityReq) (*ResolveSubmissionResultVisibilityResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method ResolveSubmissionResultVisibility not implemented")
 }
 func (UnimplementedContestServiceServer) mustEmbedUnimplementedContestServiceServer() {}
 func (UnimplementedContestServiceServer) testEmbeddedByValue()                        {}
@@ -880,6 +896,24 @@ func _ContestService_ValidateContestSubmission_Handler(srv interface{}, ctx cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ContestService_ResolveSubmissionResultVisibility_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResolveSubmissionResultVisibilityReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).ResolveSubmissionResultVisibility(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_ResolveSubmissionResultVisibility_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).ResolveSubmissionResultVisibility(ctx, req.(*ResolveSubmissionResultVisibilityReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // ContestService_ServiceDesc is the grpc.ServiceDesc for ContestService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -978,6 +1012,10 @@ var ContestService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ValidateContestSubmission",
 			Handler:    _ContestService_ValidateContestSubmission_Handler,
+		},
+		{
+			MethodName: "ResolveSubmissionResultVisibility",
+			Handler:    _ContestService_ResolveSubmissionResultVisibility_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -10,14 +10,18 @@ import (
 func TestAuthConfigLoadsInternalAuthentication(t *testing.T) {
 	t.Setenv("AUTH_INTERNAL_PROBLEM_TOKEN", "problem-token")
 	t.Setenv("AUTH_INTERNAL_CONTEST_TOKEN", "contest-token")
+	t.Setenv("AUTH_INTERNAL_SUBMIT_TOKEN", "submit-token")
 	var c Config
 	if err := conf.Load(filepath.Join("..", "..", "etc", "auth.yaml"), &c, conf.UseEnv()); err != nil {
 		t.Fatalf("load auth config: %v", err)
 	}
-	if len(c.InternalAuth.Callers) != 2 {
+	if len(c.InternalAuth.Callers) != 3 {
 		t.Fatalf("InternalAuth callers = %+v", c.InternalAuth.Callers)
 	}
 	if c.InternalAuth.Callers[0].Token != "problem-token" || c.InternalAuth.Callers[1].Token != "contest-token" {
 		t.Fatalf("InternalAuth tokens were not expanded: %+v", c.InternalAuth.Callers)
+	}
+	if c.InternalAuth.Callers[2].Token != "submit-token" {
+		t.Fatalf("submit InternalAuth token was not expanded: %+v", c.InternalAuth.Callers)
 	}
 }

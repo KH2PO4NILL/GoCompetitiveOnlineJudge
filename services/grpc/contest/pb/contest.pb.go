@@ -588,6 +588,57 @@ func (SubmissionDenyReason) EnumDescriptor() ([]byte, []int) {
 	return file_proto_contest_proto_rawDescGZIP(), []int{9}
 }
 
+// Submit RPC 对历史提交做结果投影时使用。该策略独立于“当前是否允许继续提交”，
+// 因此比赛归档、取消或删除后仍能稳定返回历史结果的可见性。
+type SubmissionResultVisibility int32
+
+const (
+	SubmissionResultVisibility_SUBMISSION_RESULT_VISIBILITY_UNSPECIFIED SubmissionResultVisibility = 0
+	SubmissionResultVisibility_SUBMISSION_RESULT_VISIBILITY_STATUS_ONLY SubmissionResultVisibility = 1
+	SubmissionResultVisibility_SUBMISSION_RESULT_VISIBILITY_FULL        SubmissionResultVisibility = 2
+)
+
+// Enum value maps for SubmissionResultVisibility.
+var (
+	SubmissionResultVisibility_name = map[int32]string{
+		0: "SUBMISSION_RESULT_VISIBILITY_UNSPECIFIED",
+		1: "SUBMISSION_RESULT_VISIBILITY_STATUS_ONLY",
+		2: "SUBMISSION_RESULT_VISIBILITY_FULL",
+	}
+	SubmissionResultVisibility_value = map[string]int32{
+		"SUBMISSION_RESULT_VISIBILITY_UNSPECIFIED": 0,
+		"SUBMISSION_RESULT_VISIBILITY_STATUS_ONLY": 1,
+		"SUBMISSION_RESULT_VISIBILITY_FULL":        2,
+	}
+)
+
+func (x SubmissionResultVisibility) Enum() *SubmissionResultVisibility {
+	p := new(SubmissionResultVisibility)
+	*p = x
+	return p
+}
+
+func (x SubmissionResultVisibility) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (SubmissionResultVisibility) Descriptor() protoreflect.EnumDescriptor {
+	return file_proto_contest_proto_enumTypes[10].Descriptor()
+}
+
+func (SubmissionResultVisibility) Type() protoreflect.EnumType {
+	return &file_proto_contest_proto_enumTypes[10]
+}
+
+func (x SubmissionResultVisibility) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use SubmissionResultVisibility.Descriptor instead.
+func (SubmissionResultVisibility) EnumDescriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{10}
+}
+
 // 创建者可以提供或修改的字段。creator_id、status、revision 和审计时间由服务端维护。
 type ContestEditableFields struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
@@ -4764,6 +4815,112 @@ func (x *ValidateContestSubmissionResp) GetMode() ContestMode {
 	return ContestMode_CONTEST_MODE_UNSPECIFIED
 }
 
+// 仅 Submit RPC 可调用。user_id 和 observed_at 必须来自受信任服务上下文。
+// user_id 当前用于保留按参赛者扩展策略的能力，普通客户端不得控制该值。
+type ResolveSubmissionResultVisibilityReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ContestId     int64                  `protobuf:"varint,1,opt,name=contest_id,json=contestId,proto3" json:"contest_id,omitempty"`
+	UserId        int64                  `protobuf:"varint,2,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	ObservedAt    *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=observed_at,json=observedAt,proto3" json:"observed_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolveSubmissionResultVisibilityReq) Reset() {
+	*x = ResolveSubmissionResultVisibilityReq{}
+	mi := &file_proto_contest_proto_msgTypes[64]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolveSubmissionResultVisibilityReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolveSubmissionResultVisibilityReq) ProtoMessage() {}
+
+func (x *ResolveSubmissionResultVisibilityReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[64]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolveSubmissionResultVisibilityReq.ProtoReflect.Descriptor instead.
+func (*ResolveSubmissionResultVisibilityReq) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{64}
+}
+
+func (x *ResolveSubmissionResultVisibilityReq) GetContestId() int64 {
+	if x != nil {
+		return x.ContestId
+	}
+	return 0
+}
+
+func (x *ResolveSubmissionResultVisibilityReq) GetUserId() int64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
+func (x *ResolveSubmissionResultVisibilityReq) GetObservedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ObservedAt
+	}
+	return nil
+}
+
+type ResolveSubmissionResultVisibilityResp struct {
+	state         protoimpl.MessageState     `protogen:"open.v1"`
+	Visibility    SubmissionResultVisibility `protobuf:"varint,1,opt,name=visibility,proto3,enum=contest.SubmissionResultVisibility" json:"visibility,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ResolveSubmissionResultVisibilityResp) Reset() {
+	*x = ResolveSubmissionResultVisibilityResp{}
+	mi := &file_proto_contest_proto_msgTypes[65]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResolveSubmissionResultVisibilityResp) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResolveSubmissionResultVisibilityResp) ProtoMessage() {}
+
+func (x *ResolveSubmissionResultVisibilityResp) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_contest_proto_msgTypes[65]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResolveSubmissionResultVisibilityResp.ProtoReflect.Descriptor instead.
+func (*ResolveSubmissionResultVisibilityResp) Descriptor() ([]byte, []int) {
+	return file_proto_contest_proto_rawDescGZIP(), []int{65}
+}
+
+func (x *ResolveSubmissionResultVisibilityResp) GetVisibility() SubmissionResultVisibility {
+	if x != nil {
+		return x.Visibility
+	}
+	return SubmissionResultVisibility_SUBMISSION_RESULT_VISIBILITY_UNSPECIFIED
+}
+
 var File_proto_contest_proto protoreflect.FileDescriptor
 
 const file_proto_contest_proto_rawDesc = "" +
@@ -5121,7 +5278,17 @@ const file_proto_contest_proto_rawDesc = "" +
 	"\aallowed\x18\x01 \x01(\bR\aallowed\x12>\n" +
 	"\vdeny_reason\x18\x02 \x01(\x0e2\x1d.contest.SubmissionDenyReasonR\n" +
 	"denyReason\x12(\n" +
-	"\x04mode\x18\x03 \x01(\x0e2\x14.contest.ContestModeR\x04mode*m\n" +
+	"\x04mode\x18\x03 \x01(\x0e2\x14.contest.ContestModeR\x04mode\"\x9b\x01\n" +
+	"$ResolveSubmissionResultVisibilityReq\x12\x1d\n" +
+	"\n" +
+	"contest_id\x18\x01 \x01(\x03R\tcontestId\x12\x17\n" +
+	"\auser_id\x18\x02 \x01(\x03R\x06userId\x12;\n" +
+	"\vobserved_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"observedAt\"l\n" +
+	"%ResolveSubmissionResultVisibilityResp\x12C\n" +
+	"\n" +
+	"visibility\x18\x01 \x01(\x0e2#.contest.SubmissionResultVisibilityR\n" +
+	"visibility*m\n" +
 	"\vContestMode\x12\x1c\n" +
 	"\x18CONTEST_MODE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11CONTEST_MODE_ICPC\x10\x01\x12\x14\n" +
@@ -5183,7 +5350,11 @@ const file_proto_contest_proto_rawDesc = "" +
 	",SUBMISSION_DENY_REASON_PARTICIPANT_WITHDRAWN\x10\b\x12'\n" +
 	"#SUBMISSION_DENY_REASON_UNAUTHORIZED\x10\t\x12 \n" +
 	"\x1cSUBMISSION_DENY_REASON_OTHER\x10\n" +
-	"2\xbf\x0e\n" +
+	"*\x9f\x01\n" +
+	"\x1aSubmissionResultVisibility\x12,\n" +
+	"(SUBMISSION_RESULT_VISIBILITY_UNSPECIFIED\x10\x00\x12,\n" +
+	"(SUBMISSION_RESULT_VISIBILITY_STATUS_ONLY\x10\x01\x12%\n" +
+	"!SUBMISSION_RESULT_VISIBILITY_FULL\x10\x022\xc4\x0f\n" +
 	"\x0eContestService\x12C\n" +
 	"\fListContests\x12\x18.contest.ListContestsReq\x1a\x19.contest.ListContestsResp\x12=\n" +
 	"\n" +
@@ -5208,7 +5379,8 @@ const file_proto_contest_proto_rawDesc = "" +
 	"\x10FreezeScoreboard\x12\x1c.contest.FreezeScoreboardReq\x1a\x1d.contest.FreezeScoreboardResp\x12U\n" +
 	"\x12UnfreezeScoreboard\x12\x1e.contest.UnfreezeScoreboardReq\x1a\x1f.contest.UnfreezeScoreboardResp\x12O\n" +
 	"\x10CanAccessProblem\x12\x1c.contest.CanAccessProblemReq\x1a\x1d.contest.CanAccessProblemResp\x12j\n" +
-	"\x19ValidateContestSubmission\x12%.contest.ValidateContestSubmissionReq\x1a&.contest.ValidateContestSubmissionRespB\x06Z\x04./pbb\x06proto3"
+	"\x19ValidateContestSubmission\x12%.contest.ValidateContestSubmissionReq\x1a&.contest.ValidateContestSubmissionResp\x12\x82\x01\n" +
+	"!ResolveSubmissionResultVisibility\x12-.contest.ResolveSubmissionResultVisibilityReq\x1a..contest.ResolveSubmissionResultVisibilityRespB\x06Z\x04./pbb\x06proto3"
 
 var (
 	file_proto_contest_proto_rawDescOnce sync.Once
@@ -5222,238 +5394,245 @@ func file_proto_contest_proto_rawDescGZIP() []byte {
 	return file_proto_contest_proto_rawDescData
 }
 
-var file_proto_contest_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_proto_contest_proto_msgTypes = make([]protoimpl.MessageInfo, 64)
+var file_proto_contest_proto_enumTypes = make([]protoimpl.EnumInfo, 11)
+var file_proto_contest_proto_msgTypes = make([]protoimpl.MessageInfo, 66)
 var file_proto_contest_proto_goTypes = []any{
-	(ContestMode)(0),                      // 0: contest.ContestMode
-	(ContestStatus)(0),                    // 1: contest.ContestStatus
-	(ContestVisibility)(0),                // 2: contest.ContestVisibility
-	(RegistrationPolicy)(0),               // 3: contest.RegistrationPolicy
-	(RegistrationStatus)(0),               // 4: contest.RegistrationStatus
-	(RegistrationReviewDecision)(0),       // 5: contest.RegistrationReviewDecision
-	(ParticipantStatus)(0),                // 6: contest.ParticipantStatus
-	(ScoreboardVisibility)(0),             // 7: contest.ScoreboardVisibility
-	(ScoreboardView)(0),                   // 8: contest.ScoreboardView
-	(SubmissionDenyReason)(0),             // 9: contest.SubmissionDenyReason
-	(*ContestEditableFields)(nil),         // 10: contest.ContestEditableFields
-	(*Contest)(nil),                       // 11: contest.Contest
-	(*ContestDetail)(nil),                 // 12: contest.ContestDetail
-	(*ContestSummary)(nil),                // 13: contest.ContestSummary
-	(*ContestProblem)(nil),                // 14: contest.ContestProblem
-	(*ContestProblemSummary)(nil),         // 15: contest.ContestProblemSummary
-	(*ContestRegistration)(nil),           // 16: contest.ContestRegistration
-	(*ContestParticipant)(nil),            // 17: contest.ContestParticipant
-	(*MyContestStatus)(nil),               // 18: contest.MyContestStatus
-	(*IcpcProblemResult)(nil),             // 19: contest.IcpcProblemResult
-	(*IoiProblemResult)(nil),              // 20: contest.IoiProblemResult
-	(*OiProblemResult)(nil),               // 21: contest.OiProblemResult
-	(*ScoreboardProblemResult)(nil),       // 22: contest.ScoreboardProblemResult
-	(*IcpcScore)(nil),                     // 23: contest.IcpcScore
-	(*IoiScore)(nil),                      // 24: contest.IoiScore
-	(*OiScore)(nil),                       // 25: contest.OiScore
-	(*ScoreboardRow)(nil),                 // 26: contest.ScoreboardRow
-	(*Scoreboard)(nil),                    // 27: contest.Scoreboard
-	(*ListContestsReq)(nil),               // 28: contest.ListContestsReq
-	(*ListContestsResp)(nil),              // 29: contest.ListContestsResp
-	(*GetContestReq)(nil),                 // 30: contest.GetContestReq
-	(*GetContestResp)(nil),                // 31: contest.GetContestResp
-	(*RegisterContestReq)(nil),            // 32: contest.RegisterContestReq
-	(*RegisterContestResp)(nil),           // 33: contest.RegisterContestResp
-	(*CancelRegistrationReq)(nil),         // 34: contest.CancelRegistrationReq
-	(*CancelRegistrationResp)(nil),        // 35: contest.CancelRegistrationResp
-	(*GetMyContestStatusReq)(nil),         // 36: contest.GetMyContestStatusReq
-	(*GetMyContestStatusResp)(nil),        // 37: contest.GetMyContestStatusResp
-	(*ListContestProblemsReq)(nil),        // 38: contest.ListContestProblemsReq
-	(*ListContestProblemsResp)(nil),       // 39: contest.ListContestProblemsResp
-	(*GetScoreboardReq)(nil),              // 40: contest.GetScoreboardReq
-	(*GetScoreboardResp)(nil),             // 41: contest.GetScoreboardResp
-	(*CreateContestReq)(nil),              // 42: contest.CreateContestReq
-	(*CreateContestResp)(nil),             // 43: contest.CreateContestResp
-	(*GetContestForEditReq)(nil),          // 44: contest.GetContestForEditReq
-	(*GetContestForEditResp)(nil),         // 45: contest.GetContestForEditResp
-	(*UpdateContestReq)(nil),              // 46: contest.UpdateContestReq
-	(*UpdateContestResp)(nil),             // 47: contest.UpdateContestResp
-	(*PublishContestReq)(nil),             // 48: contest.PublishContestReq
-	(*PublishContestResp)(nil),            // 49: contest.PublishContestResp
-	(*CancelContestReq)(nil),              // 50: contest.CancelContestReq
-	(*CancelContestResp)(nil),             // 51: contest.CancelContestResp
-	(*ArchiveContestReq)(nil),             // 52: contest.ArchiveContestReq
-	(*ArchiveContestResp)(nil),            // 53: contest.ArchiveContestResp
-	(*DeleteContestReq)(nil),              // 54: contest.DeleteContestReq
-	(*DeleteContestResp)(nil),             // 55: contest.DeleteContestResp
-	(*RestoreContestReq)(nil),             // 56: contest.RestoreContestReq
-	(*RestoreContestResp)(nil),            // 57: contest.RestoreContestResp
-	(*SetContestProblemsReq)(nil),         // 58: contest.SetContestProblemsReq
-	(*SetContestProblemsResp)(nil),        // 59: contest.SetContestProblemsResp
-	(*ListRegistrationsReq)(nil),          // 60: contest.ListRegistrationsReq
-	(*ListRegistrationsResp)(nil),         // 61: contest.ListRegistrationsResp
-	(*ReviewRegistrationReq)(nil),         // 62: contest.ReviewRegistrationReq
-	(*ReviewRegistrationResp)(nil),        // 63: contest.ReviewRegistrationResp
-	(*ListParticipantsReq)(nil),           // 64: contest.ListParticipantsReq
-	(*ListParticipantsResp)(nil),          // 65: contest.ListParticipantsResp
-	(*FreezeScoreboardReq)(nil),           // 66: contest.FreezeScoreboardReq
-	(*FreezeScoreboardResp)(nil),          // 67: contest.FreezeScoreboardResp
-	(*UnfreezeScoreboardReq)(nil),         // 68: contest.UnfreezeScoreboardReq
-	(*UnfreezeScoreboardResp)(nil),        // 69: contest.UnfreezeScoreboardResp
-	(*CanAccessProblemReq)(nil),           // 70: contest.CanAccessProblemReq
-	(*CanAccessProblemResp)(nil),          // 71: contest.CanAccessProblemResp
-	(*ValidateContestSubmissionReq)(nil),  // 72: contest.ValidateContestSubmissionReq
-	(*ValidateContestSubmissionResp)(nil), // 73: contest.ValidateContestSubmissionResp
-	(*timestamppb.Timestamp)(nil),         // 74: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),           // 75: google.protobuf.Duration
-	(*fieldmaskpb.FieldMask)(nil),         // 76: google.protobuf.FieldMask
+	(ContestMode)(0),                              // 0: contest.ContestMode
+	(ContestStatus)(0),                            // 1: contest.ContestStatus
+	(ContestVisibility)(0),                        // 2: contest.ContestVisibility
+	(RegistrationPolicy)(0),                       // 3: contest.RegistrationPolicy
+	(RegistrationStatus)(0),                       // 4: contest.RegistrationStatus
+	(RegistrationReviewDecision)(0),               // 5: contest.RegistrationReviewDecision
+	(ParticipantStatus)(0),                        // 6: contest.ParticipantStatus
+	(ScoreboardVisibility)(0),                     // 7: contest.ScoreboardVisibility
+	(ScoreboardView)(0),                           // 8: contest.ScoreboardView
+	(SubmissionDenyReason)(0),                     // 9: contest.SubmissionDenyReason
+	(SubmissionResultVisibility)(0),               // 10: contest.SubmissionResultVisibility
+	(*ContestEditableFields)(nil),                 // 11: contest.ContestEditableFields
+	(*Contest)(nil),                               // 12: contest.Contest
+	(*ContestDetail)(nil),                         // 13: contest.ContestDetail
+	(*ContestSummary)(nil),                        // 14: contest.ContestSummary
+	(*ContestProblem)(nil),                        // 15: contest.ContestProblem
+	(*ContestProblemSummary)(nil),                 // 16: contest.ContestProblemSummary
+	(*ContestRegistration)(nil),                   // 17: contest.ContestRegistration
+	(*ContestParticipant)(nil),                    // 18: contest.ContestParticipant
+	(*MyContestStatus)(nil),                       // 19: contest.MyContestStatus
+	(*IcpcProblemResult)(nil),                     // 20: contest.IcpcProblemResult
+	(*IoiProblemResult)(nil),                      // 21: contest.IoiProblemResult
+	(*OiProblemResult)(nil),                       // 22: contest.OiProblemResult
+	(*ScoreboardProblemResult)(nil),               // 23: contest.ScoreboardProblemResult
+	(*IcpcScore)(nil),                             // 24: contest.IcpcScore
+	(*IoiScore)(nil),                              // 25: contest.IoiScore
+	(*OiScore)(nil),                               // 26: contest.OiScore
+	(*ScoreboardRow)(nil),                         // 27: contest.ScoreboardRow
+	(*Scoreboard)(nil),                            // 28: contest.Scoreboard
+	(*ListContestsReq)(nil),                       // 29: contest.ListContestsReq
+	(*ListContestsResp)(nil),                      // 30: contest.ListContestsResp
+	(*GetContestReq)(nil),                         // 31: contest.GetContestReq
+	(*GetContestResp)(nil),                        // 32: contest.GetContestResp
+	(*RegisterContestReq)(nil),                    // 33: contest.RegisterContestReq
+	(*RegisterContestResp)(nil),                   // 34: contest.RegisterContestResp
+	(*CancelRegistrationReq)(nil),                 // 35: contest.CancelRegistrationReq
+	(*CancelRegistrationResp)(nil),                // 36: contest.CancelRegistrationResp
+	(*GetMyContestStatusReq)(nil),                 // 37: contest.GetMyContestStatusReq
+	(*GetMyContestStatusResp)(nil),                // 38: contest.GetMyContestStatusResp
+	(*ListContestProblemsReq)(nil),                // 39: contest.ListContestProblemsReq
+	(*ListContestProblemsResp)(nil),               // 40: contest.ListContestProblemsResp
+	(*GetScoreboardReq)(nil),                      // 41: contest.GetScoreboardReq
+	(*GetScoreboardResp)(nil),                     // 42: contest.GetScoreboardResp
+	(*CreateContestReq)(nil),                      // 43: contest.CreateContestReq
+	(*CreateContestResp)(nil),                     // 44: contest.CreateContestResp
+	(*GetContestForEditReq)(nil),                  // 45: contest.GetContestForEditReq
+	(*GetContestForEditResp)(nil),                 // 46: contest.GetContestForEditResp
+	(*UpdateContestReq)(nil),                      // 47: contest.UpdateContestReq
+	(*UpdateContestResp)(nil),                     // 48: contest.UpdateContestResp
+	(*PublishContestReq)(nil),                     // 49: contest.PublishContestReq
+	(*PublishContestResp)(nil),                    // 50: contest.PublishContestResp
+	(*CancelContestReq)(nil),                      // 51: contest.CancelContestReq
+	(*CancelContestResp)(nil),                     // 52: contest.CancelContestResp
+	(*ArchiveContestReq)(nil),                     // 53: contest.ArchiveContestReq
+	(*ArchiveContestResp)(nil),                    // 54: contest.ArchiveContestResp
+	(*DeleteContestReq)(nil),                      // 55: contest.DeleteContestReq
+	(*DeleteContestResp)(nil),                     // 56: contest.DeleteContestResp
+	(*RestoreContestReq)(nil),                     // 57: contest.RestoreContestReq
+	(*RestoreContestResp)(nil),                    // 58: contest.RestoreContestResp
+	(*SetContestProblemsReq)(nil),                 // 59: contest.SetContestProblemsReq
+	(*SetContestProblemsResp)(nil),                // 60: contest.SetContestProblemsResp
+	(*ListRegistrationsReq)(nil),                  // 61: contest.ListRegistrationsReq
+	(*ListRegistrationsResp)(nil),                 // 62: contest.ListRegistrationsResp
+	(*ReviewRegistrationReq)(nil),                 // 63: contest.ReviewRegistrationReq
+	(*ReviewRegistrationResp)(nil),                // 64: contest.ReviewRegistrationResp
+	(*ListParticipantsReq)(nil),                   // 65: contest.ListParticipantsReq
+	(*ListParticipantsResp)(nil),                  // 66: contest.ListParticipantsResp
+	(*FreezeScoreboardReq)(nil),                   // 67: contest.FreezeScoreboardReq
+	(*FreezeScoreboardResp)(nil),                  // 68: contest.FreezeScoreboardResp
+	(*UnfreezeScoreboardReq)(nil),                 // 69: contest.UnfreezeScoreboardReq
+	(*UnfreezeScoreboardResp)(nil),                // 70: contest.UnfreezeScoreboardResp
+	(*CanAccessProblemReq)(nil),                   // 71: contest.CanAccessProblemReq
+	(*CanAccessProblemResp)(nil),                  // 72: contest.CanAccessProblemResp
+	(*ValidateContestSubmissionReq)(nil),          // 73: contest.ValidateContestSubmissionReq
+	(*ValidateContestSubmissionResp)(nil),         // 74: contest.ValidateContestSubmissionResp
+	(*ResolveSubmissionResultVisibilityReq)(nil),  // 75: contest.ResolveSubmissionResultVisibilityReq
+	(*ResolveSubmissionResultVisibilityResp)(nil), // 76: contest.ResolveSubmissionResultVisibilityResp
+	(*timestamppb.Timestamp)(nil),                 // 77: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),                   // 78: google.protobuf.Duration
+	(*fieldmaskpb.FieldMask)(nil),                 // 79: google.protobuf.FieldMask
 }
 var file_proto_contest_proto_depIdxs = []int32{
 	0,   // 0: contest.ContestEditableFields.mode:type_name -> contest.ContestMode
-	74,  // 1: contest.ContestEditableFields.start_at:type_name -> google.protobuf.Timestamp
-	74,  // 2: contest.ContestEditableFields.end_at:type_name -> google.protobuf.Timestamp
-	74,  // 3: contest.ContestEditableFields.registration_start_at:type_name -> google.protobuf.Timestamp
-	74,  // 4: contest.ContestEditableFields.registration_end_at:type_name -> google.protobuf.Timestamp
+	77,  // 1: contest.ContestEditableFields.start_at:type_name -> google.protobuf.Timestamp
+	77,  // 2: contest.ContestEditableFields.end_at:type_name -> google.protobuf.Timestamp
+	77,  // 3: contest.ContestEditableFields.registration_start_at:type_name -> google.protobuf.Timestamp
+	77,  // 4: contest.ContestEditableFields.registration_end_at:type_name -> google.protobuf.Timestamp
 	3,   // 5: contest.ContestEditableFields.registration_policy:type_name -> contest.RegistrationPolicy
 	2,   // 6: contest.ContestEditableFields.visibility:type_name -> contest.ContestVisibility
 	7,   // 7: contest.ContestEditableFields.scoreboard_visibility:type_name -> contest.ScoreboardVisibility
-	74,  // 8: contest.ContestEditableFields.scoreboard_freeze_at:type_name -> google.protobuf.Timestamp
-	75,  // 9: contest.ContestEditableFields.scoreboard_freeze_before_end:type_name -> google.protobuf.Duration
-	10,  // 10: contest.Contest.editable:type_name -> contest.ContestEditableFields
+	77,  // 8: contest.ContestEditableFields.scoreboard_freeze_at:type_name -> google.protobuf.Timestamp
+	78,  // 9: contest.ContestEditableFields.scoreboard_freeze_before_end:type_name -> google.protobuf.Duration
+	11,  // 10: contest.Contest.editable:type_name -> contest.ContestEditableFields
 	1,   // 11: contest.Contest.status:type_name -> contest.ContestStatus
-	74,  // 12: contest.Contest.created_at:type_name -> google.protobuf.Timestamp
-	74,  // 13: contest.Contest.updated_at:type_name -> google.protobuf.Timestamp
-	74,  // 14: contest.Contest.published_at:type_name -> google.protobuf.Timestamp
-	74,  // 15: contest.Contest.cancelled_at:type_name -> google.protobuf.Timestamp
-	74,  // 16: contest.Contest.archived_at:type_name -> google.protobuf.Timestamp
-	74,  // 17: contest.Contest.deleted_at:type_name -> google.protobuf.Timestamp
-	74,  // 18: contest.Contest.scoreboard_frozen_at:type_name -> google.protobuf.Timestamp
+	77,  // 12: contest.Contest.created_at:type_name -> google.protobuf.Timestamp
+	77,  // 13: contest.Contest.updated_at:type_name -> google.protobuf.Timestamp
+	77,  // 14: contest.Contest.published_at:type_name -> google.protobuf.Timestamp
+	77,  // 15: contest.Contest.cancelled_at:type_name -> google.protobuf.Timestamp
+	77,  // 16: contest.Contest.archived_at:type_name -> google.protobuf.Timestamp
+	77,  // 17: contest.Contest.deleted_at:type_name -> google.protobuf.Timestamp
+	77,  // 18: contest.Contest.scoreboard_frozen_at:type_name -> google.protobuf.Timestamp
 	0,   // 19: contest.ContestDetail.mode:type_name -> contest.ContestMode
 	1,   // 20: contest.ContestDetail.status:type_name -> contest.ContestStatus
-	74,  // 21: contest.ContestDetail.start_at:type_name -> google.protobuf.Timestamp
-	74,  // 22: contest.ContestDetail.end_at:type_name -> google.protobuf.Timestamp
-	74,  // 23: contest.ContestDetail.registration_start_at:type_name -> google.protobuf.Timestamp
-	74,  // 24: contest.ContestDetail.registration_end_at:type_name -> google.protobuf.Timestamp
+	77,  // 21: contest.ContestDetail.start_at:type_name -> google.protobuf.Timestamp
+	77,  // 22: contest.ContestDetail.end_at:type_name -> google.protobuf.Timestamp
+	77,  // 23: contest.ContestDetail.registration_start_at:type_name -> google.protobuf.Timestamp
+	77,  // 24: contest.ContestDetail.registration_end_at:type_name -> google.protobuf.Timestamp
 	3,   // 25: contest.ContestDetail.registration_policy:type_name -> contest.RegistrationPolicy
 	2,   // 26: contest.ContestDetail.visibility:type_name -> contest.ContestVisibility
 	7,   // 27: contest.ContestDetail.scoreboard_visibility:type_name -> contest.ScoreboardVisibility
 	0,   // 28: contest.ContestSummary.mode:type_name -> contest.ContestMode
 	1,   // 29: contest.ContestSummary.status:type_name -> contest.ContestStatus
-	74,  // 30: contest.ContestSummary.start_at:type_name -> google.protobuf.Timestamp
-	74,  // 31: contest.ContestSummary.end_at:type_name -> google.protobuf.Timestamp
+	77,  // 30: contest.ContestSummary.start_at:type_name -> google.protobuf.Timestamp
+	77,  // 31: contest.ContestSummary.end_at:type_name -> google.protobuf.Timestamp
 	3,   // 32: contest.ContestSummary.registration_policy:type_name -> contest.RegistrationPolicy
 	2,   // 33: contest.ContestSummary.visibility:type_name -> contest.ContestVisibility
 	4,   // 34: contest.ContestRegistration.status:type_name -> contest.RegistrationStatus
-	74,  // 35: contest.ContestRegistration.created_at:type_name -> google.protobuf.Timestamp
-	74,  // 36: contest.ContestRegistration.reviewed_at:type_name -> google.protobuf.Timestamp
-	74,  // 37: contest.ContestRegistration.cancelled_at:type_name -> google.protobuf.Timestamp
-	74,  // 38: contest.ContestRegistration.updated_at:type_name -> google.protobuf.Timestamp
+	77,  // 35: contest.ContestRegistration.created_at:type_name -> google.protobuf.Timestamp
+	77,  // 36: contest.ContestRegistration.reviewed_at:type_name -> google.protobuf.Timestamp
+	77,  // 37: contest.ContestRegistration.cancelled_at:type_name -> google.protobuf.Timestamp
+	77,  // 38: contest.ContestRegistration.updated_at:type_name -> google.protobuf.Timestamp
 	6,   // 39: contest.ContestParticipant.status:type_name -> contest.ParticipantStatus
-	74,  // 40: contest.ContestParticipant.qualified_at:type_name -> google.protobuf.Timestamp
-	74,  // 41: contest.ContestParticipant.updated_at:type_name -> google.protobuf.Timestamp
-	16,  // 42: contest.MyContestStatus.registration:type_name -> contest.ContestRegistration
-	17,  // 43: contest.MyContestStatus.participant:type_name -> contest.ContestParticipant
-	75,  // 44: contest.IcpcProblemResult.penalty:type_name -> google.protobuf.Duration
-	74,  // 45: contest.IcpcProblemResult.accepted_at:type_name -> google.protobuf.Timestamp
-	74,  // 46: contest.IoiProblemResult.last_effective_submission_at:type_name -> google.protobuf.Timestamp
-	74,  // 47: contest.OiProblemResult.last_effective_submission_at:type_name -> google.protobuf.Timestamp
-	19,  // 48: contest.ScoreboardProblemResult.icpc:type_name -> contest.IcpcProblemResult
-	20,  // 49: contest.ScoreboardProblemResult.ioi:type_name -> contest.IoiProblemResult
-	21,  // 50: contest.ScoreboardProblemResult.oi:type_name -> contest.OiProblemResult
-	75,  // 51: contest.IcpcScore.total_penalty:type_name -> google.protobuf.Duration
-	74,  // 52: contest.IcpcScore.last_solved_at:type_name -> google.protobuf.Timestamp
-	74,  // 53: contest.IoiScore.last_effective_submission_at:type_name -> google.protobuf.Timestamp
-	74,  // 54: contest.OiScore.last_effective_submission_at:type_name -> google.protobuf.Timestamp
-	22,  // 55: contest.ScoreboardRow.problem_results:type_name -> contest.ScoreboardProblemResult
-	23,  // 56: contest.ScoreboardRow.icpc:type_name -> contest.IcpcScore
-	24,  // 57: contest.ScoreboardRow.ioi:type_name -> contest.IoiScore
-	25,  // 58: contest.ScoreboardRow.oi:type_name -> contest.OiScore
+	77,  // 40: contest.ContestParticipant.qualified_at:type_name -> google.protobuf.Timestamp
+	77,  // 41: contest.ContestParticipant.updated_at:type_name -> google.protobuf.Timestamp
+	17,  // 42: contest.MyContestStatus.registration:type_name -> contest.ContestRegistration
+	18,  // 43: contest.MyContestStatus.participant:type_name -> contest.ContestParticipant
+	78,  // 44: contest.IcpcProblemResult.penalty:type_name -> google.protobuf.Duration
+	77,  // 45: contest.IcpcProblemResult.accepted_at:type_name -> google.protobuf.Timestamp
+	77,  // 46: contest.IoiProblemResult.last_effective_submission_at:type_name -> google.protobuf.Timestamp
+	77,  // 47: contest.OiProblemResult.last_effective_submission_at:type_name -> google.protobuf.Timestamp
+	20,  // 48: contest.ScoreboardProblemResult.icpc:type_name -> contest.IcpcProblemResult
+	21,  // 49: contest.ScoreboardProblemResult.ioi:type_name -> contest.IoiProblemResult
+	22,  // 50: contest.ScoreboardProblemResult.oi:type_name -> contest.OiProblemResult
+	78,  // 51: contest.IcpcScore.total_penalty:type_name -> google.protobuf.Duration
+	77,  // 52: contest.IcpcScore.last_solved_at:type_name -> google.protobuf.Timestamp
+	77,  // 53: contest.IoiScore.last_effective_submission_at:type_name -> google.protobuf.Timestamp
+	77,  // 54: contest.OiScore.last_effective_submission_at:type_name -> google.protobuf.Timestamp
+	23,  // 55: contest.ScoreboardRow.problem_results:type_name -> contest.ScoreboardProblemResult
+	24,  // 56: contest.ScoreboardRow.icpc:type_name -> contest.IcpcScore
+	25,  // 57: contest.ScoreboardRow.ioi:type_name -> contest.IoiScore
+	26,  // 58: contest.ScoreboardRow.oi:type_name -> contest.OiScore
 	0,   // 59: contest.Scoreboard.mode:type_name -> contest.ContestMode
-	74,  // 60: contest.Scoreboard.generated_at:type_name -> google.protobuf.Timestamp
+	77,  // 60: contest.Scoreboard.generated_at:type_name -> google.protobuf.Timestamp
 	8,   // 61: contest.Scoreboard.view:type_name -> contest.ScoreboardView
-	26,  // 62: contest.Scoreboard.rows:type_name -> contest.ScoreboardRow
+	27,  // 62: contest.Scoreboard.rows:type_name -> contest.ScoreboardRow
 	1,   // 63: contest.ListContestsReq.status:type_name -> contest.ContestStatus
 	0,   // 64: contest.ListContestsReq.mode:type_name -> contest.ContestMode
-	13,  // 65: contest.ListContestsResp.contests:type_name -> contest.ContestSummary
-	12,  // 66: contest.GetContestResp.contest:type_name -> contest.ContestDetail
-	16,  // 67: contest.RegisterContestResp.registration:type_name -> contest.ContestRegistration
-	16,  // 68: contest.CancelRegistrationResp.registration:type_name -> contest.ContestRegistration
-	18,  // 69: contest.GetMyContestStatusResp.status:type_name -> contest.MyContestStatus
-	15,  // 70: contest.ListContestProblemsResp.problems:type_name -> contest.ContestProblemSummary
-	27,  // 71: contest.GetScoreboardResp.scoreboard:type_name -> contest.Scoreboard
-	10,  // 72: contest.CreateContestReq.contest:type_name -> contest.ContestEditableFields
-	11,  // 73: contest.CreateContestResp.contest:type_name -> contest.Contest
-	11,  // 74: contest.GetContestForEditResp.contest:type_name -> contest.Contest
-	14,  // 75: contest.GetContestForEditResp.problems:type_name -> contest.ContestProblem
-	10,  // 76: contest.UpdateContestReq.contest:type_name -> contest.ContestEditableFields
-	76,  // 77: contest.UpdateContestReq.update_mask:type_name -> google.protobuf.FieldMask
-	11,  // 78: contest.UpdateContestResp.contest:type_name -> contest.Contest
-	11,  // 79: contest.PublishContestResp.contest:type_name -> contest.Contest
-	11,  // 80: contest.CancelContestResp.contest:type_name -> contest.Contest
-	11,  // 81: contest.ArchiveContestResp.contest:type_name -> contest.Contest
-	11,  // 82: contest.RestoreContestResp.contest:type_name -> contest.Contest
-	14,  // 83: contest.SetContestProblemsReq.problems:type_name -> contest.ContestProblem
-	11,  // 84: contest.SetContestProblemsResp.contest:type_name -> contest.Contest
-	14,  // 85: contest.SetContestProblemsResp.problems:type_name -> contest.ContestProblem
+	14,  // 65: contest.ListContestsResp.contests:type_name -> contest.ContestSummary
+	13,  // 66: contest.GetContestResp.contest:type_name -> contest.ContestDetail
+	17,  // 67: contest.RegisterContestResp.registration:type_name -> contest.ContestRegistration
+	17,  // 68: contest.CancelRegistrationResp.registration:type_name -> contest.ContestRegistration
+	19,  // 69: contest.GetMyContestStatusResp.status:type_name -> contest.MyContestStatus
+	16,  // 70: contest.ListContestProblemsResp.problems:type_name -> contest.ContestProblemSummary
+	28,  // 71: contest.GetScoreboardResp.scoreboard:type_name -> contest.Scoreboard
+	11,  // 72: contest.CreateContestReq.contest:type_name -> contest.ContestEditableFields
+	12,  // 73: contest.CreateContestResp.contest:type_name -> contest.Contest
+	12,  // 74: contest.GetContestForEditResp.contest:type_name -> contest.Contest
+	15,  // 75: contest.GetContestForEditResp.problems:type_name -> contest.ContestProblem
+	11,  // 76: contest.UpdateContestReq.contest:type_name -> contest.ContestEditableFields
+	79,  // 77: contest.UpdateContestReq.update_mask:type_name -> google.protobuf.FieldMask
+	12,  // 78: contest.UpdateContestResp.contest:type_name -> contest.Contest
+	12,  // 79: contest.PublishContestResp.contest:type_name -> contest.Contest
+	12,  // 80: contest.CancelContestResp.contest:type_name -> contest.Contest
+	12,  // 81: contest.ArchiveContestResp.contest:type_name -> contest.Contest
+	12,  // 82: contest.RestoreContestResp.contest:type_name -> contest.Contest
+	15,  // 83: contest.SetContestProblemsReq.problems:type_name -> contest.ContestProblem
+	12,  // 84: contest.SetContestProblemsResp.contest:type_name -> contest.Contest
+	15,  // 85: contest.SetContestProblemsResp.problems:type_name -> contest.ContestProblem
 	4,   // 86: contest.ListRegistrationsReq.status:type_name -> contest.RegistrationStatus
-	16,  // 87: contest.ListRegistrationsResp.registrations:type_name -> contest.ContestRegistration
+	17,  // 87: contest.ListRegistrationsResp.registrations:type_name -> contest.ContestRegistration
 	5,   // 88: contest.ReviewRegistrationReq.decision:type_name -> contest.RegistrationReviewDecision
-	16,  // 89: contest.ReviewRegistrationResp.registration:type_name -> contest.ContestRegistration
-	17,  // 90: contest.ReviewRegistrationResp.participant:type_name -> contest.ContestParticipant
+	17,  // 89: contest.ReviewRegistrationResp.registration:type_name -> contest.ContestRegistration
+	18,  // 90: contest.ReviewRegistrationResp.participant:type_name -> contest.ContestParticipant
 	6,   // 91: contest.ListParticipantsReq.status:type_name -> contest.ParticipantStatus
-	17,  // 92: contest.ListParticipantsResp.participants:type_name -> contest.ContestParticipant
-	11,  // 93: contest.FreezeScoreboardResp.contest:type_name -> contest.Contest
-	11,  // 94: contest.UnfreezeScoreboardResp.contest:type_name -> contest.Contest
+	18,  // 92: contest.ListParticipantsResp.participants:type_name -> contest.ContestParticipant
+	12,  // 93: contest.FreezeScoreboardResp.contest:type_name -> contest.Contest
+	12,  // 94: contest.UnfreezeScoreboardResp.contest:type_name -> contest.Contest
 	9,   // 95: contest.CanAccessProblemResp.deny_reason:type_name -> contest.SubmissionDenyReason
-	74,  // 96: contest.ValidateContestSubmissionReq.submitted_at:type_name -> google.protobuf.Timestamp
+	77,  // 96: contest.ValidateContestSubmissionReq.submitted_at:type_name -> google.protobuf.Timestamp
 	9,   // 97: contest.ValidateContestSubmissionResp.deny_reason:type_name -> contest.SubmissionDenyReason
 	0,   // 98: contest.ValidateContestSubmissionResp.mode:type_name -> contest.ContestMode
-	28,  // 99: contest.ContestService.ListContests:input_type -> contest.ListContestsReq
-	30,  // 100: contest.ContestService.GetContest:input_type -> contest.GetContestReq
-	32,  // 101: contest.ContestService.RegisterContest:input_type -> contest.RegisterContestReq
-	34,  // 102: contest.ContestService.CancelRegistration:input_type -> contest.CancelRegistrationReq
-	36,  // 103: contest.ContestService.GetMyContestStatus:input_type -> contest.GetMyContestStatusReq
-	38,  // 104: contest.ContestService.ListContestProblems:input_type -> contest.ListContestProblemsReq
-	40,  // 105: contest.ContestService.GetScoreboard:input_type -> contest.GetScoreboardReq
-	42,  // 106: contest.ContestService.CreateContest:input_type -> contest.CreateContestReq
-	44,  // 107: contest.ContestService.GetContestForEdit:input_type -> contest.GetContestForEditReq
-	46,  // 108: contest.ContestService.UpdateContest:input_type -> contest.UpdateContestReq
-	48,  // 109: contest.ContestService.PublishContest:input_type -> contest.PublishContestReq
-	50,  // 110: contest.ContestService.CancelContest:input_type -> contest.CancelContestReq
-	52,  // 111: contest.ContestService.ArchiveContest:input_type -> contest.ArchiveContestReq
-	54,  // 112: contest.ContestService.DeleteContest:input_type -> contest.DeleteContestReq
-	56,  // 113: contest.ContestService.RestoreContest:input_type -> contest.RestoreContestReq
-	58,  // 114: contest.ContestService.SetContestProblems:input_type -> contest.SetContestProblemsReq
-	60,  // 115: contest.ContestService.ListRegistrations:input_type -> contest.ListRegistrationsReq
-	62,  // 116: contest.ContestService.ReviewRegistration:input_type -> contest.ReviewRegistrationReq
-	64,  // 117: contest.ContestService.ListParticipants:input_type -> contest.ListParticipantsReq
-	66,  // 118: contest.ContestService.FreezeScoreboard:input_type -> contest.FreezeScoreboardReq
-	68,  // 119: contest.ContestService.UnfreezeScoreboard:input_type -> contest.UnfreezeScoreboardReq
-	70,  // 120: contest.ContestService.CanAccessProblem:input_type -> contest.CanAccessProblemReq
-	72,  // 121: contest.ContestService.ValidateContestSubmission:input_type -> contest.ValidateContestSubmissionReq
-	29,  // 122: contest.ContestService.ListContests:output_type -> contest.ListContestsResp
-	31,  // 123: contest.ContestService.GetContest:output_type -> contest.GetContestResp
-	33,  // 124: contest.ContestService.RegisterContest:output_type -> contest.RegisterContestResp
-	35,  // 125: contest.ContestService.CancelRegistration:output_type -> contest.CancelRegistrationResp
-	37,  // 126: contest.ContestService.GetMyContestStatus:output_type -> contest.GetMyContestStatusResp
-	39,  // 127: contest.ContestService.ListContestProblems:output_type -> contest.ListContestProblemsResp
-	41,  // 128: contest.ContestService.GetScoreboard:output_type -> contest.GetScoreboardResp
-	43,  // 129: contest.ContestService.CreateContest:output_type -> contest.CreateContestResp
-	45,  // 130: contest.ContestService.GetContestForEdit:output_type -> contest.GetContestForEditResp
-	47,  // 131: contest.ContestService.UpdateContest:output_type -> contest.UpdateContestResp
-	49,  // 132: contest.ContestService.PublishContest:output_type -> contest.PublishContestResp
-	51,  // 133: contest.ContestService.CancelContest:output_type -> contest.CancelContestResp
-	53,  // 134: contest.ContestService.ArchiveContest:output_type -> contest.ArchiveContestResp
-	55,  // 135: contest.ContestService.DeleteContest:output_type -> contest.DeleteContestResp
-	57,  // 136: contest.ContestService.RestoreContest:output_type -> contest.RestoreContestResp
-	59,  // 137: contest.ContestService.SetContestProblems:output_type -> contest.SetContestProblemsResp
-	61,  // 138: contest.ContestService.ListRegistrations:output_type -> contest.ListRegistrationsResp
-	63,  // 139: contest.ContestService.ReviewRegistration:output_type -> contest.ReviewRegistrationResp
-	65,  // 140: contest.ContestService.ListParticipants:output_type -> contest.ListParticipantsResp
-	67,  // 141: contest.ContestService.FreezeScoreboard:output_type -> contest.FreezeScoreboardResp
-	69,  // 142: contest.ContestService.UnfreezeScoreboard:output_type -> contest.UnfreezeScoreboardResp
-	71,  // 143: contest.ContestService.CanAccessProblem:output_type -> contest.CanAccessProblemResp
-	73,  // 144: contest.ContestService.ValidateContestSubmission:output_type -> contest.ValidateContestSubmissionResp
-	122, // [122:145] is the sub-list for method output_type
-	99,  // [99:122] is the sub-list for method input_type
-	99,  // [99:99] is the sub-list for extension type_name
-	99,  // [99:99] is the sub-list for extension extendee
-	0,   // [0:99] is the sub-list for field type_name
+	77,  // 99: contest.ResolveSubmissionResultVisibilityReq.observed_at:type_name -> google.protobuf.Timestamp
+	10,  // 100: contest.ResolveSubmissionResultVisibilityResp.visibility:type_name -> contest.SubmissionResultVisibility
+	29,  // 101: contest.ContestService.ListContests:input_type -> contest.ListContestsReq
+	31,  // 102: contest.ContestService.GetContest:input_type -> contest.GetContestReq
+	33,  // 103: contest.ContestService.RegisterContest:input_type -> contest.RegisterContestReq
+	35,  // 104: contest.ContestService.CancelRegistration:input_type -> contest.CancelRegistrationReq
+	37,  // 105: contest.ContestService.GetMyContestStatus:input_type -> contest.GetMyContestStatusReq
+	39,  // 106: contest.ContestService.ListContestProblems:input_type -> contest.ListContestProblemsReq
+	41,  // 107: contest.ContestService.GetScoreboard:input_type -> contest.GetScoreboardReq
+	43,  // 108: contest.ContestService.CreateContest:input_type -> contest.CreateContestReq
+	45,  // 109: contest.ContestService.GetContestForEdit:input_type -> contest.GetContestForEditReq
+	47,  // 110: contest.ContestService.UpdateContest:input_type -> contest.UpdateContestReq
+	49,  // 111: contest.ContestService.PublishContest:input_type -> contest.PublishContestReq
+	51,  // 112: contest.ContestService.CancelContest:input_type -> contest.CancelContestReq
+	53,  // 113: contest.ContestService.ArchiveContest:input_type -> contest.ArchiveContestReq
+	55,  // 114: contest.ContestService.DeleteContest:input_type -> contest.DeleteContestReq
+	57,  // 115: contest.ContestService.RestoreContest:input_type -> contest.RestoreContestReq
+	59,  // 116: contest.ContestService.SetContestProblems:input_type -> contest.SetContestProblemsReq
+	61,  // 117: contest.ContestService.ListRegistrations:input_type -> contest.ListRegistrationsReq
+	63,  // 118: contest.ContestService.ReviewRegistration:input_type -> contest.ReviewRegistrationReq
+	65,  // 119: contest.ContestService.ListParticipants:input_type -> contest.ListParticipantsReq
+	67,  // 120: contest.ContestService.FreezeScoreboard:input_type -> contest.FreezeScoreboardReq
+	69,  // 121: contest.ContestService.UnfreezeScoreboard:input_type -> contest.UnfreezeScoreboardReq
+	71,  // 122: contest.ContestService.CanAccessProblem:input_type -> contest.CanAccessProblemReq
+	73,  // 123: contest.ContestService.ValidateContestSubmission:input_type -> contest.ValidateContestSubmissionReq
+	75,  // 124: contest.ContestService.ResolveSubmissionResultVisibility:input_type -> contest.ResolveSubmissionResultVisibilityReq
+	30,  // 125: contest.ContestService.ListContests:output_type -> contest.ListContestsResp
+	32,  // 126: contest.ContestService.GetContest:output_type -> contest.GetContestResp
+	34,  // 127: contest.ContestService.RegisterContest:output_type -> contest.RegisterContestResp
+	36,  // 128: contest.ContestService.CancelRegistration:output_type -> contest.CancelRegistrationResp
+	38,  // 129: contest.ContestService.GetMyContestStatus:output_type -> contest.GetMyContestStatusResp
+	40,  // 130: contest.ContestService.ListContestProblems:output_type -> contest.ListContestProblemsResp
+	42,  // 131: contest.ContestService.GetScoreboard:output_type -> contest.GetScoreboardResp
+	44,  // 132: contest.ContestService.CreateContest:output_type -> contest.CreateContestResp
+	46,  // 133: contest.ContestService.GetContestForEdit:output_type -> contest.GetContestForEditResp
+	48,  // 134: contest.ContestService.UpdateContest:output_type -> contest.UpdateContestResp
+	50,  // 135: contest.ContestService.PublishContest:output_type -> contest.PublishContestResp
+	52,  // 136: contest.ContestService.CancelContest:output_type -> contest.CancelContestResp
+	54,  // 137: contest.ContestService.ArchiveContest:output_type -> contest.ArchiveContestResp
+	56,  // 138: contest.ContestService.DeleteContest:output_type -> contest.DeleteContestResp
+	58,  // 139: contest.ContestService.RestoreContest:output_type -> contest.RestoreContestResp
+	60,  // 140: contest.ContestService.SetContestProblems:output_type -> contest.SetContestProblemsResp
+	62,  // 141: contest.ContestService.ListRegistrations:output_type -> contest.ListRegistrationsResp
+	64,  // 142: contest.ContestService.ReviewRegistration:output_type -> contest.ReviewRegistrationResp
+	66,  // 143: contest.ContestService.ListParticipants:output_type -> contest.ListParticipantsResp
+	68,  // 144: contest.ContestService.FreezeScoreboard:output_type -> contest.FreezeScoreboardResp
+	70,  // 145: contest.ContestService.UnfreezeScoreboard:output_type -> contest.UnfreezeScoreboardResp
+	72,  // 146: contest.ContestService.CanAccessProblem:output_type -> contest.CanAccessProblemResp
+	74,  // 147: contest.ContestService.ValidateContestSubmission:output_type -> contest.ValidateContestSubmissionResp
+	76,  // 148: contest.ContestService.ResolveSubmissionResultVisibility:output_type -> contest.ResolveSubmissionResultVisibilityResp
+	125, // [125:149] is the sub-list for method output_type
+	101, // [101:125] is the sub-list for method input_type
+	101, // [101:101] is the sub-list for extension type_name
+	101, // [101:101] is the sub-list for extension extendee
+	0,   // [0:101] is the sub-list for field type_name
 }
 
 func init() { file_proto_contest_proto_init() }
@@ -5480,8 +5659,8 @@ func file_proto_contest_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_contest_proto_rawDesc), len(file_proto_contest_proto_rawDesc)),
-			NumEnums:      10,
-			NumMessages:   64,
+			NumEnums:      11,
+			NumMessages:   66,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

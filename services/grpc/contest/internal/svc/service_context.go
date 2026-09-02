@@ -48,6 +48,7 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 		c.InternalAuth,
 		pb.ContestService_CanAccessProblem_FullMethodName,
 		pb.ContestService_ValidateContestSubmission_FullMethodName,
+		pb.ContestService_ResolveSubmissionResultVisibility_FullMethodName,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("configure internal authentication: %w", err)

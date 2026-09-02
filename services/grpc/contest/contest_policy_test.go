@@ -16,6 +16,7 @@ func TestContestMethodAuthentication(t *testing.T) {
 		{pb.ContestService_RegisterContest_FullMethodName, interceptor.AuthenticationRequired},
 		{pb.ContestService_CreateContest_FullMethodName, interceptor.AuthenticationRequired},
 		{pb.ContestService_CanAccessProblem_FullMethodName, interceptor.AuthenticationSkipped},
+		{pb.ContestService_ResolveSubmissionResultVisibility_FullMethodName, interceptor.AuthenticationSkipped},
 	}
 	for _, test := range tests {
 		if got := contestMethodAuthentication(test.method); got != test.want {
