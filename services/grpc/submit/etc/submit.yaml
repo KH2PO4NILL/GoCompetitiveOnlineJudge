@@ -5,6 +5,9 @@ Etcd:
   - 127.0.0.1:2379
   Key: submit.rpc
 
+Mysql:
+  DSN: "${SUBMIT_MYSQL_DSN}"
+
 Middlewares:
   StatConf:
     # These methods contain source code, compiler output, worker diagnostics,
