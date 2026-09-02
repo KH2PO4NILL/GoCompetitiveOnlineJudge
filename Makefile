@@ -122,6 +122,7 @@ tools-infra:
 		printf '%s\n' "CONTEST_MYSQL_DSN='go_coj:$$mysql_password@tcp(127.0.0.1:3307)/go_coj?charset=utf8mb4&parseTime=true&loc=UTC'"; \
 		printf '%s\n' "CONTEST_INTERNAL_PROBLEM_TOKEN=$$contest_problem_service_token"; \
 		printf '%s\n' "CONTEST_INTERNAL_SUBMIT_TOKEN=$$contest_submit_service_token"; \
+		printf '%s\n' "SUBMIT_MYSQL_DSN='go_coj:$$mysql_password@tcp(127.0.0.1:3307)/go_coj?charset=utf8mb4&parseTime=true&loc=UTC'"; \
 	} > .env
 	@echo 'Created .env with random local-development secrets.'
 

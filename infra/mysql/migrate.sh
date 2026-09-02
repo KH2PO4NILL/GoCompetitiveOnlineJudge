@@ -110,4 +110,22 @@ apply_migration \
         'contest_scoreboard_snapshot_problem_results'
     )"
 
+apply_migration \
+    'submit/001_create_submit.sql' \
+    '/migrations/submit/001_create_submit.sql' \
+    "SELECT COUNT(*) = 4 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN (
+        'submissions',
+        'submission_attempts',
+        'submission_case_results',
+        'submit_outbox_events'
+    )"
+
+apply_migration \
+    'submit/002_add_current_attempt_foreign_key.sql' \
+    '/migrations/submit/002_add_current_attempt_foreign_key.sql' \
+    "SELECT COUNT(*) = 1 FROM information_schema.table_constraints
+        WHERE constraint_schema = DATABASE()
+        AND table_name = 'submissions'
+        AND constraint_name = 'fk_submissions_current_attempt'"
+
 echo 'MySQL migrations are up to date.'
