@@ -35,6 +35,7 @@ InternalAuth:
     Token: "${CONTEST_INTERNAL_SUBMIT_TOKEN}"
     Methods:
     - /contest.ContestService/ValidateContestSubmission
+    - /contest.ContestService/ResolveSubmissionResultVisibility
 
 Mysql:
   DSN: "${CONTEST_MYSQL_DSN}"

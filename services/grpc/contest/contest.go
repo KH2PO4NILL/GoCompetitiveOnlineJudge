@@ -23,7 +23,8 @@ var configFile = flag.String("f", "etc/contest.yaml", "the config file")
 func contestMethodAuthentication(fullMethod string) interceptor.AuthenticationMode {
 	switch fullMethod {
 	case pb.ContestService_CanAccessProblem_FullMethodName,
-		pb.ContestService_ValidateContestSubmission_FullMethodName:
+		pb.ContestService_ValidateContestSubmission_FullMethodName,
+		pb.ContestService_ResolveSubmissionResultVisibility_FullMethodName:
 		return interceptor.AuthenticationSkipped
 	case pb.ContestService_ListContests_FullMethodName,
 		pb.ContestService_GetContest_FullMethodName,

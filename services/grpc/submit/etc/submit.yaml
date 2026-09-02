@@ -5,8 +5,72 @@ Etcd:
   - 127.0.0.1:2379
   Key: submit.rpc
 
+AuthRPC:
+  Etcd:
+    Hosts:
+    - 127.0.0.1:2379
+    Key: auth.rpc
+
+AuthRPCAuth:
+  Name: submit.rpc
+  Token: "${AUTH_INTERNAL_SUBMIT_TOKEN}"
+
+ProblemRPC:
+  Etcd:
+    Hosts:
+    - 127.0.0.1:2379
+    Key: problem.rpc
+
+ProblemRPCAuth:
+  Name: submit.rpc
+  Token: "${PROBLEM_INTERNAL_SUBMIT_TOKEN}"
+
+ContestRPC:
+  Etcd:
+    Hosts:
+    - 127.0.0.1:2379
+    Key: contest.rpc
+
+ContestRPCAuth:
+  Name: submit.rpc
+  Token: "${CONTEST_INTERNAL_SUBMIT_TOKEN}"
+
+InternalAuth:
+  Callers:
+  - Name: judge.worker
+    Token: "${SUBMIT_INTERNAL_JUDGE_TOKEN}"
+    Methods:
+    - /submit.SubmitService/AcquireJudgeTask
+    - /submit.SubmitService/HeartbeatJudgeTask
+    - /submit.SubmitService/ReportJudgeResult
+
 Mysql:
   DSN: "${SUBMIT_MYSQL_DSN}"
+
+RedisDB:
+  Addr: "127.0.0.1:6379"
+  Password: "${SUBMIT_REDIS_PASSWORD}"
+  DB: 0
+
+Limits:
+  MaxSourceCodeBytes: 4194304
+  MaxClientRequestBytes: 128
+  MaxPageSize: 100
+  MaxBatchRejudge: 100
+  MaxCaseResults: 20000
+  MaxCompileOutputBytes: 4194304
+  MaxJudgeMessageBytes: 1048576
+
+Lease:
+  DurationSeconds: 30
+  RecoveryIntervalSeconds: 5
+  RecoveryBatchSize: 100
+  RecoveryTimeoutSeconds: 5
+
+RateLimit:
+  Enabled: true
+  WindowSeconds: 60
+  MaxSubmissions: 30
 
 Middlewares:
   StatConf:

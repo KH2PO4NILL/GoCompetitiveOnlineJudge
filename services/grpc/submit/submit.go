@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/submit/internal/config"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/submit/internal/server"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/submit/internal/svc"
@@ -18,6 +19,17 @@ import (
 )
 
 var configFile = flag.String("f", "etc/submit.yaml", "the config file")
+
+func submitMethodAuthentication(fullMethod string) interceptor.AuthenticationMode {
+	switch fullMethod {
+	case pb.SubmitService_AcquireJudgeTask_FullMethodName,
+		pb.SubmitService_HeartbeatJudgeTask_FullMethodName,
+		pb.SubmitService_ReportJudgeResult_FullMethodName:
+		return interceptor.AuthenticationSkipped
+	default:
+		return interceptor.AuthenticationRequired
+	}
+}
 
 func main() {
 	flag.Parse()
@@ -41,6 +53,16 @@ func main() {
 			reflection.Register(grpcServer)
 		}
 	})
+	authenticator := interceptor.NewRPCAuthenticator(ctx.AuthClient, c.AuthRPCAuth)
+	servicePolicy := func(fullMethod string) []string { return ctx.InternalCallers[fullMethod] }
+	authInterceptors := interceptor.NewServerAuthInterceptors(
+		authenticator,
+		ctx.InternalCredentials,
+		servicePolicy,
+		interceptor.WithMethodAuthentication(submitMethodAuthentication),
+	)
+	s.AddUnaryInterceptors(authInterceptors.Unary...)
+	s.AddStreamInterceptors(authInterceptors.Stream...)
 	defer s.Stop()
 
 	fmt.Printf("Starting rpc server at %s...\n", c.ListenOn)

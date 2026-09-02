@@ -121,7 +121,7 @@ func TestSubmitModelWorkerLifecycleAndReportIdempotency(t *testing.T) {
 	}
 	heartbeat, err = repository.HeartbeatAttempt(ctx, HeartbeatAttemptInput{
 		WorkerID: workerID, SubmissionID: winner.SubmissionID, AttemptID: winner.AttemptID,
-		LeaseToken: winner.LeaseToken, CompletedTestCases: 1, TotalTestCases: 2, LeaseDuration: 5 * time.Minute,
+		LeaseToken: winner.LeaseToken, CompletedTestCases: 1, LeaseDuration: 5 * time.Minute,
 	})
 	if err != nil || heartbeat.CompletedTestCases != 1 {
 		t.Fatalf("HeartbeatAttempt() = %+v err=%v", heartbeat, err)
@@ -213,7 +213,7 @@ func TestSubmitModelRejudgeAndExpiredLeaseProtectCurrentAttempt(t *testing.T) {
 	}
 	if _, err := repository.HeartbeatAttempt(ctx, HeartbeatAttemptInput{
 		WorkerID: "worker", SubmissionID: created.Submission.SubmissionID, AttemptID: firstAttempt,
-		LeaseToken: lease.LeaseToken, CompletedTestCases: 0, TotalTestCases: 1, LeaseDuration: time.Minute,
+		LeaseToken: lease.LeaseToken, CompletedTestCases: 0, LeaseDuration: time.Minute,
 	}); !errors.Is(err, ErrStaleAttempt) {
 		t.Fatalf("old heartbeat error = %v", err)
 	}

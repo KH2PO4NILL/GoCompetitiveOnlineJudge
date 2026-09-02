@@ -140,3 +140,8 @@ func (s *ContestServiceServer) ValidateContestSubmission(ctx context.Context, in
 	l := logic.NewValidateContestSubmissionLogic(ctx, s.svcCtx)
 	return l.ValidateContestSubmission(in)
 }
+
+func (s *ContestServiceServer) ResolveSubmissionResultVisibility(ctx context.Context, in *pb.ResolveSubmissionResultVisibilityReq) (*pb.ResolveSubmissionResultVisibilityResp, error) {
+	l := logic.NewResolveSubmissionResultVisibilityLogic(ctx, s.svcCtx)
+	return l.ResolveSubmissionResultVisibility(in)
+}

@@ -64,3 +64,7 @@ InternalAuth:
     Token: "${AUTH_INTERNAL_CONTEST_TOKEN}"
     Methods:
     - /auth.AuthService/ValidateToken
+  - Name: submit.rpc
+    Token: "${AUTH_INTERNAL_SUBMIT_TOKEN}"
+    Methods:
+    - /auth.AuthService/ValidateToken

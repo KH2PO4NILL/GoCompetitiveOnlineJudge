@@ -68,6 +68,7 @@ const (
 // Its methods preserve submission, attempt, result and outbox invariants.
 type SubmitModel interface {
 	CreateSubmission(ctx context.Context, input CreateSubmissionInput) (*CreateSubmissionResult, error)
+	GetSubmissionByClientRequestID(ctx context.Context, userID int64, clientRequestID string) (*SubmissionAggregate, error)
 	GetSubmission(ctx context.Context, submissionID int64) (*SubmissionAggregate, error)
 	ListSubmissions(ctx context.Context, filter SubmissionListFilter) ([]SubmissionSummary, int64, error)
 

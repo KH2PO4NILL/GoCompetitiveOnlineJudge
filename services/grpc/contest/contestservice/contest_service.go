@@ -14,70 +14,72 @@ import (
 )
 
 type (
-	ArchiveContestReq             = pb.ArchiveContestReq
-	ArchiveContestResp            = pb.ArchiveContestResp
-	CanAccessProblemReq           = pb.CanAccessProblemReq
-	CanAccessProblemResp          = pb.CanAccessProblemResp
-	CancelContestReq              = pb.CancelContestReq
-	CancelContestResp             = pb.CancelContestResp
-	CancelRegistrationReq         = pb.CancelRegistrationReq
-	CancelRegistrationResp        = pb.CancelRegistrationResp
-	Contest                       = pb.Contest
-	ContestDetail                 = pb.ContestDetail
-	ContestEditableFields         = pb.ContestEditableFields
-	ContestParticipant            = pb.ContestParticipant
-	ContestProblem                = pb.ContestProblem
-	ContestProblemSummary         = pb.ContestProblemSummary
-	ContestRegistration           = pb.ContestRegistration
-	ContestSummary                = pb.ContestSummary
-	CreateContestReq              = pb.CreateContestReq
-	CreateContestResp             = pb.CreateContestResp
-	DeleteContestReq              = pb.DeleteContestReq
-	DeleteContestResp             = pb.DeleteContestResp
-	FreezeScoreboardReq           = pb.FreezeScoreboardReq
-	FreezeScoreboardResp          = pb.FreezeScoreboardResp
-	GetContestForEditReq          = pb.GetContestForEditReq
-	GetContestForEditResp         = pb.GetContestForEditResp
-	GetContestReq                 = pb.GetContestReq
-	GetContestResp                = pb.GetContestResp
-	GetMyContestStatusReq         = pb.GetMyContestStatusReq
-	GetMyContestStatusResp        = pb.GetMyContestStatusResp
-	GetScoreboardReq              = pb.GetScoreboardReq
-	GetScoreboardResp             = pb.GetScoreboardResp
-	IcpcProblemResult             = pb.IcpcProblemResult
-	IcpcScore                     = pb.IcpcScore
-	IoiProblemResult              = pb.IoiProblemResult
-	IoiScore                      = pb.IoiScore
-	ListContestProblemsReq        = pb.ListContestProblemsReq
-	ListContestProblemsResp       = pb.ListContestProblemsResp
-	ListContestsReq               = pb.ListContestsReq
-	ListContestsResp              = pb.ListContestsResp
-	ListParticipantsReq           = pb.ListParticipantsReq
-	ListParticipantsResp          = pb.ListParticipantsResp
-	ListRegistrationsReq          = pb.ListRegistrationsReq
-	ListRegistrationsResp         = pb.ListRegistrationsResp
-	MyContestStatus               = pb.MyContestStatus
-	OiProblemResult               = pb.OiProblemResult
-	OiScore                       = pb.OiScore
-	PublishContestReq             = pb.PublishContestReq
-	PublishContestResp            = pb.PublishContestResp
-	RegisterContestReq            = pb.RegisterContestReq
-	RegisterContestResp           = pb.RegisterContestResp
-	RestoreContestReq             = pb.RestoreContestReq
-	RestoreContestResp            = pb.RestoreContestResp
-	ReviewRegistrationReq         = pb.ReviewRegistrationReq
-	ReviewRegistrationResp        = pb.ReviewRegistrationResp
-	Scoreboard                    = pb.Scoreboard
-	ScoreboardProblemResult       = pb.ScoreboardProblemResult
-	ScoreboardRow                 = pb.ScoreboardRow
-	SetContestProblemsReq         = pb.SetContestProblemsReq
-	SetContestProblemsResp        = pb.SetContestProblemsResp
-	UnfreezeScoreboardReq         = pb.UnfreezeScoreboardReq
-	UnfreezeScoreboardResp        = pb.UnfreezeScoreboardResp
-	UpdateContestReq              = pb.UpdateContestReq
-	UpdateContestResp             = pb.UpdateContestResp
-	ValidateContestSubmissionReq  = pb.ValidateContestSubmissionReq
-	ValidateContestSubmissionResp = pb.ValidateContestSubmissionResp
+	ArchiveContestReq                     = pb.ArchiveContestReq
+	ArchiveContestResp                    = pb.ArchiveContestResp
+	CanAccessProblemReq                   = pb.CanAccessProblemReq
+	CanAccessProblemResp                  = pb.CanAccessProblemResp
+	CancelContestReq                      = pb.CancelContestReq
+	CancelContestResp                     = pb.CancelContestResp
+	CancelRegistrationReq                 = pb.CancelRegistrationReq
+	CancelRegistrationResp                = pb.CancelRegistrationResp
+	Contest                               = pb.Contest
+	ContestDetail                         = pb.ContestDetail
+	ContestEditableFields                 = pb.ContestEditableFields
+	ContestParticipant                    = pb.ContestParticipant
+	ContestProblem                        = pb.ContestProblem
+	ContestProblemSummary                 = pb.ContestProblemSummary
+	ContestRegistration                   = pb.ContestRegistration
+	ContestSummary                        = pb.ContestSummary
+	CreateContestReq                      = pb.CreateContestReq
+	CreateContestResp                     = pb.CreateContestResp
+	DeleteContestReq                      = pb.DeleteContestReq
+	DeleteContestResp                     = pb.DeleteContestResp
+	FreezeScoreboardReq                   = pb.FreezeScoreboardReq
+	FreezeScoreboardResp                  = pb.FreezeScoreboardResp
+	GetContestForEditReq                  = pb.GetContestForEditReq
+	GetContestForEditResp                 = pb.GetContestForEditResp
+	GetContestReq                         = pb.GetContestReq
+	GetContestResp                        = pb.GetContestResp
+	GetMyContestStatusReq                 = pb.GetMyContestStatusReq
+	GetMyContestStatusResp                = pb.GetMyContestStatusResp
+	GetScoreboardReq                      = pb.GetScoreboardReq
+	GetScoreboardResp                     = pb.GetScoreboardResp
+	IcpcProblemResult                     = pb.IcpcProblemResult
+	IcpcScore                             = pb.IcpcScore
+	IoiProblemResult                      = pb.IoiProblemResult
+	IoiScore                              = pb.IoiScore
+	ListContestProblemsReq                = pb.ListContestProblemsReq
+	ListContestProblemsResp               = pb.ListContestProblemsResp
+	ListContestsReq                       = pb.ListContestsReq
+	ListContestsResp                      = pb.ListContestsResp
+	ListParticipantsReq                   = pb.ListParticipantsReq
+	ListParticipantsResp                  = pb.ListParticipantsResp
+	ListRegistrationsReq                  = pb.ListRegistrationsReq
+	ListRegistrationsResp                 = pb.ListRegistrationsResp
+	MyContestStatus                       = pb.MyContestStatus
+	OiProblemResult                       = pb.OiProblemResult
+	OiScore                               = pb.OiScore
+	PublishContestReq                     = pb.PublishContestReq
+	PublishContestResp                    = pb.PublishContestResp
+	RegisterContestReq                    = pb.RegisterContestReq
+	RegisterContestResp                   = pb.RegisterContestResp
+	ResolveSubmissionResultVisibilityReq  = pb.ResolveSubmissionResultVisibilityReq
+	ResolveSubmissionResultVisibilityResp = pb.ResolveSubmissionResultVisibilityResp
+	RestoreContestReq                     = pb.RestoreContestReq
+	RestoreContestResp                    = pb.RestoreContestResp
+	ReviewRegistrationReq                 = pb.ReviewRegistrationReq
+	ReviewRegistrationResp                = pb.ReviewRegistrationResp
+	Scoreboard                            = pb.Scoreboard
+	ScoreboardProblemResult               = pb.ScoreboardProblemResult
+	ScoreboardRow                         = pb.ScoreboardRow
+	SetContestProblemsReq                 = pb.SetContestProblemsReq
+	SetContestProblemsResp                = pb.SetContestProblemsResp
+	UnfreezeScoreboardReq                 = pb.UnfreezeScoreboardReq
+	UnfreezeScoreboardResp                = pb.UnfreezeScoreboardResp
+	UpdateContestReq                      = pb.UpdateContestReq
+	UpdateContestResp                     = pb.UpdateContestResp
+	ValidateContestSubmissionReq          = pb.ValidateContestSubmissionReq
+	ValidateContestSubmissionResp         = pb.ValidateContestSubmissionResp
 
 	ContestService interface {
 		// 用户侧查询与自助操作。
@@ -106,6 +108,7 @@ type (
 		// 受信任内部服务接口。预期业务拒绝使用响应字段，系统故障使用 gRPC status。
 		CanAccessProblem(ctx context.Context, in *CanAccessProblemReq, opts ...grpc.CallOption) (*CanAccessProblemResp, error)
 		ValidateContestSubmission(ctx context.Context, in *ValidateContestSubmissionReq, opts ...grpc.CallOption) (*ValidateContestSubmissionResp, error)
+		ResolveSubmissionResultVisibility(ctx context.Context, in *ResolveSubmissionResultVisibilityReq, opts ...grpc.CallOption) (*ResolveSubmissionResultVisibilityResp, error)
 	}
 
 	defaultContestService struct {
@@ -235,4 +238,9 @@ func (m *defaultContestService) CanAccessProblem(ctx context.Context, in *CanAcc
 func (m *defaultContestService) ValidateContestSubmission(ctx context.Context, in *ValidateContestSubmissionReq, opts ...grpc.CallOption) (*ValidateContestSubmissionResp, error) {
 	client := pb.NewContestServiceClient(m.cli.Conn())
 	return client.ValidateContestSubmission(ctx, in, opts...)
+}
+
+func (m *defaultContestService) ResolveSubmissionResultVisibility(ctx context.Context, in *ResolveSubmissionResultVisibilityReq, opts ...grpc.CallOption) (*ResolveSubmissionResultVisibilityResp, error) {
+	client := pb.NewContestServiceClient(m.cli.Conn())
+	return client.ResolveSubmissionResultVisibility(ctx, in, opts...)
 }

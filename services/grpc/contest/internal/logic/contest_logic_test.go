@@ -307,6 +307,49 @@ func TestAllContestRPCLogicHappyPaths(t *testing.T) {
 	if !repository.lastAccessAt.Equal(now) {
 		t.Fatalf("submission access time = %v, want %v", repository.lastAccessAt, now)
 	}
+	if response, err := NewResolveSubmissionResultVisibilityLogic(contestService("submit.rpc"), svcCtx).
+		ResolveSubmissionResultVisibility(&pb.ResolveSubmissionResultVisibilityReq{
+			ContestId: 10, UserId: 7, ObservedAt: timestamppb.New(now),
+		}); err != nil || response.Visibility != pb.SubmissionResultVisibility_SUBMISSION_RESULT_VISIBILITY_FULL {
+		t.Fatalf("ResolveSubmissionResultVisibility() = (%+v, %v)", response, err)
+	}
+}
+
+func TestResolveSubmissionResultVisibilityKeepsOIHistoryUnlocked(t *testing.T) {
+	now := time.Date(2026, 8, 30, 4, 0, 0, 0, time.UTC)
+	repository, svcCtx := testContestFixture(now)
+	repository.contest.Editable.Mode = model.ContestModeOI
+	repository.contest.Editable.EndAt = now.Add(time.Hour)
+
+	request := &pb.ResolveSubmissionResultVisibilityReq{
+		ContestId: repository.contest.ContestID, UserId: 7, ObservedAt: timestamppb.New(now),
+	}
+	response, err := NewResolveSubmissionResultVisibilityLogic(contestService("submit.rpc"), svcCtx).
+		ResolveSubmissionResultVisibility(request)
+	if err != nil || response.Visibility != pb.SubmissionResultVisibility_SUBMISSION_RESULT_VISIBILITY_STATUS_ONLY {
+		t.Fatalf("running OI visibility = (%+v, %v)", response, err)
+	}
+
+	for _, statusValue := range []int64{
+		model.ContestStatusCancelled,
+		model.ContestStatusArchived,
+		model.ContestStatusDeleted,
+	} {
+		repository.contest.Status = statusValue
+		response, err = NewResolveSubmissionResultVisibilityLogic(contestService("submit.rpc"), svcCtx).
+			ResolveSubmissionResultVisibility(request)
+		if err != nil || response.Visibility != pb.SubmissionResultVisibility_SUBMISSION_RESULT_VISIBILITY_FULL {
+			t.Fatalf("OI visibility for lifecycle %d = (%+v, %v)", statusValue, response, err)
+		}
+	}
+
+	repository.contest.Status = model.ContestStatusPublished
+	request.ObservedAt = timestamppb.New(repository.contest.Editable.EndAt)
+	response, err = NewResolveSubmissionResultVisibilityLogic(contestService("submit.rpc"), svcCtx).
+		ResolveSubmissionResultVisibility(request)
+	if err != nil || response.Visibility != pb.SubmissionResultVisibility_SUBMISSION_RESULT_VISIBILITY_FULL {
+		t.Fatalf("finished OI visibility = (%+v, %v)", response, err)
+	}
 }
 
 func TestContestAuthorizationAndVisibilityBoundaries(t *testing.T) {
@@ -470,6 +513,11 @@ func TestAllContestRPCLogicRejectNilRequests(t *testing.T) {
 		}},
 		{"ValidateContestSubmission", func() error {
 			_, err := NewValidateContestSubmissionLogic(contestService("submit.rpc"), svcCtx).ValidateContestSubmission(nil)
+			return err
+		}},
+		{"ResolveSubmissionResultVisibility", func() error {
+			_, err := NewResolveSubmissionResultVisibilityLogic(contestService("submit.rpc"), svcCtx).
+				ResolveSubmissionResultVisibility(nil)
 			return err
 		}},
 	}

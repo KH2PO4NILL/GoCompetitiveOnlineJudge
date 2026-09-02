@@ -141,7 +141,6 @@ type HeartbeatAttemptInput struct {
 	AttemptID          int64
 	LeaseToken         string
 	CompletedTestCases int32
-	TotalTestCases     int32
 	LeaseDuration      time.Duration
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -80,6 +81,31 @@ func (m *defaultSubmitModel) GetSubmission(ctx context.Context, submissionID int
 			return err
 		}
 		result, err = getSubmissionAggregateTx(tx, row)
+		return err
+	})
+	return result, err
+}
+
+func (m *defaultSubmitModel) GetSubmissionByClientRequestID(
+	ctx context.Context,
+	userID int64,
+	clientRequestID string,
+) (*SubmissionAggregate, error) {
+	clientRequestID = strings.TrimSpace(clientRequestID)
+	if userID <= 0 || clientRequestID == "" || len(clientRequestID) > 128 || !validASCII(clientRequestID) {
+		return nil, fmt.Errorf("%w: invalid client request lookup", ErrInvalidSubmissionInput)
+	}
+	var result *SubmissionAggregate
+	err := m.withReadTransaction(ctx, func(tx *gorm.DB) error {
+		var row submissionRow
+		if err := tx.Where("user_id = ? AND client_request_id = ?", userID, clientRequestID).Take(&row).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return ErrSubmissionNotFound
+			}
+			return normalizeDatabaseError(err)
+		}
+		var err error
+		result, err = getSubmissionAggregateTx(tx, &row)
 		return err
 	})
 	return result, err
