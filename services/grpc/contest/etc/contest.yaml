@@ -37,6 +37,15 @@ InternalAuth:
     - /contest.ContestService/ValidateContestSubmission
     - /contest.ContestService/ResolveSubmissionResultVisibility
 
+Middlewares:
+  StatConf:
+    # 邀请码和报名审核备注属于敏感内容，禁止写入 RPC 请求日志。
+    IgnoreContentMethods:
+    - /contest.ContestService/CreateContest
+    - /contest.ContestService/UpdateContest
+    - /contest.ContestService/RegisterContest
+    - /contest.ContestService/ReviewRegistration
+
 Mysql:
   DSN: "${CONTEST_MYSQL_DSN}"
 

@@ -26,6 +26,7 @@ const (
 	ContestService_GetMyContestStatus_FullMethodName                = "/contest.ContestService/GetMyContestStatus"
 	ContestService_ListContestProblems_FullMethodName               = "/contest.ContestService/ListContestProblems"
 	ContestService_GetScoreboard_FullMethodName                     = "/contest.ContestService/GetScoreboard"
+	ContestService_ListContestsForManagement_FullMethodName         = "/contest.ContestService/ListContestsForManagement"
 	ContestService_CreateContest_FullMethodName                     = "/contest.ContestService/CreateContest"
 	ContestService_GetContestForEdit_FullMethodName                 = "/contest.ContestService/GetContestForEdit"
 	ContestService_UpdateContest_FullMethodName                     = "/contest.ContestService/UpdateContest"
@@ -69,6 +70,8 @@ type ContestServiceClient interface {
 	GetScoreboard(ctx context.Context, in *GetScoreboardReq, opts ...grpc.CallOption) (*GetScoreboardResp, error)
 	// 创建者与管理员接口。发布前必须校验必填字段；比赛开始后不可修改赛制、时间和题目
 	// 编排。封榜/解封榜仅适用于已发布的 ICPC 比赛。
+	// 仅管理员可调用；独立于公开列表，可返回草稿、私有、归档和已删除比赛。
+	ListContestsForManagement(ctx context.Context, in *ListContestsReq, opts ...grpc.CallOption) (*ListContestsResp, error)
 	CreateContest(ctx context.Context, in *CreateContestReq, opts ...grpc.CallOption) (*CreateContestResp, error)
 	GetContestForEdit(ctx context.Context, in *GetContestForEditReq, opts ...grpc.CallOption) (*GetContestForEditResp, error)
 	UpdateContest(ctx context.Context, in *UpdateContestReq, opts ...grpc.CallOption) (*UpdateContestResp, error)
@@ -161,6 +164,16 @@ func (c *contestServiceClient) GetScoreboard(ctx context.Context, in *GetScorebo
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetScoreboardResp)
 	err := c.cc.Invoke(ctx, ContestService_GetScoreboard_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *contestServiceClient) ListContestsForManagement(ctx context.Context, in *ListContestsReq, opts ...grpc.CallOption) (*ListContestsResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListContestsResp)
+	err := c.cc.Invoke(ctx, ContestService_ListContestsForManagement_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -361,6 +374,8 @@ type ContestServiceServer interface {
 	GetScoreboard(context.Context, *GetScoreboardReq) (*GetScoreboardResp, error)
 	// 创建者与管理员接口。发布前必须校验必填字段；比赛开始后不可修改赛制、时间和题目
 	// 编排。封榜/解封榜仅适用于已发布的 ICPC 比赛。
+	// 仅管理员可调用；独立于公开列表，可返回草稿、私有、归档和已删除比赛。
+	ListContestsForManagement(context.Context, *ListContestsReq) (*ListContestsResp, error)
 	CreateContest(context.Context, *CreateContestReq) (*CreateContestResp, error)
 	GetContestForEdit(context.Context, *GetContestForEditReq) (*GetContestForEditResp, error)
 	UpdateContest(context.Context, *UpdateContestReq) (*UpdateContestResp, error)
@@ -409,6 +424,9 @@ func (UnimplementedContestServiceServer) ListContestProblems(context.Context, *L
 }
 func (UnimplementedContestServiceServer) GetScoreboard(context.Context, *GetScoreboardReq) (*GetScoreboardResp, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetScoreboard not implemented")
+}
+func (UnimplementedContestServiceServer) ListContestsForManagement(context.Context, *ListContestsReq) (*ListContestsResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListContestsForManagement not implemented")
 }
 func (UnimplementedContestServiceServer) CreateContest(context.Context, *CreateContestReq) (*CreateContestResp, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateContest not implemented")
@@ -604,6 +622,24 @@ func _ContestService_GetScoreboard_Handler(srv interface{}, ctx context.Context,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ContestServiceServer).GetScoreboard(ctx, req.(*GetScoreboardReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ContestService_ListContestsForManagement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListContestsReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ContestServiceServer).ListContestsForManagement(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ContestService_ListContestsForManagement_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ContestServiceServer).ListContestsForManagement(ctx, req.(*ListContestsReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -948,6 +984,10 @@ var ContestService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetScoreboard",
 			Handler:    _ContestService_GetScoreboard_Handler,
+		},
+		{
+			MethodName: "ListContestsForManagement",
+			Handler:    _ContestService_ListContestsForManagement_Handler,
 		},
 		{
 			MethodName: "CreateContest",

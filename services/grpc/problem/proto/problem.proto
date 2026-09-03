@@ -300,6 +300,8 @@ service ProblemService {
     rpc ListProblems(ListProblemsReq) returns (ListProblemsResp);
 
     // 出题人或管理员接口，权限必须由 gRPC metadata 中的鉴权信息决定。
+    // 仅管理员可调用；与公开列表分开，允许在不附加状态筛选时查询全部题目。
+    rpc ListProblemsForManagement(ListProblemsReq) returns (ListProblemsResp);
     rpc CreateProblem(CreateProblemReq) returns (CreateProblemResp);
     rpc GetProblemForEdit(GetProblemForEditReq) returns (GetProblemForEditResp);
     rpc UpdateProblem(UpdateProblemReq) returns (UpdateProblemResp);

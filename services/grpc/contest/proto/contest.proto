@@ -607,6 +607,8 @@ service ContestService {
 
   // 创建者与管理员接口。发布前必须校验必填字段；比赛开始后不可修改赛制、时间和题目
   // 编排。封榜/解封榜仅适用于已发布的 ICPC 比赛。
+  // 仅管理员可调用；独立于公开列表，可返回草稿、私有、归档和已删除比赛。
+  rpc ListContestsForManagement(ListContestsReq) returns (ListContestsResp);
   rpc CreateContest(CreateContestReq) returns (CreateContestResp);
   rpc GetContestForEdit(GetContestForEditReq) returns (GetContestForEditResp);
   rpc UpdateContest(UpdateContestReq) returns (UpdateContestResp);

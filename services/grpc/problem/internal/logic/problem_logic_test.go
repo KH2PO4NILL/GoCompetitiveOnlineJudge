@@ -231,6 +231,34 @@ func TestListProblemsSeparatesPublicAndManagementQueries(t *testing.T) {
 	}
 }
 
+func TestListProblemsForManagementAllowsUnfilteredAdminQuery(t *testing.T) {
+	now := time.Now().UTC()
+	repository := &logicProblemModel{
+		listManagementFn: func(_ context.Context, filter model.ProblemListFilter) ([]model.ProblemSummary, int64, error) {
+			if filter.Status != nil || filter.Visibility != nil || filter.AuthorID != nil {
+				t.Fatalf("unfiltered management query received filters: %+v", filter)
+			}
+			return []model.ProblemSummary{{ProblemID: 2, Title: "Draft", UpdatedAt: now}}, 1, nil
+		},
+	}
+	logic := NewListProblemsForManagementLogic(
+		principalContext(1, authpb.UserRole_USER_ROLE_ADMIN),
+		&svc.ServiceContext{ProblemModel: repository},
+	)
+	response, err := logic.ListProblemsForManagement(&pb.ListProblemsReq{})
+	if err != nil || response.Total != 1 || len(response.Problems) != 1 {
+		t.Fatalf("ListProblemsForManagement() = (%+v, %v)", response, err)
+	}
+
+	userLogic := NewListProblemsForManagementLogic(
+		principalContext(2, authpb.UserRole_USER_ROLE_USER),
+		&svc.ServiceContext{ProblemModel: repository},
+	)
+	if _, err := userLogic.ListProblemsForManagement(&pb.ListProblemsReq{}); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("user ListProblemsForManagement() code = %s, want %s", status.Code(err), codes.PermissionDenied)
+	}
+}
+
 func TestBatchGetProblemsRequiresTrustedServiceAndOmitsMissing(t *testing.T) {
 	summary := &model.ProblemSummary{ProblemID: 2, Title: "Two", UpdatedAt: time.Now().UTC()}
 	repository := &logicProblemModel{batchFn: func(context.Context, []int64) ([]*model.ProblemSummary, error) {

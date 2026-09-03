@@ -91,6 +91,7 @@ type (
 		ListContestProblems(ctx context.Context, in *ListContestProblemsReq, opts ...grpc.CallOption) (*ListContestProblemsResp, error)
 		GetScoreboard(ctx context.Context, in *GetScoreboardReq, opts ...grpc.CallOption) (*GetScoreboardResp, error)
 		// 创建者与管理员接口。发布前必须校验必填字段；比赛开始后不可修改赛制、时间和题目
+		ListContestsForManagement(ctx context.Context, in *ListContestsReq, opts ...grpc.CallOption) (*ListContestsResp, error)
 		CreateContest(ctx context.Context, in *CreateContestReq, opts ...grpc.CallOption) (*CreateContestResp, error)
 		GetContestForEdit(ctx context.Context, in *GetContestForEditReq, opts ...grpc.CallOption) (*GetContestForEditResp, error)
 		UpdateContest(ctx context.Context, in *UpdateContestReq, opts ...grpc.CallOption) (*UpdateContestResp, error)
@@ -159,6 +160,11 @@ func (m *defaultContestService) GetScoreboard(ctx context.Context, in *GetScoreb
 }
 
 // 创建者与管理员接口。发布前必须校验必填字段；比赛开始后不可修改赛制、时间和题目
+func (m *defaultContestService) ListContestsForManagement(ctx context.Context, in *ListContestsReq, opts ...grpc.CallOption) (*ListContestsResp, error) {
+	client := pb.NewContestServiceClient(m.cli.Conn())
+	return client.ListContestsForManagement(ctx, in, opts...)
+}
+
 func (m *defaultContestService) CreateContest(ctx context.Context, in *CreateContestReq, opts ...grpc.CallOption) (*CreateContestResp, error) {
 	client := pb.NewContestServiceClient(m.cli.Conn())
 	return client.CreateContest(ctx, in, opts...)

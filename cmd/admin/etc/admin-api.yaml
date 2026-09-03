@@ -1,0 +1,30 @@
+Name: admin-api
+Host: 0.0.0.0
+Port: 8001
+MaxBytes: 8388608
+# SendEmailCode 可能包含 SMTP/DNS/TLS 延迟，HTTP 超时需覆盖下游 RPC 的 20s 上限。
+Timeout: 25000
+
+AuthRPC:
+  Etcd:
+    Hosts:
+    - 127.0.0.1:2379
+    Key: auth.rpc
+
+ProblemRPC:
+  Etcd:
+    Hosts:
+    - 127.0.0.1:2379
+    Key: problem.rpc
+
+ContestRPC:
+  Etcd:
+    Hosts:
+    - 127.0.0.1:2379
+    Key: contest.rpc
+
+SubmitRPC:
+  Etcd:
+    Hosts:
+    - 127.0.0.1:2379
+    Key: submit.rpc

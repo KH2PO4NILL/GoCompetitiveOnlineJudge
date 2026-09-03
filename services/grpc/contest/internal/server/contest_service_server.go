@@ -60,6 +60,11 @@ func (s *ContestServiceServer) GetScoreboard(ctx context.Context, in *pb.GetScor
 }
 
 // 创建者与管理员接口。发布前必须校验必填字段；比赛开始后不可修改赛制、时间和题目
+func (s *ContestServiceServer) ListContestsForManagement(ctx context.Context, in *pb.ListContestsReq) (*pb.ListContestsResp, error) {
+	l := logic.NewListContestsForManagementLogic(ctx, s.svcCtx)
+	return l.ListContestsForManagement(in)
+}
+
 func (s *ContestServiceServer) CreateContest(ctx context.Context, in *pb.CreateContestReq) (*pb.CreateContestResp, error) {
 	l := logic.NewCreateContestLogic(ctx, s.svcCtx)
 	return l.CreateContest(in)

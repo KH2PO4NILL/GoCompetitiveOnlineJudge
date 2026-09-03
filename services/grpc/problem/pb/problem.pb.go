@@ -2753,11 +2753,12 @@ const file_proto_problem_proto_rawDesc = "" +
 	"\x18CHECKER_TYPE_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15CHECKER_TYPE_STANDARD\x10\x01\x12\x1e\n" +
 	"\x1aCHECKER_TYPE_SPECIAL_JUDGE\x10\x02\x12\x1c\n" +
-	"\x18CHECKER_TYPE_INTERACTIVE\x10\x032\x8c\b\n" +
+	"\x18CHECKER_TYPE_INTERACTIVE\x10\x032\xde\b\n" +
 	"\x0eProblemService\x12=\n" +
 	"\n" +
 	"GetProblem\x12\x16.problem.GetProblemReq\x1a\x17.problem.GetProblemResp\x12C\n" +
-	"\fListProblems\x12\x18.problem.ListProblemsReq\x1a\x19.problem.ListProblemsResp\x12F\n" +
+	"\fListProblems\x12\x18.problem.ListProblemsReq\x1a\x19.problem.ListProblemsResp\x12P\n" +
+	"\x19ListProblemsForManagement\x12\x18.problem.ListProblemsReq\x1a\x19.problem.ListProblemsResp\x12F\n" +
 	"\rCreateProblem\x12\x19.problem.CreateProblemReq\x1a\x1a.problem.CreateProblemResp\x12R\n" +
 	"\x11GetProblemForEdit\x12\x1d.problem.GetProblemForEditReq\x1a\x1e.problem.GetProblemForEditResp\x12F\n" +
 	"\rUpdateProblem\x12\x19.problem.UpdateProblemReq\x1a\x1a.problem.UpdateProblemResp\x12I\n" +
@@ -2876,32 +2877,34 @@ var file_proto_problem_proto_depIdxs = []int32{
 	14, // 43: problem.GetJudgeProblemSpecResp.spec:type_name -> problem.JudgeProblemSpec
 	15, // 44: problem.ProblemService.GetProblem:input_type -> problem.GetProblemReq
 	17, // 45: problem.ProblemService.ListProblems:input_type -> problem.ListProblemsReq
-	19, // 46: problem.ProblemService.CreateProblem:input_type -> problem.CreateProblemReq
-	21, // 47: problem.ProblemService.GetProblemForEdit:input_type -> problem.GetProblemForEditReq
-	23, // 48: problem.ProblemService.UpdateProblem:input_type -> problem.UpdateProblemReq
-	25, // 49: problem.ProblemService.PublishProblem:input_type -> problem.PublishProblemReq
-	27, // 50: problem.ProblemService.ArchiveProblem:input_type -> problem.ArchiveProblemReq
-	29, // 51: problem.ProblemService.DeleteProblem:input_type -> problem.DeleteProblemReq
-	31, // 52: problem.ProblemService.RestoreProblem:input_type -> problem.RestoreProblemReq
-	33, // 53: problem.ProblemService.CreateTestDataUpload:input_type -> problem.CreateTestDataUploadReq
-	35, // 54: problem.ProblemService.FinalizeTestDataUpload:input_type -> problem.FinalizeTestDataUploadReq
-	37, // 55: problem.ProblemService.BatchGetProblems:input_type -> problem.BatchGetProblemsReq
-	39, // 56: problem.ProblemService.GetJudgeProblemSpec:input_type -> problem.GetJudgeProblemSpecReq
-	16, // 57: problem.ProblemService.GetProblem:output_type -> problem.GetProblemResp
-	18, // 58: problem.ProblemService.ListProblems:output_type -> problem.ListProblemsResp
-	20, // 59: problem.ProblemService.CreateProblem:output_type -> problem.CreateProblemResp
-	22, // 60: problem.ProblemService.GetProblemForEdit:output_type -> problem.GetProblemForEditResp
-	24, // 61: problem.ProblemService.UpdateProblem:output_type -> problem.UpdateProblemResp
-	26, // 62: problem.ProblemService.PublishProblem:output_type -> problem.PublishProblemResp
-	28, // 63: problem.ProblemService.ArchiveProblem:output_type -> problem.ArchiveProblemResp
-	30, // 64: problem.ProblemService.DeleteProblem:output_type -> problem.DeleteProblemResp
-	32, // 65: problem.ProblemService.RestoreProblem:output_type -> problem.RestoreProblemResp
-	34, // 66: problem.ProblemService.CreateTestDataUpload:output_type -> problem.CreateTestDataUploadResp
-	36, // 67: problem.ProblemService.FinalizeTestDataUpload:output_type -> problem.FinalizeTestDataUploadResp
-	38, // 68: problem.ProblemService.BatchGetProblems:output_type -> problem.BatchGetProblemsResp
-	40, // 69: problem.ProblemService.GetJudgeProblemSpec:output_type -> problem.GetJudgeProblemSpecResp
-	57, // [57:70] is the sub-list for method output_type
-	44, // [44:57] is the sub-list for method input_type
+	17, // 46: problem.ProblemService.ListProblemsForManagement:input_type -> problem.ListProblemsReq
+	19, // 47: problem.ProblemService.CreateProblem:input_type -> problem.CreateProblemReq
+	21, // 48: problem.ProblemService.GetProblemForEdit:input_type -> problem.GetProblemForEditReq
+	23, // 49: problem.ProblemService.UpdateProblem:input_type -> problem.UpdateProblemReq
+	25, // 50: problem.ProblemService.PublishProblem:input_type -> problem.PublishProblemReq
+	27, // 51: problem.ProblemService.ArchiveProblem:input_type -> problem.ArchiveProblemReq
+	29, // 52: problem.ProblemService.DeleteProblem:input_type -> problem.DeleteProblemReq
+	31, // 53: problem.ProblemService.RestoreProblem:input_type -> problem.RestoreProblemReq
+	33, // 54: problem.ProblemService.CreateTestDataUpload:input_type -> problem.CreateTestDataUploadReq
+	35, // 55: problem.ProblemService.FinalizeTestDataUpload:input_type -> problem.FinalizeTestDataUploadReq
+	37, // 56: problem.ProblemService.BatchGetProblems:input_type -> problem.BatchGetProblemsReq
+	39, // 57: problem.ProblemService.GetJudgeProblemSpec:input_type -> problem.GetJudgeProblemSpecReq
+	16, // 58: problem.ProblemService.GetProblem:output_type -> problem.GetProblemResp
+	18, // 59: problem.ProblemService.ListProblems:output_type -> problem.ListProblemsResp
+	18, // 60: problem.ProblemService.ListProblemsForManagement:output_type -> problem.ListProblemsResp
+	20, // 61: problem.ProblemService.CreateProblem:output_type -> problem.CreateProblemResp
+	22, // 62: problem.ProblemService.GetProblemForEdit:output_type -> problem.GetProblemForEditResp
+	24, // 63: problem.ProblemService.UpdateProblem:output_type -> problem.UpdateProblemResp
+	26, // 64: problem.ProblemService.PublishProblem:output_type -> problem.PublishProblemResp
+	28, // 65: problem.ProblemService.ArchiveProblem:output_type -> problem.ArchiveProblemResp
+	30, // 66: problem.ProblemService.DeleteProblem:output_type -> problem.DeleteProblemResp
+	32, // 67: problem.ProblemService.RestoreProblem:output_type -> problem.RestoreProblemResp
+	34, // 68: problem.ProblemService.CreateTestDataUpload:output_type -> problem.CreateTestDataUploadResp
+	36, // 69: problem.ProblemService.FinalizeTestDataUpload:output_type -> problem.FinalizeTestDataUploadResp
+	38, // 70: problem.ProblemService.BatchGetProblems:output_type -> problem.BatchGetProblemsResp
+	40, // 71: problem.ProblemService.GetJudgeProblemSpec:output_type -> problem.GetJudgeProblemSpecResp
+	58, // [58:72] is the sub-list for method output_type
+	44, // [44:58] is the sub-list for method input_type
 	44, // [44:44] is the sub-list for extension type_name
 	44, // [44:44] is the sub-list for extension extendee
 	0,  // [0:44] is the sub-list for field type_name

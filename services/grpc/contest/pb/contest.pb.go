@@ -5354,7 +5354,7 @@ const file_proto_contest_proto_rawDesc = "" +
 	"\x1aSubmissionResultVisibility\x12,\n" +
 	"(SUBMISSION_RESULT_VISIBILITY_UNSPECIFIED\x10\x00\x12,\n" +
 	"(SUBMISSION_RESULT_VISIBILITY_STATUS_ONLY\x10\x01\x12%\n" +
-	"!SUBMISSION_RESULT_VISIBILITY_FULL\x10\x022\xc4\x0f\n" +
+	"!SUBMISSION_RESULT_VISIBILITY_FULL\x10\x022\x96\x10\n" +
 	"\x0eContestService\x12C\n" +
 	"\fListContests\x12\x18.contest.ListContestsReq\x1a\x19.contest.ListContestsResp\x12=\n" +
 	"\n" +
@@ -5363,7 +5363,8 @@ const file_proto_contest_proto_rawDesc = "" +
 	"\x12CancelRegistration\x12\x1e.contest.CancelRegistrationReq\x1a\x1f.contest.CancelRegistrationResp\x12U\n" +
 	"\x12GetMyContestStatus\x12\x1e.contest.GetMyContestStatusReq\x1a\x1f.contest.GetMyContestStatusResp\x12X\n" +
 	"\x13ListContestProblems\x12\x1f.contest.ListContestProblemsReq\x1a .contest.ListContestProblemsResp\x12F\n" +
-	"\rGetScoreboard\x12\x19.contest.GetScoreboardReq\x1a\x1a.contest.GetScoreboardResp\x12F\n" +
+	"\rGetScoreboard\x12\x19.contest.GetScoreboardReq\x1a\x1a.contest.GetScoreboardResp\x12P\n" +
+	"\x19ListContestsForManagement\x12\x18.contest.ListContestsReq\x1a\x19.contest.ListContestsResp\x12F\n" +
 	"\rCreateContest\x12\x19.contest.CreateContestReq\x1a\x1a.contest.CreateContestResp\x12R\n" +
 	"\x11GetContestForEdit\x12\x1d.contest.GetContestForEditReq\x1a\x1e.contest.GetContestForEditResp\x12F\n" +
 	"\rUpdateContest\x12\x19.contest.UpdateContestReq\x1a\x1a.contest.UpdateContestResp\x12I\n" +
@@ -5587,49 +5588,51 @@ var file_proto_contest_proto_depIdxs = []int32{
 	37,  // 105: contest.ContestService.GetMyContestStatus:input_type -> contest.GetMyContestStatusReq
 	39,  // 106: contest.ContestService.ListContestProblems:input_type -> contest.ListContestProblemsReq
 	41,  // 107: contest.ContestService.GetScoreboard:input_type -> contest.GetScoreboardReq
-	43,  // 108: contest.ContestService.CreateContest:input_type -> contest.CreateContestReq
-	45,  // 109: contest.ContestService.GetContestForEdit:input_type -> contest.GetContestForEditReq
-	47,  // 110: contest.ContestService.UpdateContest:input_type -> contest.UpdateContestReq
-	49,  // 111: contest.ContestService.PublishContest:input_type -> contest.PublishContestReq
-	51,  // 112: contest.ContestService.CancelContest:input_type -> contest.CancelContestReq
-	53,  // 113: contest.ContestService.ArchiveContest:input_type -> contest.ArchiveContestReq
-	55,  // 114: contest.ContestService.DeleteContest:input_type -> contest.DeleteContestReq
-	57,  // 115: contest.ContestService.RestoreContest:input_type -> contest.RestoreContestReq
-	59,  // 116: contest.ContestService.SetContestProblems:input_type -> contest.SetContestProblemsReq
-	61,  // 117: contest.ContestService.ListRegistrations:input_type -> contest.ListRegistrationsReq
-	63,  // 118: contest.ContestService.ReviewRegistration:input_type -> contest.ReviewRegistrationReq
-	65,  // 119: contest.ContestService.ListParticipants:input_type -> contest.ListParticipantsReq
-	67,  // 120: contest.ContestService.FreezeScoreboard:input_type -> contest.FreezeScoreboardReq
-	69,  // 121: contest.ContestService.UnfreezeScoreboard:input_type -> contest.UnfreezeScoreboardReq
-	71,  // 122: contest.ContestService.CanAccessProblem:input_type -> contest.CanAccessProblemReq
-	73,  // 123: contest.ContestService.ValidateContestSubmission:input_type -> contest.ValidateContestSubmissionReq
-	75,  // 124: contest.ContestService.ResolveSubmissionResultVisibility:input_type -> contest.ResolveSubmissionResultVisibilityReq
-	30,  // 125: contest.ContestService.ListContests:output_type -> contest.ListContestsResp
-	32,  // 126: contest.ContestService.GetContest:output_type -> contest.GetContestResp
-	34,  // 127: contest.ContestService.RegisterContest:output_type -> contest.RegisterContestResp
-	36,  // 128: contest.ContestService.CancelRegistration:output_type -> contest.CancelRegistrationResp
-	38,  // 129: contest.ContestService.GetMyContestStatus:output_type -> contest.GetMyContestStatusResp
-	40,  // 130: contest.ContestService.ListContestProblems:output_type -> contest.ListContestProblemsResp
-	42,  // 131: contest.ContestService.GetScoreboard:output_type -> contest.GetScoreboardResp
-	44,  // 132: contest.ContestService.CreateContest:output_type -> contest.CreateContestResp
-	46,  // 133: contest.ContestService.GetContestForEdit:output_type -> contest.GetContestForEditResp
-	48,  // 134: contest.ContestService.UpdateContest:output_type -> contest.UpdateContestResp
-	50,  // 135: contest.ContestService.PublishContest:output_type -> contest.PublishContestResp
-	52,  // 136: contest.ContestService.CancelContest:output_type -> contest.CancelContestResp
-	54,  // 137: contest.ContestService.ArchiveContest:output_type -> contest.ArchiveContestResp
-	56,  // 138: contest.ContestService.DeleteContest:output_type -> contest.DeleteContestResp
-	58,  // 139: contest.ContestService.RestoreContest:output_type -> contest.RestoreContestResp
-	60,  // 140: contest.ContestService.SetContestProblems:output_type -> contest.SetContestProblemsResp
-	62,  // 141: contest.ContestService.ListRegistrations:output_type -> contest.ListRegistrationsResp
-	64,  // 142: contest.ContestService.ReviewRegistration:output_type -> contest.ReviewRegistrationResp
-	66,  // 143: contest.ContestService.ListParticipants:output_type -> contest.ListParticipantsResp
-	68,  // 144: contest.ContestService.FreezeScoreboard:output_type -> contest.FreezeScoreboardResp
-	70,  // 145: contest.ContestService.UnfreezeScoreboard:output_type -> contest.UnfreezeScoreboardResp
-	72,  // 146: contest.ContestService.CanAccessProblem:output_type -> contest.CanAccessProblemResp
-	74,  // 147: contest.ContestService.ValidateContestSubmission:output_type -> contest.ValidateContestSubmissionResp
-	76,  // 148: contest.ContestService.ResolveSubmissionResultVisibility:output_type -> contest.ResolveSubmissionResultVisibilityResp
-	125, // [125:149] is the sub-list for method output_type
-	101, // [101:125] is the sub-list for method input_type
+	29,  // 108: contest.ContestService.ListContestsForManagement:input_type -> contest.ListContestsReq
+	43,  // 109: contest.ContestService.CreateContest:input_type -> contest.CreateContestReq
+	45,  // 110: contest.ContestService.GetContestForEdit:input_type -> contest.GetContestForEditReq
+	47,  // 111: contest.ContestService.UpdateContest:input_type -> contest.UpdateContestReq
+	49,  // 112: contest.ContestService.PublishContest:input_type -> contest.PublishContestReq
+	51,  // 113: contest.ContestService.CancelContest:input_type -> contest.CancelContestReq
+	53,  // 114: contest.ContestService.ArchiveContest:input_type -> contest.ArchiveContestReq
+	55,  // 115: contest.ContestService.DeleteContest:input_type -> contest.DeleteContestReq
+	57,  // 116: contest.ContestService.RestoreContest:input_type -> contest.RestoreContestReq
+	59,  // 117: contest.ContestService.SetContestProblems:input_type -> contest.SetContestProblemsReq
+	61,  // 118: contest.ContestService.ListRegistrations:input_type -> contest.ListRegistrationsReq
+	63,  // 119: contest.ContestService.ReviewRegistration:input_type -> contest.ReviewRegistrationReq
+	65,  // 120: contest.ContestService.ListParticipants:input_type -> contest.ListParticipantsReq
+	67,  // 121: contest.ContestService.FreezeScoreboard:input_type -> contest.FreezeScoreboardReq
+	69,  // 122: contest.ContestService.UnfreezeScoreboard:input_type -> contest.UnfreezeScoreboardReq
+	71,  // 123: contest.ContestService.CanAccessProblem:input_type -> contest.CanAccessProblemReq
+	73,  // 124: contest.ContestService.ValidateContestSubmission:input_type -> contest.ValidateContestSubmissionReq
+	75,  // 125: contest.ContestService.ResolveSubmissionResultVisibility:input_type -> contest.ResolveSubmissionResultVisibilityReq
+	30,  // 126: contest.ContestService.ListContests:output_type -> contest.ListContestsResp
+	32,  // 127: contest.ContestService.GetContest:output_type -> contest.GetContestResp
+	34,  // 128: contest.ContestService.RegisterContest:output_type -> contest.RegisterContestResp
+	36,  // 129: contest.ContestService.CancelRegistration:output_type -> contest.CancelRegistrationResp
+	38,  // 130: contest.ContestService.GetMyContestStatus:output_type -> contest.GetMyContestStatusResp
+	40,  // 131: contest.ContestService.ListContestProblems:output_type -> contest.ListContestProblemsResp
+	42,  // 132: contest.ContestService.GetScoreboard:output_type -> contest.GetScoreboardResp
+	30,  // 133: contest.ContestService.ListContestsForManagement:output_type -> contest.ListContestsResp
+	44,  // 134: contest.ContestService.CreateContest:output_type -> contest.CreateContestResp
+	46,  // 135: contest.ContestService.GetContestForEdit:output_type -> contest.GetContestForEditResp
+	48,  // 136: contest.ContestService.UpdateContest:output_type -> contest.UpdateContestResp
+	50,  // 137: contest.ContestService.PublishContest:output_type -> contest.PublishContestResp
+	52,  // 138: contest.ContestService.CancelContest:output_type -> contest.CancelContestResp
+	54,  // 139: contest.ContestService.ArchiveContest:output_type -> contest.ArchiveContestResp
+	56,  // 140: contest.ContestService.DeleteContest:output_type -> contest.DeleteContestResp
+	58,  // 141: contest.ContestService.RestoreContest:output_type -> contest.RestoreContestResp
+	60,  // 142: contest.ContestService.SetContestProblems:output_type -> contest.SetContestProblemsResp
+	62,  // 143: contest.ContestService.ListRegistrations:output_type -> contest.ListRegistrationsResp
+	64,  // 144: contest.ContestService.ReviewRegistration:output_type -> contest.ReviewRegistrationResp
+	66,  // 145: contest.ContestService.ListParticipants:output_type -> contest.ListParticipantsResp
+	68,  // 146: contest.ContestService.FreezeScoreboard:output_type -> contest.FreezeScoreboardResp
+	70,  // 147: contest.ContestService.UnfreezeScoreboard:output_type -> contest.UnfreezeScoreboardResp
+	72,  // 148: contest.ContestService.CanAccessProblem:output_type -> contest.CanAccessProblemResp
+	74,  // 149: contest.ContestService.ValidateContestSubmission:output_type -> contest.ValidateContestSubmissionResp
+	76,  // 150: contest.ContestService.ResolveSubmissionResultVisibility:output_type -> contest.ResolveSubmissionResultVisibilityResp
+	126, // [126:151] is the sub-list for method output_type
+	101, // [101:126] is the sub-list for method input_type
 	101, // [101:101] is the sub-list for extension type_name
 	101, // [101:101] is the sub-list for extension extendee
 	0,   // [0:101] is the sub-list for field type_name

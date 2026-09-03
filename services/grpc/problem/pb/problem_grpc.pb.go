@@ -19,19 +19,20 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	ProblemService_GetProblem_FullMethodName             = "/problem.ProblemService/GetProblem"
-	ProblemService_ListProblems_FullMethodName           = "/problem.ProblemService/ListProblems"
-	ProblemService_CreateProblem_FullMethodName          = "/problem.ProblemService/CreateProblem"
-	ProblemService_GetProblemForEdit_FullMethodName      = "/problem.ProblemService/GetProblemForEdit"
-	ProblemService_UpdateProblem_FullMethodName          = "/problem.ProblemService/UpdateProblem"
-	ProblemService_PublishProblem_FullMethodName         = "/problem.ProblemService/PublishProblem"
-	ProblemService_ArchiveProblem_FullMethodName         = "/problem.ProblemService/ArchiveProblem"
-	ProblemService_DeleteProblem_FullMethodName          = "/problem.ProblemService/DeleteProblem"
-	ProblemService_RestoreProblem_FullMethodName         = "/problem.ProblemService/RestoreProblem"
-	ProblemService_CreateTestDataUpload_FullMethodName   = "/problem.ProblemService/CreateTestDataUpload"
-	ProblemService_FinalizeTestDataUpload_FullMethodName = "/problem.ProblemService/FinalizeTestDataUpload"
-	ProblemService_BatchGetProblems_FullMethodName       = "/problem.ProblemService/BatchGetProblems"
-	ProblemService_GetJudgeProblemSpec_FullMethodName    = "/problem.ProblemService/GetJudgeProblemSpec"
+	ProblemService_GetProblem_FullMethodName                = "/problem.ProblemService/GetProblem"
+	ProblemService_ListProblems_FullMethodName              = "/problem.ProblemService/ListProblems"
+	ProblemService_ListProblemsForManagement_FullMethodName = "/problem.ProblemService/ListProblemsForManagement"
+	ProblemService_CreateProblem_FullMethodName             = "/problem.ProblemService/CreateProblem"
+	ProblemService_GetProblemForEdit_FullMethodName         = "/problem.ProblemService/GetProblemForEdit"
+	ProblemService_UpdateProblem_FullMethodName             = "/problem.ProblemService/UpdateProblem"
+	ProblemService_PublishProblem_FullMethodName            = "/problem.ProblemService/PublishProblem"
+	ProblemService_ArchiveProblem_FullMethodName            = "/problem.ProblemService/ArchiveProblem"
+	ProblemService_DeleteProblem_FullMethodName             = "/problem.ProblemService/DeleteProblem"
+	ProblemService_RestoreProblem_FullMethodName            = "/problem.ProblemService/RestoreProblem"
+	ProblemService_CreateTestDataUpload_FullMethodName      = "/problem.ProblemService/CreateTestDataUpload"
+	ProblemService_FinalizeTestDataUpload_FullMethodName    = "/problem.ProblemService/FinalizeTestDataUpload"
+	ProblemService_BatchGetProblems_FullMethodName          = "/problem.ProblemService/BatchGetProblems"
+	ProblemService_GetJudgeProblemSpec_FullMethodName       = "/problem.ProblemService/GetJudgeProblemSpec"
 )
 
 // ProblemServiceClient is the client API for ProblemService service.
@@ -42,6 +43,8 @@ type ProblemServiceClient interface {
 	GetProblem(ctx context.Context, in *GetProblemReq, opts ...grpc.CallOption) (*GetProblemResp, error)
 	ListProblems(ctx context.Context, in *ListProblemsReq, opts ...grpc.CallOption) (*ListProblemsResp, error)
 	// 出题人或管理员接口，权限必须由 gRPC metadata 中的鉴权信息决定。
+	// 仅管理员可调用；与公开列表分开，允许在不附加状态筛选时查询全部题目。
+	ListProblemsForManagement(ctx context.Context, in *ListProblemsReq, opts ...grpc.CallOption) (*ListProblemsResp, error)
 	CreateProblem(ctx context.Context, in *CreateProblemReq, opts ...grpc.CallOption) (*CreateProblemResp, error)
 	GetProblemForEdit(ctx context.Context, in *GetProblemForEditReq, opts ...grpc.CallOption) (*GetProblemForEditResp, error)
 	UpdateProblem(ctx context.Context, in *UpdateProblemReq, opts ...grpc.CallOption) (*UpdateProblemResp, error)
@@ -78,6 +81,16 @@ func (c *problemServiceClient) ListProblems(ctx context.Context, in *ListProblem
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListProblemsResp)
 	err := c.cc.Invoke(ctx, ProblemService_ListProblems_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *problemServiceClient) ListProblemsForManagement(ctx context.Context, in *ListProblemsReq, opts ...grpc.CallOption) (*ListProblemsResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListProblemsResp)
+	err := c.cc.Invoke(ctx, ProblemService_ListProblemsForManagement_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -202,6 +215,8 @@ type ProblemServiceServer interface {
 	GetProblem(context.Context, *GetProblemReq) (*GetProblemResp, error)
 	ListProblems(context.Context, *ListProblemsReq) (*ListProblemsResp, error)
 	// 出题人或管理员接口，权限必须由 gRPC metadata 中的鉴权信息决定。
+	// 仅管理员可调用；与公开列表分开，允许在不附加状态筛选时查询全部题目。
+	ListProblemsForManagement(context.Context, *ListProblemsReq) (*ListProblemsResp, error)
 	CreateProblem(context.Context, *CreateProblemReq) (*CreateProblemResp, error)
 	GetProblemForEdit(context.Context, *GetProblemForEditReq) (*GetProblemForEditResp, error)
 	UpdateProblem(context.Context, *UpdateProblemReq) (*UpdateProblemResp, error)
@@ -229,6 +244,9 @@ func (UnimplementedProblemServiceServer) GetProblem(context.Context, *GetProblem
 }
 func (UnimplementedProblemServiceServer) ListProblems(context.Context, *ListProblemsReq) (*ListProblemsResp, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListProblems not implemented")
+}
+func (UnimplementedProblemServiceServer) ListProblemsForManagement(context.Context, *ListProblemsReq) (*ListProblemsResp, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListProblemsForManagement not implemented")
 }
 func (UnimplementedProblemServiceServer) CreateProblem(context.Context, *CreateProblemReq) (*CreateProblemResp, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateProblem not implemented")
@@ -316,6 +334,24 @@ func _ProblemService_ListProblems_Handler(srv interface{}, ctx context.Context, 
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ProblemServiceServer).ListProblems(ctx, req.(*ListProblemsReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProblemService_ListProblemsForManagement_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListProblemsReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProblemServiceServer).ListProblemsForManagement(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProblemService_ListProblemsForManagement_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProblemServiceServer).ListProblemsForManagement(ctx, req.(*ListProblemsReq))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -532,6 +568,10 @@ var ProblemService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListProblems",
 			Handler:    _ProblemService_ListProblems_Handler,
+		},
+		{
+			MethodName: "ListProblemsForManagement",
+			Handler:    _ProblemService_ListProblemsForManagement_Handler,
 		},
 		{
 			MethodName: "CreateProblem",
