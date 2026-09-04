@@ -24,7 +24,7 @@ PROTOBUF_INCLUDE ?= $(shell $(GO) list -m -f '{{.Dir}}/third_party' github.com/g
 	fmt vet test test-http test-grpc test-integration test-services test-all coverage build tidy clean \
 	infra-env env-check infra-up infra-migrate infra-down infra-reset infra-logs infra-ps \
 	mysql-shell redis-shell \
-	run-auth run-problem run-contest run-submit run-app run-admin \
+	run-auth run-problem run-contest run-submit run-app run-admin run-judge \
 	services-build services-start services-stop services-restart services-status services-logs services-up \
 	connectivity-infra connectivity-services connectivity smoke \
 	up down restart stop dev-up dev-down
@@ -47,6 +47,7 @@ help:
 		'  services-restart Restart all managed HTTP and gRPC services' \
 		'  services-status  Show service PID and listening-port status' \
 		'  services-logs    Follow logs under $(RUNTIME_DIR)/logs' \
+		'  run-judge        Run the standalone Judge Worker skeleton in the foreground' \
 		'' \
 		'Tests and checks:' \
 		'  test             Run all Go tests once (DB integration tests skip without DSNs)' \
@@ -226,6 +227,12 @@ run-app: infra-up
 run-admin: infra-up
 	@set -a; . ./.env; set +a; \
 	"$(GO)" run ./cmd/admin -f cmd/admin/etc/admin-api.yaml
+
+run-judge:
+	@test -f .env || { echo 'error: .env does not exist; run make infra-env or copy .env.example' >&2; exit 1; }
+	@"$(DEV_ENV)" sync
+	@set -a; . ./.env; set +a; \
+	"$(GO)" run ./judge-worker -f judge-worker/etc/judge-worker.yaml
 
 services-build: tools-services infra-env
 	@GO="$(GO)" RUNTIME_DIR="$(abspath $(RUNTIME_DIR))" "$(DEV_SERVICES)" build

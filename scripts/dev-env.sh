@@ -87,6 +87,13 @@ sync_env() {
   ensure_value SUBMIT_REDIS_PASSWORD "$REDIS_PASSWORD"
   ensure_value SUBMIT_INTERNAL_JUDGE_TOKEN "$(random_hex 32)"
 
+  ensure_value JUDGE_WORKER_ID "judge-worker-local-1"
+  ensure_value JUDGE_SUBMIT_RPC_TARGET "127.0.0.1:8004"
+  ensure_value JUDGE_PROBLEM_RPC_TARGET "127.0.0.1:8006"
+  ensure_value JUDGE_TEST_DATA_CACHE_DIR ".run/judge-worker/cache"
+  ensure_value JUDGE_SANDBOX_WORK_DIR ".run/judge-worker/work"
+  ensure_value JUDGE_DOCKER_ENDPOINT "unix:///var/run/docker.sock"
+
   if ((${#ADDED_KEYS[@]})); then
     chmod 600 "$ENV_FILE"
     printf 'Updated %s with missing local-development variables:\n' "$ENV_FILE"
@@ -109,7 +116,9 @@ check_env() {
     PROBLEM_OBJECT_STORAGE_SECRET_KEY PROBLEM_INTERNAL_SUBMIT_TOKEN \
     PROBLEM_INTERNAL_JUDGE_TOKEN PROBLEM_INTERNAL_CONTEST_TOKEN \
     CONTEST_MYSQL_DSN CONTEST_INTERNAL_PROBLEM_TOKEN CONTEST_INTERNAL_SUBMIT_TOKEN \
-    SUBMIT_MYSQL_DSN SUBMIT_REDIS_PASSWORD SUBMIT_INTERNAL_JUDGE_TOKEN
+    SUBMIT_MYSQL_DSN SUBMIT_REDIS_PASSWORD SUBMIT_INTERNAL_JUDGE_TOKEN \
+    JUDGE_WORKER_ID JUDGE_SUBMIT_RPC_TARGET JUDGE_PROBLEM_RPC_TARGET \
+    JUDGE_TEST_DATA_CACHE_DIR JUDGE_SANDBOX_WORK_DIR JUDGE_DOCKER_ENDPOINT
   printf '%s contains all required local service variables.\n' "$ENV_FILE"
 }
 

@@ -1,0 +1,44 @@
+Worker:
+  ID: "${JUDGE_WORKER_ID}"
+  Concurrency: 4
+  QueueCapacity: 128
+
+# These targets are validated now and will be used when RPC orchestration is
+# introduced. This skeleton does not dial either service.
+SubmitRPC:
+  Target: "${JUDGE_SUBMIT_RPC_TARGET}"
+ProblemRPC:
+  Target: "${JUDGE_PROBLEM_RPC_TARGET}"
+
+InternalAuth:
+  Name: "judge.worker"
+  SubmitToken: "${SUBMIT_INTERNAL_JUDGE_TOKEN}"
+  ProblemToken: "${PROBLEM_INTERNAL_JUDGE_TOKEN}"
+
+TestDataCache:
+  Dir: "${JUDGE_TEST_DATA_CACHE_DIR}"
+
+# The endpoint and work directory are configuration entry points only. Docker
+# and sandbox execution are intentionally not started by this Issue.
+Sandbox:
+  Driver: "docker"
+  WorkDir: "${JUDGE_SANDBOX_WORK_DIR}"
+  Docker:
+    Endpoint: "${JUDGE_DOCKER_ENDPOINT}"
+
+Log:
+  Level: "info"
+  Format: "text"
+  AddSource: false
+
+# Metrics exposure is reserved for a follow-up Issue; keeping the address and
+# path here makes the future component part of the validated configuration.
+Metrics:
+  Enabled: false
+  ListenOn: "127.0.0.1:9100"
+  Path: "/metrics"
+
+Timeouts:
+  RPCSeconds: 5
+  TaskSeconds: 300
+  ShutdownSeconds: 30
