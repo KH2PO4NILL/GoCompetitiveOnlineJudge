@@ -17,6 +17,26 @@ InternalAuth:
 
 TestDataCache:
   Dir: "${JUDGE_TEST_DATA_CACHE_DIR}"
+  MaxBytes: 21474836480
+  TTLSeconds: 86400
+  CleanupIntervalSeconds: 600
+  MaxDownloadBytes: 536870912
+  MaxUncompressedBytes: 2147483648
+  MaxFileBytes: 536870912
+  MaxFileCount: 20000
+  MaxManifestBytes: 2097152
+  MaxCompressionRatio: 200
+
+# Use a dedicated identity whose bucket policy permits GetObject only. The
+# worker code exposes no upload or delete operation.
+ObjectStorage:
+  Endpoint: "${JUDGE_OBJECT_STORAGE_ENDPOINT}"
+  Region: "${JUDGE_OBJECT_STORAGE_REGION}"
+  Bucket: "${JUDGE_OBJECT_STORAGE_BUCKET}"
+  AccessKey: "${JUDGE_OBJECT_STORAGE_ACCESS_KEY}"
+  SecretKey: "${JUDGE_OBJECT_STORAGE_SECRET_KEY}"
+  UsePathStyle: true
+  RequestTimeoutSeconds: 60
 
 # The endpoint and work directory are configuration entry points only. Docker
 # and sandbox execution are intentionally not started by this Issue.

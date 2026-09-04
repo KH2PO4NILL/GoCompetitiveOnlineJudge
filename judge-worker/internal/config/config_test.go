@@ -23,6 +23,11 @@ ProblemRPC:
 InternalAuth:
   SubmitToken: "${TEST_SUBMIT_TOKEN}"
   ProblemToken: "${TEST_PROBLEM_TOKEN}"
+ObjectStorage:
+  Endpoint: "http://127.0.0.1:9000"
+  Bucket: "problem-test-data"
+  AccessKey: "read-only-access"
+  SecretKey: "read-only-secret"
 `)
 
 	c, err := Load(path)
@@ -194,6 +199,10 @@ func validConfig(t *testing.T) Config {
 		TestDataCache: TestDataCacheConf{
 			Dir: filepath.Join(root, "cache"),
 		},
+		ObjectStorage: ObjectStorageConf{
+			Endpoint: "http://127.0.0.1:9000", Region: "us-east-1", Bucket: "problem-test-data",
+			AccessKey: "read-only-access", SecretKey: "read-only-secret", UsePathStyle: true, RequestTimeoutSeconds: 60,
+		},
 		Sandbox: SandboxConf{
 			Driver: "docker", WorkDir: filepath.Join(root, "work"),
 			Docker: DockerConf{Endpoint: DefaultDockerEndpoint},
@@ -225,5 +234,10 @@ ProblemRPC:
 InternalAuth:
   SubmitToken: "submit-secret"
   ProblemToken: "problem-secret"
+ObjectStorage:
+  Endpoint: "http://127.0.0.1:9000"
+  Bucket: "problem-test-data"
+  AccessKey: "read-only-access"
+  SecretKey: "read-only-secret"
 `
 }

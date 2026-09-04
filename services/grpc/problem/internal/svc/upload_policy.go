@@ -15,8 +15,10 @@ const (
 	defaultUploadURLTTL        = 15 * time.Minute
 	defaultMaxUploadBytes      = int64(512 << 20)
 	defaultMaxUncompressedSize = int64(2 << 30)
+	defaultMaxFileBytes        = int64(512 << 20)
 	defaultMaxArchiveFiles     = 20000
 	defaultMaxManifestBytes    = int64(2 << 20)
+	defaultMaxCompressionRatio = int64(200)
 )
 
 type UploadPolicy struct {
@@ -24,8 +26,10 @@ type UploadPolicy struct {
 	MaxUploadBytes       int64
 	AllowedExtensions    []string
 	MaxUncompressedBytes int64
+	MaxFileBytes         int64
 	MaxFileCount         int
 	MaxManifestBytes     int64
+	MaxCompressionRatio  int64
 }
 
 func NewUploadPolicy(c config.UploadConf) (UploadPolicy, error) {
@@ -42,11 +46,19 @@ func NewUploadPolicy(c config.UploadConf) (UploadPolicy, error) {
 	if c.MaxUncompressedBytes > 0 {
 		policy.MaxUncompressedBytes = c.MaxUncompressedBytes
 	}
+	if c.MaxFileBytes > 0 {
+		policy.MaxFileBytes = c.MaxFileBytes
+	} else if policy.MaxFileBytes > policy.MaxUncompressedBytes {
+		policy.MaxFileBytes = policy.MaxUncompressedBytes
+	}
 	if c.MaxFileCount > 0 {
 		policy.MaxFileCount = c.MaxFileCount
 	}
 	if c.MaxManifestBytes > 0 {
 		policy.MaxManifestBytes = c.MaxManifestBytes
+	}
+	if c.MaxCompressionRatio > 0 {
+		policy.MaxCompressionRatio = c.MaxCompressionRatio
 	}
 	if err := policy.normalizeAndValidate(); err != nil {
 		return UploadPolicy{}, err
@@ -60,8 +72,10 @@ func defaultUploadPolicy() UploadPolicy {
 		MaxUploadBytes:       defaultMaxUploadBytes,
 		AllowedExtensions:    []string{".zip"},
 		MaxUncompressedBytes: defaultMaxUncompressedSize,
+		MaxFileBytes:         defaultMaxFileBytes,
 		MaxFileCount:         defaultMaxArchiveFiles,
 		MaxManifestBytes:     defaultMaxManifestBytes,
+		MaxCompressionRatio:  defaultMaxCompressionRatio,
 	}
 }
 
@@ -79,11 +93,17 @@ func (p UploadPolicy) withDefaults() UploadPolicy {
 	if p.MaxUncompressedBytes <= 0 {
 		p.MaxUncompressedBytes = defaults.MaxUncompressedBytes
 	}
+	if p.MaxFileBytes <= 0 {
+		p.MaxFileBytes = min(defaults.MaxFileBytes, p.MaxUncompressedBytes)
+	}
 	if p.MaxFileCount <= 0 {
 		p.MaxFileCount = defaults.MaxFileCount
 	}
 	if p.MaxManifestBytes <= 0 {
-		p.MaxManifestBytes = defaults.MaxManifestBytes
+		p.MaxManifestBytes = min(defaults.MaxManifestBytes, p.MaxFileBytes)
+	}
+	if p.MaxCompressionRatio <= 0 {
+		p.MaxCompressionRatio = defaults.MaxCompressionRatio
 	}
 	_ = p.normalizeAndValidate()
 	return p
@@ -96,8 +116,9 @@ func (p *UploadPolicy) normalizeAndValidate() error {
 	if p.MaxUploadBytes <= 0 || p.MaxUncompressedBytes < p.MaxUploadBytes {
 		return errors.New("upload limits must be positive and uncompressed limit must not be smaller than upload limit")
 	}
-	if p.MaxFileCount <= 0 || p.MaxManifestBytes <= 0 || p.MaxManifestBytes > p.MaxUncompressedBytes {
-		return errors.New("archive file and manifest limits are invalid")
+	if p.MaxFileBytes <= 0 || p.MaxFileBytes > p.MaxUncompressedBytes || p.MaxFileCount <= 0 ||
+		p.MaxManifestBytes <= 0 || p.MaxManifestBytes > p.MaxFileBytes || p.MaxCompressionRatio <= 0 || p.MaxCompressionRatio > 100000 {
+		return errors.New("archive file, manifest or compression-ratio limits are invalid")
 	}
 	seen := make(map[string]struct{}, len(p.AllowedExtensions))
 	normalized := make([]string, 0, len(p.AllowedExtensions))

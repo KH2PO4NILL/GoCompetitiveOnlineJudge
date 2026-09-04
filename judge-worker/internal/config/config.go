@@ -29,6 +29,16 @@ const (
 	MaxTaskTimeout              = 24 * time.Hour
 	MaxShutdownTimeout          = 5 * time.Minute
 	DefaultCacheDirectory       = ".run/judge-worker/cache"
+	DefaultCacheMaxBytes        = int64(20 << 30)
+	DefaultCacheTTL             = 24 * time.Hour
+	DefaultCleanupInterval      = 10 * time.Minute
+	DefaultMaxDownloadBytes     = int64(512 << 20)
+	DefaultMaxUncompressedBytes = int64(2 << 30)
+	DefaultMaxFileBytes         = int64(512 << 20)
+	DefaultMaxFileCount         = 20000
+	DefaultMaxManifestBytes     = int64(2 << 20)
+	DefaultMaxCompressionRatio  = int64(200)
+	DefaultObjectRequestTimeout = 60 * time.Second
 	DefaultSandboxWorkDirectory = ".run/judge-worker/work"
 	DefaultDockerEndpoint       = "unix:///var/run/docker.sock"
 	DefaultMetricsListenOn      = "127.0.0.1:9100"
@@ -52,7 +62,26 @@ type InternalAuthConf struct {
 }
 
 type TestDataCacheConf struct {
-	Dir string `json:",optional" yaml:"Dir"`
+	Dir                    string `json:",optional" yaml:"Dir"`
+	MaxBytes               int64  `json:",optional" yaml:"MaxBytes"`
+	TTLSeconds             int64  `json:",optional" yaml:"TTLSeconds"`
+	CleanupIntervalSeconds int64  `json:",optional" yaml:"CleanupIntervalSeconds"`
+	MaxDownloadBytes       int64  `json:",optional" yaml:"MaxDownloadBytes"`
+	MaxUncompressedBytes   int64  `json:",optional" yaml:"MaxUncompressedBytes"`
+	MaxFileBytes           int64  `json:",optional" yaml:"MaxFileBytes"`
+	MaxFileCount           int    `json:",optional" yaml:"MaxFileCount"`
+	MaxManifestBytes       int64  `json:",optional" yaml:"MaxManifestBytes"`
+	MaxCompressionRatio    int64  `json:",optional" yaml:"MaxCompressionRatio"`
+}
+
+type ObjectStorageConf struct {
+	Endpoint              string `json:",optional" yaml:"Endpoint"`
+	Region                string `json:",optional" yaml:"Region"`
+	Bucket                string `json:",optional" yaml:"Bucket"`
+	AccessKey             string `json:",optional" yaml:"AccessKey"`
+	SecretKey             string `json:",optional" yaml:"SecretKey"`
+	UsePathStyle          bool   `json:",optional" yaml:"UsePathStyle"`
+	RequestTimeoutSeconds int64  `json:",optional" yaml:"RequestTimeoutSeconds"`
 }
 
 type DockerConf struct {
@@ -89,6 +118,7 @@ type Config struct {
 	ProblemRPC    RPCConf           `json:",optional" yaml:"ProblemRPC"`
 	InternalAuth  InternalAuthConf  `json:",optional" yaml:"InternalAuth"`
 	TestDataCache TestDataCacheConf `json:",optional" yaml:"TestDataCache"`
+	ObjectStorage ObjectStorageConf `json:",optional" yaml:"ObjectStorage"`
 	Sandbox       SandboxConf       `json:",optional" yaml:"Sandbox"`
 	Log           LogConf           `json:",optional" yaml:"Log"`
 	Metrics       MetricsConf       `json:",optional" yaml:"Metrics"`
@@ -145,6 +175,39 @@ func (c *Config) ApplyDefaults() {
 	}
 	if strings.TrimSpace(c.TestDataCache.Dir) == "" {
 		c.TestDataCache.Dir = DefaultCacheDirectory
+	}
+	if c.TestDataCache.MaxBytes == 0 {
+		c.TestDataCache.MaxBytes = DefaultCacheMaxBytes
+	}
+	if c.TestDataCache.TTLSeconds == 0 {
+		c.TestDataCache.TTLSeconds = int64(DefaultCacheTTL / time.Second)
+	}
+	if c.TestDataCache.CleanupIntervalSeconds == 0 {
+		c.TestDataCache.CleanupIntervalSeconds = int64(DefaultCleanupInterval / time.Second)
+	}
+	if c.TestDataCache.MaxDownloadBytes == 0 {
+		c.TestDataCache.MaxDownloadBytes = DefaultMaxDownloadBytes
+	}
+	if c.TestDataCache.MaxUncompressedBytes == 0 {
+		c.TestDataCache.MaxUncompressedBytes = DefaultMaxUncompressedBytes
+	}
+	if c.TestDataCache.MaxFileBytes == 0 {
+		c.TestDataCache.MaxFileBytes = DefaultMaxFileBytes
+	}
+	if c.TestDataCache.MaxFileCount == 0 {
+		c.TestDataCache.MaxFileCount = DefaultMaxFileCount
+	}
+	if c.TestDataCache.MaxManifestBytes == 0 {
+		c.TestDataCache.MaxManifestBytes = DefaultMaxManifestBytes
+	}
+	if c.TestDataCache.MaxCompressionRatio == 0 {
+		c.TestDataCache.MaxCompressionRatio = DefaultMaxCompressionRatio
+	}
+	if strings.TrimSpace(c.ObjectStorage.Region) == "" {
+		c.ObjectStorage.Region = "us-east-1"
+	}
+	if c.ObjectStorage.RequestTimeoutSeconds == 0 {
+		c.ObjectStorage.RequestTimeoutSeconds = int64(DefaultObjectRequestTimeout / time.Second)
 	}
 	if strings.TrimSpace(c.Sandbox.Driver) == "" {
 		c.Sandbox.Driver = "docker"
@@ -207,6 +270,12 @@ func (c Config) Validate() error {
 		}
 	}
 	if err := validateDirectory("TestDataCache.Dir", c.TestDataCache.Dir); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateTestDataCache(c.TestDataCache); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateObjectStorage(c.ObjectStorage); err != nil {
 		errs = append(errs, err)
 	}
 	if err := validateDirectory("Sandbox.WorkDir", c.Sandbox.WorkDir); err != nil {
@@ -277,6 +346,56 @@ func validateDirectory(name, dir string) error {
 		return fmt.Errorf("%s is unsafe", name)
 	}
 	return nil
+}
+
+func validateTestDataCache(c TestDataCacheConf) error {
+	if c.MaxBytes <= 0 || c.MaxDownloadBytes <= 0 || c.MaxUncompressedBytes <= 0 || c.MaxBytes < c.MaxUncompressedBytes || c.MaxFileBytes <= 0 ||
+		c.MaxFileBytes > c.MaxUncompressedBytes || c.MaxFileCount <= 0 || c.MaxFileCount > 1000000 ||
+		c.MaxManifestBytes <= 0 || c.MaxManifestBytes > c.MaxFileBytes || c.MaxCompressionRatio <= 0 || c.MaxCompressionRatio > 100000 {
+		return errors.New("TestDataCache size, file-count or compression-ratio limits are invalid")
+	}
+	if c.TTLSeconds < 1 || c.TTLSeconds > int64((365*24*time.Hour)/time.Second) {
+		return errors.New("TestDataCache.TTLSeconds must be between 1 and 31536000")
+	}
+	if c.CleanupIntervalSeconds < 1 || c.CleanupIntervalSeconds > int64((24*time.Hour)/time.Second) {
+		return errors.New("TestDataCache.CleanupIntervalSeconds must be between 1 and 86400")
+	}
+	return nil
+}
+
+func validateObjectStorage(c ObjectStorageConf) error {
+	endpoint, err := url.Parse(strings.TrimSpace(c.Endpoint))
+	if err != nil || endpoint.Scheme == "" || endpoint.Host == "" ||
+		(endpoint.Scheme != "http" && endpoint.Scheme != "https") || endpoint.Opaque != "" ||
+		endpoint.RawQuery != "" || endpoint.Fragment != "" || endpoint.User != nil {
+		return errors.New("ObjectStorage.Endpoint must be an http(s) URL without credentials, query or fragment")
+	}
+	if !validBucketName(strings.TrimSpace(c.Bucket)) {
+		return errors.New("ObjectStorage.Bucket is invalid")
+	}
+	if strings.TrimSpace(c.AccessKey) == "" || c.SecretKey == "" || len(c.AccessKey) > 1024 || len(c.SecretKey) > 4096 {
+		return errors.New("ObjectStorage read-only access key and secret key are required and must have bounded length")
+	}
+	if strings.TrimSpace(c.Region) == "" || strings.ContainsAny(c.Region, "\r\n\t ") {
+		return errors.New("ObjectStorage.Region is invalid")
+	}
+	if c.RequestTimeoutSeconds < 1 || c.RequestTimeoutSeconds > 300 {
+		return errors.New("ObjectStorage.RequestTimeoutSeconds must be between 1 and 300")
+	}
+	return nil
+}
+
+func validBucketName(value string) bool {
+	if len(value) < 3 || len(value) > 63 || strings.HasPrefix(value, ".") || strings.HasSuffix(value, ".") ||
+		strings.HasPrefix(value, "-") || strings.HasSuffix(value, "-") || strings.Contains(value, "..") {
+		return false
+	}
+	for _, character := range value {
+		if (character < 'a' || character > 'z') && (character < '0' || character > '9') && character != '.' && character != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 func validateDockerEndpoint(endpoint string) error {

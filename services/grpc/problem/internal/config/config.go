@@ -21,8 +21,10 @@ type UploadConf struct {
 	MaxUploadBytes       int64
 	AllowedExtensions    []string
 	MaxUncompressedBytes int64
+	MaxFileBytes         int64
 	MaxFileCount         int
 	MaxManifestBytes     int64
+	MaxCompressionRatio  int64
 }
 
 type ObjectStorageConf struct {

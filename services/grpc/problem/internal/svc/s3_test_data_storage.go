@@ -2,12 +2,10 @@ package svc
 
 import (
 	"archive/zip"
-	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"hash"
@@ -20,8 +18,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/testdatamanifest"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/config"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/model"
 )
@@ -31,7 +29,6 @@ const (
 	awsServiceName        = "s3"
 	emptyPayloadSHA256    = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 	unsignedPayload       = "UNSIGNED-PAYLOAD"
-	manifestFileName      = "manifest.json"
 )
 
 type s3TestDataStorage struct {
@@ -44,20 +41,6 @@ type s3TestDataStorage struct {
 	client       *http.Client
 	policy       UploadPolicy
 	now          func() time.Time
-}
-
-type testDataManifest struct {
-	TestCases []testDataManifestCase `json:"test_cases"`
-}
-
-type testDataManifestCase struct {
-	Name       string `json:"name"`
-	InputFile  string `json:"input_file"`
-	OutputFile string `json:"output_file"`
-	Score      int64  `json:"score"`
-	Ordinal    int64  `json:"ordinal"`
-	Enabled    *bool  `json:"enabled,omitempty"`
-	GroupName  string `json:"group_name,omitempty"`
 }
 
 func NewS3TestDataStorage(c config.ObjectStorageConf, policy UploadPolicy) (TestDataStorage, error) {
@@ -354,10 +337,12 @@ func inspectTestDataArchive(fileName string, policy UploadPolicy) ([]model.TestC
 	if len(archive.File) == 0 || len(archive.File) > policy.MaxFileCount {
 		return nil, errors.New("archive file count is outside the allowed range")
 	}
+
 	entries := make(map[string]*zip.File, len(archive.File))
-	var totalUncompressed uint64
+	var declaredUncompressed uint64
+	var declaredCompressed uint64
 	for _, entry := range archive.File {
-		entryName, err := safeArchivePath(entry.Name)
+		entryName, err := safeZIPEntryPath(entry)
 		if err != nil {
 			return nil, err
 		}
@@ -366,137 +351,162 @@ func inspectTestDataArchive(fileName string, policy UploadPolicy) ([]model.TestC
 		}
 		mode := entry.Mode()
 		if mode&os.ModeSymlink != 0 || (!mode.IsRegular() && !mode.IsDir()) {
-			return nil, fmt.Errorf("archive entry %q is not a regular file", entryName)
+			return nil, fmt.Errorf("archive entry %q is not a regular file or directory", entryName)
 		}
-		if entry.UncompressedSize64 > uint64(policy.MaxUncompressedBytes)-totalUncompressed {
+		if entry.UncompressedSize64 > uint64(policy.MaxFileBytes) && !mode.IsDir() {
+			return nil, fmt.Errorf("archive entry %q exceeds the single-file size limit", entryName)
+		}
+		if entry.UncompressedSize64 > uint64(policy.MaxUncompressedBytes)-declaredUncompressed {
 			return nil, errors.New("archive exceeds the uncompressed size limit")
 		}
-		totalUncompressed += entry.UncompressedSize64
+		if !mode.IsDir() && compressionRatioExceeded(entry.UncompressedSize64, entry.CompressedSize64, policy.MaxCompressionRatio) {
+			return nil, fmt.Errorf("archive entry %q exceeds the compression-ratio limit", entryName)
+		}
+		declaredUncompressed += entry.UncompressedSize64
+		declaredCompressed += entry.CompressedSize64
 		entries[entryName] = entry
 	}
-	manifestEntry, ok := entries[manifestFileName]
+	if compressionRatioExceeded(declaredUncompressed, declaredCompressed, policy.MaxCompressionRatio) {
+		return nil, errors.New("archive exceeds the aggregate compression-ratio limit")
+	}
+	if err := rejectZIPPathTypeConflicts(entries); err != nil {
+		return nil, err
+	}
+
+	manifestEntry, ok := entries[testdatamanifest.FileName]
 	if !ok || manifestEntry.FileInfo().IsDir() || manifestEntry.UncompressedSize64 > uint64(policy.MaxManifestBytes) {
 		return nil, errors.New("archive requires a bounded root manifest.json")
 	}
-	if err := verifyArchiveContents(archive.File, policy.MaxUncompressedBytes); err != nil {
-		return nil, err
-	}
-	manifestBytes, err := readZipEntry(manifestEntry, policy.MaxManifestBytes)
+	manifestReader, err := manifestEntry.Open()
 	if err != nil {
-		return nil, fmt.Errorf("read manifest: %w", err)
+		return nil, fmt.Errorf("open manifest: %w", err)
 	}
-	if !utf8.Valid(manifestBytes) {
-		return nil, errors.New("manifest must be valid UTF-8")
+	manifestCounter := &countingReader{reader: manifestReader}
+	manifest, parseErr := testdatamanifest.Parse(manifestCounter, policy.MaxManifestBytes)
+	closeErr := manifestReader.Close()
+	if parseErr != nil || closeErr != nil {
+		return nil, fmt.Errorf("read manifest: %w", errors.Join(parseErr, closeErr))
 	}
-	var manifest testDataManifest
-	decoder := json.NewDecoder(bytes.NewReader(manifestBytes))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&manifest); err != nil {
-		return nil, fmt.Errorf("decode manifest: %w", err)
+	if manifestCounter.read != int64(manifestEntry.UncompressedSize64) {
+		return nil, errors.New("manifest has a false declared size")
 	}
-	if err := ensureJSONEOF(decoder); err != nil {
-		return nil, err
+
+	files := manifest.FileMap()
+	allowedDirectories := manifest.PayloadDirectories()
+	for entryName, entry := range entries {
+		if entry.FileInfo().IsDir() {
+			if _, allowed := allowedDirectories[entryName]; !allowed {
+				return nil, fmt.Errorf("archive contains undeclared directory %q", entryName)
+			}
+			continue
+		}
+		if entryName == testdatamanifest.FileName {
+			continue
+		}
+		declared, exists := files[entryName]
+		if !exists {
+			return nil, fmt.Errorf("archive contains undeclared payload file %q", entryName)
+		}
+		if entry.UncompressedSize64 != uint64(declared.Size) {
+			return nil, fmt.Errorf("archive entry %q size does not match manifest", entryName)
+		}
 	}
-	return testCasesFromManifest(manifest, entries)
+	for _, declared := range manifest.Files {
+		entry, exists := entries[declared.Path]
+		if !exists || entry.FileInfo().IsDir() {
+			return nil, fmt.Errorf("manifest file %q is missing from archive", declared.Path)
+		}
+	}
+
+	remaining := policy.MaxUncompressedBytes - manifestCounter.read
+	for _, declared := range manifest.Files {
+		entry := entries[declared.Path]
+		if declared.Size > remaining {
+			return nil, errors.New("archive exceeds the uncompressed size limit")
+		}
+		if err := verifyZIPFile(entry, declared, policy.MaxFileBytes); err != nil {
+			return nil, err
+		}
+		remaining -= declared.Size
+	}
+
+	result := make([]model.TestCaseInput, 0, len(manifest.TestCases))
+	for _, item := range manifest.TestCases {
+		result = append(result, model.TestCaseInput{
+			Name: item.Name, Score: item.Score, Ordinal: item.Ordinal,
+			Enabled: item.IsEnabled(), GroupName: item.GroupName,
+		})
+	}
+	return result, nil
 }
 
-func safeArchivePath(value string) (string, error) {
-	if value == "" || strings.ContainsRune(value, '\x00') || strings.ContainsAny(value, "\\:") || strings.HasPrefix(value, "/") {
-		return "", fmt.Errorf("archive contains unsafe path %q", value)
+type countingReader struct {
+	reader io.Reader
+	read   int64
+}
+
+func (reader *countingReader) Read(buffer []byte) (int, error) {
+	count, err := reader.reader.Read(buffer)
+	reader.read += int64(count)
+	return count, err
+}
+
+func rejectZIPPathTypeConflicts(entries map[string]*zip.File) error {
+	for entryName := range entries {
+		for parent := path.Dir(entryName); parent != "."; parent = path.Dir(parent) {
+			if existing, exists := entries[parent]; exists && !existing.FileInfo().IsDir() {
+				return fmt.Errorf("archive path %q has regular-file parent %q", entryName, parent)
+			}
+		}
 	}
-	cleaned := path.Clean(value)
-	if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") || cleaned != strings.TrimSuffix(value, "/") {
-		return "", fmt.Errorf("archive contains unsafe path %q", value)
+	return nil
+}
+
+func safeZIPEntryPath(entry *zip.File) (string, error) {
+	if entry == nil {
+		return "", errors.New("archive contains an invalid entry")
+	}
+	name := entry.Name
+	if entry.FileInfo().IsDir() {
+		if !strings.HasSuffix(name, "/") {
+			return "", fmt.Errorf("archive contains unsafe directory path %q", name)
+		}
+		name = strings.TrimSuffix(name, "/")
+	}
+	cleaned, err := testdatamanifest.SafePath(name)
+	if err != nil {
+		return "", fmt.Errorf("archive contains unsafe path %q", entry.Name)
 	}
 	return cleaned, nil
 }
 
-func verifyArchiveContents(entries []*zip.File, limit int64) error {
-	remaining := limit
-	buffer := make([]byte, 32<<10)
-	for _, entry := range entries {
-		if entry.FileInfo().IsDir() {
-			continue
-		}
-		reader, err := entry.Open()
-		if err != nil {
-			return fmt.Errorf("open archive entry %q: %w", entry.Name, err)
-		}
-		count, copyErr := io.CopyBuffer(io.Discard, io.LimitReader(reader, remaining+1), buffer)
-		closeErr := reader.Close()
-		if copyErr != nil || closeErr != nil {
-			return fmt.Errorf("verify archive entry %q: %w", entry.Name, errors.Join(copyErr, closeErr))
-		}
-		if count > remaining {
-			return errors.New("archive exceeds the uncompressed size limit")
-		}
-		remaining -= count
+func compressionRatioExceeded(uncompressed, compressed uint64, limit int64) bool {
+	if uncompressed == 0 {
+		return false
 	}
-	return nil
+	if compressed == 0 || limit <= 0 {
+		return true
+	}
+	return uncompressed/compressed > uint64(limit) ||
+		(uncompressed/compressed == uint64(limit) && uncompressed%compressed != 0)
 }
 
-func readZipEntry(entry *zip.File, limit int64) ([]byte, error) {
+func verifyZIPFile(entry *zip.File, declared testdatamanifest.File, maxBytes int64) error {
 	reader, err := entry.Open()
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("open archive entry %q: %w", entry.Name, err)
 	}
-	defer reader.Close()
-	content, err := io.ReadAll(io.LimitReader(reader, limit+1))
-	if err != nil {
-		return nil, err
+	digest := sha256.New()
+	written, copyErr := io.Copy(digest, io.LimitReader(reader, maxBytes+1))
+	closeErr := reader.Close()
+	if copyErr != nil || closeErr != nil {
+		return fmt.Errorf("verify archive entry %q: %w", entry.Name, errors.Join(copyErr, closeErr))
 	}
-	if int64(len(content)) > limit {
-		return nil, errors.New("entry exceeds its size limit")
+	if written > maxBytes || written != declared.Size {
+		return fmt.Errorf("archive entry %q size does not match manifest", entry.Name)
 	}
-	return content, nil
-}
-
-func ensureJSONEOF(decoder *json.Decoder) error {
-	var trailing any
-	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return errors.New("manifest must contain exactly one JSON value")
-		}
-		return fmt.Errorf("decode trailing manifest content: %w", err)
+	if hex.EncodeToString(digest.Sum(nil)) != declared.SHA256 {
+		return fmt.Errorf("archive entry %q checksum does not match manifest", entry.Name)
 	}
 	return nil
-}
-
-func testCasesFromManifest(manifest testDataManifest, entries map[string]*zip.File) ([]model.TestCaseInput, error) {
-	if len(manifest.TestCases) == 0 {
-		return nil, errors.New("manifest contains no test cases")
-	}
-	ordinals := make(map[int64]struct{}, len(manifest.TestCases))
-	result := make([]model.TestCaseInput, 0, len(manifest.TestCases))
-	for _, item := range manifest.TestCases {
-		inputPath, err := safeArchivePath(item.InputFile)
-		if err != nil {
-			return nil, fmt.Errorf("invalid input_file for test case %q", item.Name)
-		}
-		outputPath, err := safeArchivePath(item.OutputFile)
-		if err != nil {
-			return nil, fmt.Errorf("invalid output_file for test case %q", item.Name)
-		}
-		if inputPath == outputPath {
-			return nil, fmt.Errorf("test case %q uses the same input and output file", item.Name)
-		}
-		inputEntry, inputExists := entries[inputPath]
-		outputEntry, outputExists := entries[outputPath]
-		if !inputExists || !outputExists || inputEntry.FileInfo().IsDir() || outputEntry.FileInfo().IsDir() {
-			return nil, fmt.Errorf("test case %q references a missing file", item.Name)
-		}
-		if _, exists := ordinals[item.Ordinal]; exists {
-			return nil, fmt.Errorf("manifest contains duplicate ordinal %d", item.Ordinal)
-		}
-		ordinals[item.Ordinal] = struct{}{}
-		enabled := true
-		if item.Enabled != nil {
-			enabled = *item.Enabled
-		}
-		result = append(result, model.TestCaseInput{
-			Name: item.Name, Score: item.Score, Ordinal: item.Ordinal,
-			Enabled: enabled, GroupName: item.GroupName,
-		})
-	}
-	return result, nil
 }

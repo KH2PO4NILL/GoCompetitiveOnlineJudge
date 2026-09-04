@@ -19,6 +19,10 @@ func TestServiceContextCreatesDirectoriesAndRunsPool(t *testing.T) {
 		TestDataCache: config.TestDataCacheConf{
 			Dir: filepath.Join(root, "cache"),
 		},
+		ObjectStorage: config.ObjectStorageConf{
+			Endpoint: "http://127.0.0.1:9000", Region: "us-east-1", Bucket: "problem-test-data",
+			AccessKey: "read-only-access", SecretKey: "read-only-secret", UsePathStyle: true, RequestTimeoutSeconds: 60,
+		},
 		Sandbox: config.SandboxConf{
 			Driver: "docker", WorkDir: filepath.Join(root, "work"),
 			Docker: config.DockerConf{Endpoint: config.DefaultDockerEndpoint},
