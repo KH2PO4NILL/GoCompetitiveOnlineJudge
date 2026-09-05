@@ -35,6 +35,13 @@ type Request struct {
 	ProfileID    string
 	Sources      map[string][]byte
 	Limits       ProblemLimits
+	Binding      PolicyBinding
+}
+
+type PolicyBinding struct {
+	ProblemID int64
+	Revision  int64
+	Checker   string
 }
 
 type Result struct {
@@ -98,7 +105,8 @@ func (engine *Engine) Prepare(ctx context.Context, request Request) (*Attempt, e
 	encoded, err := json.Marshal(struct {
 		RegistryDigest string
 		RunLimits      sandbox.Limits
-	}{policy.Audit.PolicyDigest, limits})
+		Binding        PolicyBinding
+	}{policy.Audit.PolicyDigest, limits, request.Binding})
 	if err != nil {
 		return nil, err
 	}
