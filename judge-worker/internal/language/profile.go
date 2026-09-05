@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/sandbox"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgepolicy"
 	"github.com/distribution/reference"
 )
 
@@ -87,7 +88,7 @@ func (profile Profile) Validate() error {
 	if len(profile.ID) > 128 || !profileIDPattern.MatchString(profile.ID) || profile.SchemaVersion != SchemaVersion {
 		return errors.New("id must be a versioned lowercase name ending in -vN; schema_version must be 1")
 	}
-	if !validFile(profile.Source.EntryFile) || profile.Source.MaxFiles < 1 || profile.Source.MaxFiles > 64 || profile.Source.MaxBytes < 1 || profile.Source.MaxBytes > 16<<20 {
+	if !validFile(profile.Source.EntryFile) || profile.Source.MaxFiles < 1 || profile.Source.MaxFiles > 64 || profile.Source.MaxBytes < 1 || profile.Source.MaxBytes > judgepolicy.MaxSourceCodeBytes {
 		return errors.New("invalid source entry_file or source limits")
 	}
 	if len(profile.Source.Extensions) == 0 || len(profile.Source.Extensions) > 16 {

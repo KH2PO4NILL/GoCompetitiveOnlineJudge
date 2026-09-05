@@ -195,7 +195,7 @@ func TestJudgeEndToEndRecovery(t *testing.T) {
 	publisher := harness.Publisher(t, sender, logger)
 	publisher.Start()
 	defer publisher.Stop(context.Background())
-	for _, scenario := range []string{"cpp20", "go", "submit_unavailable", "problem_unavailable", "minio_unavailable", "docker_unavailable", "crash_after_acquire"} {
+	for _, scenario := range []string{"cpp20", "go", "submit_unavailable", "problem_unavailable", "minio_unavailable", "docker_unavailable", "crash_after_acquire", "source_size_boundary", "oversized_legacy_source"} {
 		t.Run(scenario, func(t *testing.T) {
 			cacheDir := filepath.Join(work, "cache-"+uuid.NewString())
 			cacheConfig := config.Config{TestDataCache: config.TestDataCacheConf{Dir: cacheDir}}
@@ -209,7 +209,7 @@ func TestJudgeEndToEndRecovery(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer cache.Close()
-			taskProcessor, err := processor.New(processor.Options{WorkerID: "e2e-worker", Submit: submit, Problem: problemGateway, Cache: cache, Judge: judgeEngine, Logger: logger, Profiles: map[string]string{"go": "go-v2", "cpp20": "cpp20-v2"}, Checker: checker.Exact, HeartbeatInterval: 100 * time.Millisecond, RetryBackoff: 20 * time.Millisecond, ReportAttempts: 3})
+			taskProcessor, err := processor.New(processor.Options{WorkerID: "e2e-worker", Submit: submit, Problem: problemGateway, Cache: cache, Judge: judgeEngine, Logger: logger, Profiles: map[string]string{"go": "go-v3", "cpp20": "cpp20-v3"}, Checker: checker.Exact, HeartbeatInterval: 100 * time.Millisecond, RetryBackoff: 20 * time.Millisecond, ReportAttempts: 3})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -240,12 +240,20 @@ func TestJudgeEndToEndRecovery(t *testing.T) {
 			if scenario == "cpp20" {
 				code, languageID = "#include <iostream>\nint main(){std::cout << 42 << '\\n';}\n", "cpp20"
 			}
+			if scenario == "source_size_boundary" {
+				code += "//" + strings.Repeat("x", (1<<20)-len(code)-2)
+			}
 			before := harness.Applied.Load()
 			created, err := harness.Model.CreateSubmission(ctx, model.CreateSubmissionInput{UserID: 1, ProblemID: 1, ProblemRevision: 1, Language: languageID, SourceCode: code, ClientRequestID: uuid.NewString(), SubmittedAt: time.Now()})
 			if err != nil {
 				t.Fatal(err)
 			}
 			submission := created.Submission
+			if scenario == "oversized_legacy_source" {
+				if err := harness.DB.Table("submissions").Where("id = ?", submission.SubmissionID).Update("source_code", strings.Repeat("x", 4<<20)).Error; err != nil {
+					t.Fatal(err)
+				}
+			}
 			if scenario == "crash_after_acquire" {
 				lease, err := submit.Acquire(ctx, &submitpb.AcquireJudgeTaskReq{WorkerId: "crashed-worker", SubmissionId: submission.SubmissionID, AttemptId: submission.CurrentAttemptID, DeliveryId: uuid.NewString()})
 				if err != nil || !lease.Acquired {
@@ -260,8 +268,15 @@ func TestJudgeEndToEndRecovery(t *testing.T) {
 				return err == nil && state.Status == model.SubmissionStatusFinished
 			})
 			state, err := harness.Model.GetSubmission(ctx, submission.SubmissionID)
-			if err != nil || state.Verdict == nil || *state.Verdict != model.VerdictAccepted || len(state.CaseResults) != 1 {
-				t.Fatal("end-to-end result not AC with all cases")
+			wantVerdict, wantCases := model.VerdictAccepted, 1
+			if scenario == "oversized_legacy_source" {
+				wantVerdict, wantCases = model.VerdictCompileError, 0
+			}
+			if err != nil || state.Verdict == nil || *state.Verdict != wantVerdict || len(state.CaseResults) != wantCases {
+				t.Fatalf("end-to-end result does not match verdict %d/cases %d: %+v %v", wantVerdict, wantCases, state, err)
+			}
+			if scenario == "oversized_legacy_source" && state.AttemptCount != 1 {
+				t.Fatal("permanent source rejection created successor attempts")
 			}
 			if scenario == "crash_after_acquire" && state.AttemptCount < 2 {
 				t.Fatal("expired lease did not create successor attempt")

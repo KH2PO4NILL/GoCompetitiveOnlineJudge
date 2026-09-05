@@ -26,12 +26,13 @@ import (
 )
 
 const (
-	managedLabel    = "gcoj.managed"
-	componentLabel  = "gcoj.component"
-	workerLabel     = "gcoj.worker_id"
-	attemptLabel    = "gcoj.attempt_id"
-	submissionLabel = "gcoj.submission_id"
-	componentValue  = "judge-sandbox"
+	managedLabel           = "gcoj.managed"
+	componentLabel         = "gcoj.component"
+	workerLabel            = "gcoj.worker_id"
+	attemptLabel           = "gcoj.attempt_id"
+	submissionLabel        = "gcoj.submission_id"
+	componentValue         = "judge-sandbox"
+	minSupervisorOpenFiles = uint64(64)
 )
 
 type DockerOptions struct {
@@ -259,9 +260,11 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 	budget := &outputBudget{limit: request.Limits.OutputBytes}
 	stdout := &boundedBuffer{budget: budget}
 	stderr := &boundedBuffer{budget: budget}
+	protocol := &supervisorOutput{stdout: stdout, stderr: stderr}
+	supervisorErrors := &boundedBuffer{budget: &outputBudget{limit: 4096}}
 	outputDone := make(chan error, 1)
 	go func() {
-		_, err := stdcopy.StdCopy(stdout, stderr, attached.Reader)
+		_, err := stdcopy.StdCopy(protocol, supervisorErrors, attached.Reader)
 		outputDone <- err
 	}()
 	outputCh := (<-chan error)(outputDone)
@@ -278,7 +281,11 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 	monitorCtx, monitorCancel := context.WithCancel(context.Background())
 	usage := &resourceUsage{}
 	monitorDone := make(chan monitorEvent, 1)
-	go docker.monitorResources(monitorCtx, created.ID, request.Limits.CPUTime, usage, monitorDone)
+	monitorStopped := make(chan struct{})
+	go func() {
+		defer close(monitorStopped)
+		docker.monitorResources(monitorCtx, created.ID, request.Limits.CPUTime, usage, monitorDone)
+	}()
 	monitorCh := (<-chan monitorEvent)(monitorDone)
 
 	wallTimer := time.NewTimer(request.Limits.WallTime)
@@ -363,6 +370,7 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 	}
 	result.WallTime = time.Since(startedAt)
 	monitorCancel()
+	<-monitorStopped
 	if forcedReason != "" || parent.Err() != nil {
 		// Docker may keep a hijacked attach connection open after a forced
 		// termination. Closing it here unblocks output collection without
@@ -375,6 +383,7 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 	if !outputCompleted {
 		select {
 		case outputErr := <-outputDone:
+			outputCompleted = true
 			if errors.Is(outputErr, ErrOutputLimit) && forcedReason == "" {
 				forcedReason = ExitOLE
 			} else if outputErr != nil && !errors.Is(outputErr, ErrOutputLimit) && executionErr == nil && forcedReason == "" && parent.Err() == nil {
@@ -394,11 +403,31 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 	result.OutputBytes = budget.bytes()
 	result.CPUTime = durationFromUint64(usage.cpuNanos.Load())
 	result.PeakMemory = int64(min(usage.peakMemory.Load(), uint64(math.MaxInt64)))
+	if outputCompleted && protocol.finished {
+		result.CPUTime = max(result.CPUTime, durationFromUint64(protocol.cpu))
+		result.PeakMemory = max(result.PeakMemory, int64(min(protocol.memory, uint64(math.MaxInt64))))
+		waitResponse.StatusCode = protocol.exitCode
+		if forcedReason == "" {
+			if protocol.flags&2 != 0 {
+				forcedReason = ExitMLE
+			} else if protocol.flags&1 != 0 || result.CPUTime >= request.Limits.CPUTime {
+				forcedReason = ExitTLE
+			}
+		}
+	}
 
 	inspected, inspectErr := docker.inspectExit(created.ID, waitResponse.StatusCode, forcedReason)
 	if inspectErr != nil && executionErr == nil {
 		forcedReason = ExitSandboxError
 		executionErr = fmt.Errorf("inspect sandbox container: %w", inspectErr)
+	}
+	if forcedReason == "" && parent.Err() == nil && executionErr == nil && (!outputCompleted || !protocol.finished) {
+		if inspected.Container.State != nil && inspected.Container.State.OOMKilled {
+			forcedReason = ExitMLE
+		} else {
+			forcedReason = ExitSandboxError
+			executionErr = fmt.Errorf("sandbox exited without trusted final accounting: %s", boundedDiagnostic(string(supervisorErrors.Bytes())))
+		}
 	}
 	if waitResponse.Error != nil && waitResponse.Error.Message != "" && executionErr == nil {
 		forcedReason = ExitSandboxError
@@ -439,7 +468,7 @@ func (docker *Docker) inspectExit(id string, exitCode int64, forced ExitReason) 
 
 func (docker *Docker) createOptions(request ExecuteRequest, mounts []mount.Mount, name string) client.ContainerCreateOptions {
 	pids := request.Limits.PIDs
-	initProcess := true
+	initProcess := false
 	memorySwappiness := int64(0)
 	stopSeconds := max(1, int(docker.stopTimeout/time.Second))
 	tmpfsBytes := min(request.Limits.MemoryBytes/4, int64(64<<20))
@@ -453,8 +482,9 @@ func (docker *Docker) createOptions(request ExecuteRequest, mounts []mount.Mount
 		Name: name,
 		Config: &container.Config{
 			Image: request.Image, User: docker.user,
-			Entrypoint: []string{request.Program}, Cmd: append([]string(nil), request.Args...),
-			Env: append([]string(nil), request.Env...), WorkingDir: request.WorkingDir,
+			Entrypoint: []string{"/opt/judge/supervisor"},
+			Cmd:        append([]string{strconv.FormatInt(int64(request.Limits.CPUTime), 10), strconv.FormatUint(request.Limits.OpenFiles, 10), request.Program}, request.Args...),
+			Env:        append([]string(nil), request.Env...), WorkingDir: request.WorkingDir,
 			AttachStdin: request.Stdin != nil, OpenStdin: request.Stdin != nil, StdinOnce: request.Stdin != nil,
 			AttachStdout: true, AttachStderr: true, Tty: false, NetworkDisabled: true,
 			Labels: map[string]string{
@@ -468,12 +498,12 @@ func (docker *Docker) createOptions(request ExecuteRequest, mounts []mount.Mount
 				Memory: request.Limits.MemoryBytes, MemorySwap: request.Limits.MemoryBytes,
 				MemorySwappiness: &memorySwappiness, PidsLimit: &pids, NanoCPUs: docker.nanoCPUs,
 				Ulimits: []*container.Ulimit{
-					{Name: "nofile", Soft: int64(request.Limits.OpenFiles), Hard: int64(request.Limits.OpenFiles)},
-					{Name: "nproc", Soft: request.Limits.PIDs, Hard: request.Limits.PIDs},
+					{Name: "nofile", Soft: int64(max(minSupervisorOpenFiles, request.Limits.OpenFiles)), Hard: int64(max(minSupervisorOpenFiles, request.Limits.OpenFiles))},
 				},
 			},
 			NetworkMode: "none", RestartPolicy: container.RestartPolicy{Name: container.RestartPolicyDisabled},
-			AutoRemove: false, Privileged: false, ReadonlyRootfs: true,
+			CgroupnsMode: container.CgroupnsModePrivate,
+			AutoRemove:   false, Privileged: false, ReadonlyRootfs: true,
 			CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"},
 			Mounts: mounts, Init: &initProcess, LogConfig: container.LogConfig{Type: "none"},
 			Tmpfs: map[string]string{

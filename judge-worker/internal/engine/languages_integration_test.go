@@ -46,8 +46,8 @@ func TestLanguageImagesIntegration(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, test := range []struct{ id, directory, entry, fixture string }{
-		{"cpp20-v2", "cpp20", "main.cpp", "sum.cpp"},
-		{"go-v2", "go", "main.go", "sum.go"},
+		{"cpp20-v3", "cpp20", "main.cpp", "sum.cpp"},
+		{"go-v3", "go", "main.go", "sum.go"},
 	} {
 		t.Run(test.id, func(t *testing.T) {
 			source, err := os.ReadFile(filepath.Join("../../languages", test.directory, "testdata", test.fixture))

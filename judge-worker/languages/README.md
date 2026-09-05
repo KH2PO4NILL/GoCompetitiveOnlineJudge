@@ -9,7 +9,7 @@ Worker 启动时严格校验全部语言 Profile（包括禁用项），然后�
 
 `judge-worker/etc/judge-worker.yaml` 的 `LanguageRegistryFile` 接受注册表 YAML 路径，
 相对路径相对于 Worker 启动目录。环境变量 `JUDGE_LANGUAGE_REGISTRY_FILE` 为空时使用
-编译进 Worker 的 `internal/language/profiles.yaml`，包含 `cpp20-v2` 和 `go-v2`。
+编译进 Worker 的 `internal/language/profiles.yaml`，包含 `cpp20-v3` 和 `go-v3`。
 指定外部文件时完整替换默认表，不合并、不热更新；文件内部不展开环境变量。
 
 先构建并在每台 Worker 的 Docker daemon 中预置镜像：
@@ -19,12 +19,13 @@ bash scripts/build-language-images.sh
 ```
 
 Dockerfile 使用固定版本的 gcc / golang 基础镜像；可用 `--build-arg BASE_IMAGE=仓库@sha256:摘要`
-进一步固定构建输入。Compiler 和 Runtime 分别发布为 `1.1.0-compiler` / `1.1.0-runtime`。
+进一步固定构建输入。Compiler 和 Runtime 分别发布为 `1.2.0-compiler` / `1.2.0-runtime`。
 Runtime 基于 scratch，只包含静态入口，不包含编译器、包管理器或 shell；两个语言均生成静态产物。
 C++ 使用 `-std=c++20 -O2 -static`、固定随机种子、路径映射和 SOURCE_DATE_EPOCH；
 Go 禁用 CGO，使用 `-trimpath -buildvcs=false -mod=readonly -ldflags=-buildid=`。
 相同工具链、架构、Profile 与源码的两次构建必须通过产物 SHA-256 一致性验收。
-v2 是相对 #32 原型 v1 的新策略版本，不覆盖已部署的 v1 定义；仍需要 v1 的部署应保留其外部注册表。
+v3 使用新的可信计量协议，不覆盖 v1/v2 的定义或 1.1.0 镜像。升级时先预置 1.2.0 镜像，
+再切换 Worker 与 Profile 映射；旧镜像缺少监管器，不能直接用于新版 Worker。
 生产发布应把发布后的 `repository@sha256:...` 写入外部 Profile。
 不要重新绑定已发布的版本标签，不要给已有 Profile ID 更换语义；策略、脚本、编译器变化时，
 发布新的镜像版本和新的 `-vN` Profile ID。
@@ -36,7 +37,29 @@ Worker 不拉取镜像。启动时验证引用格式；首次创建 Attempt 时�
 解析本地镜像，缺失镜像明确报错，之后 Build/Run 只使用解析后的不可变 image ID。
 因此标签在 Attempt 执行期间移动不会改变该 Attempt 的镜像。
 
-## Profile Schema
+## 可信退出计量
+
+Sandbox 需要 Linux cgroup v2（CPU、memory、pids 控制器），并为每个容器创建私有
+cgroup/PID namespace。所有镜像需包含静态 `/opt/judge/supervisor`，构建源码位于
+`supervisor.c`；自定义镜像也必须遵守本协议。Dockerfile 的构建上下文是 `languages/`。
+
+监管器以非 root UID 作为 PID 1，禁用 dumpability，独占 Docker stdout；用户程序只能写入
+监管器创建的两条管道，无法通过 `/proc/1/fd` 或 `/proc/1/mem` 修改控制流。Docker init 关闭，
+保留 cgroup `PidsLimit` 和 `nofile`，不设置按宿主 UID 累计的 `nproc`。
+监管器命令参数依次为 CPU 纳秒上限、用户进程 FD 上限、程序绝对路径及其 argv。
+容器为 OCI 初始化及监管器保留至少 64 个 FD；子进程在关闭控制管道后将软/硬 `nofile` 都降至请求值，
+因此最小 3 FD 的任务也能正常启动，且不能借监管器的额度打开额外文件。
+主进程退出后，监管器终止并回收残余子进程，在 cgroup 仍存在时读取 `cpu.stat`、
+`memory.peak`（旧内核回退至采样值）和 `memory.events`。最终累计 CPU 包含子孙进程，
+不依赖程序自行 wait，也不把最后一次 Docker 采样当作最终用量；超限在退出时仍判 TLE。
+
+stdout 帧为 1 字节类型 + 4 字节大端长度 + payload；单帧最大 16384 字节。
+类型 1/2 为用户 stdout/stderr；类型 3 为唯一的最终 24 字节记录：大端 uint64 CPU 纳秒、
+uint64 峰值内存字节、uint32 子进程退出码、uint32 标志（bit 0 CPU 超限、bit 1 OOM）。
+终帧后不得再有数据；监管器 stderr 仅用于有界基础设施诊断。缺失/损坏终帧会失败关闭，
+不会误判为正常退出；外部强杀、取消及已确认 OOM 走对应终止路径。
+
+## Profile 字段
 
 完整可运行示例是 `../internal/language/profiles.yaml`；Go 类型和严格校验在
 `../internal/language/profile.go`。顶层只允许 `profiles` 列表（1–256 项）。
@@ -49,7 +72,7 @@ Worker 不拉取镜像。启动时验证引用格式；首次创建 Attempt 时�
 | `enabled` | `false`（省略时默认禁用）不可创建 Attempt；禁用不豁免配置校验 |
 | `source.entry_file` | 必须存在的入口文件，如 `main.cpp`、`main.go` |
 | `source.extensions` | 允许的扩展名，入口也必须匹配；不可重复 |
-| `source.max_files` / `max_bytes` | 源文件数和总大小上限，最多 64 个 / 16 MiB |
+| `source.max_files` / `max_bytes` | 源文件数和总大小上限，最多 64 个 / 1 MiB，与 Submit 全局硬上限一致 |
 | `build.image` / `run.image` | 固定 Compiler / Runtime 镜像引用 |
 | `build.program` / `run.program` | 必须分别为 `/opt/judge/build` 与 `/opt/judge/run` |
 | `build.args` / `run.args` | 独立 argv 字符串数组，不进行插值、拼接或 shell 展开 |

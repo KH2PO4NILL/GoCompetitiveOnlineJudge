@@ -72,7 +72,7 @@ func TestForcedShutdownCleansDockerIntegration(t *testing.T) {
 	finished := make(chan error, 1)
 	driver, broker := fixture(t, func(ctx context.Context, _ *submitpb.JudgeTaskEvent) processor.Result {
 		_, err := judgeEngine.Judge(ctx, engine.JudgeInput{
-			Request: engine.Request{SubmissionID: 1, AttemptID: 2, ProfileID: "cpp20-v2", SourceCode: "int main(){for(;;){}}"},
+			Request: engine.Request{SubmissionID: 1, AttemptID: 2, ProfileID: "cpp20-v3", SourceCode: "int main(){for(;;){}}"},
 			Spec:    &problempb.JudgeProblemSpec{ProblemId: 1, Revision: 1, JudgeConfig: &problempb.JudgeConfig{Settings: &problempb.JudgeSettings{TimeLimitMs: 10000, MemoryLimitMb: 64, CheckerType: problempb.CheckerType_CHECKER_TYPE_STANDARD}}, TestCases: []*problempb.TestCaseInfo{{TestCaseId: 1, Name: "one", Enabled: true}}},
 			Package: &testdatacache.Package{Dir: data, Manifest: &testdatamanifest.Manifest{Version: 1, TestCases: []testdatamanifest.TestCase{{Name: "one", InputFile: "in", OutputFile: "out"}}}},
 			Checker: checker.Exact,

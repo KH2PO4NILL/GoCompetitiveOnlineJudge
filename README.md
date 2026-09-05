@@ -429,7 +429,7 @@ make build
 
 完整判题链路、故障恢复及独立 Docker 安全验收见 [Judge Worker 验收](judge-worker/README.md)。
 
-Judge Worker 使用声明式 Language Profile 和只读 Registry。内置 `cpp20-v2`、`go-v2`，
+Judge Worker 使用声明式 Language Profile 和只读 Registry。内置 `cpp20-v3`、`go-v3`，
 也可通过 `JUDGE_LANGUAGE_REGISTRY_FILE` 加载完整的外部注册表；启动时拒绝非法 Profile。
 每个 Attempt 固定镜像内容摘要、资源策略和 Policy Digest，Build/Run 统一调用
 `/opt/judge/build`、`/opt/judge/run`，运行阶段只读挂载 Artifact。

@@ -12,6 +12,7 @@ import (
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/config"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/sandbox"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/workspace"
 )
 
 type fakeSandbox struct {
@@ -22,6 +23,67 @@ type fakeSandbox struct {
 	cleanupCalls  int
 	closed        bool
 	closeCalls    int
+}
+
+func TestWorkspaceOwnershipIsHeldUntilCancelledTasksExit(t *testing.T) {
+	settings := testConfig(t.TempDir())
+	service, err := newServiceContext(settings, func(config.Config, *slog.Logger) (sandbox.Sandbox, error) { return &fakeSandbox{}, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = service.Shutdown(context.Background()) })
+	if err := service.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if duplicate, err := newServiceContext(settings, func(config.Config, *slog.Logger) (sandbox.Sandbox, error) {
+		t.Error("duplicate worker reached the sandbox factory")
+		return &fakeSandbox{}, nil
+	}); err == nil {
+		_ = duplicate.Shutdown(context.Background())
+		t.Fatal("duplicate worker took over an active workspace")
+	}
+	entered, cancelled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	defer func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	}()
+	if err := service.Pool.Submit(context.Background(), func(ctx context.Context) error {
+		close(entered)
+		<-ctx.Done()
+		close(cancelled)
+		<-release
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	<-entered
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	finished := make(chan error, 1)
+	go func() { finished <- service.Shutdown(ctx) }()
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("task was not cancelled")
+	}
+	if stolen, err := workspace.Open(settings.Sandbox.WorkDir, settings.Worker.ID); err == nil {
+		_ = stolen.Close()
+		t.Fatal("workspace released while cancelled task was still active")
+	}
+	close(release)
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("shutdown did not join the task")
+	}
+	restarted, err := workspace.Open(settings.Sandbox.WorkDir, settings.Worker.ID)
+	if err != nil {
+		t.Fatal("workspace lock was not released", err)
+	}
+	_ = restarted.Close()
 }
 
 func (f *fakeSandbox) ResolveImage(context.Context, string) (string, error) {
@@ -57,11 +119,18 @@ func TestServiceContextCreatesDirectoriesCleansSandboxAndRunsPool(t *testing.T) 
 	if serviceContext.Languages == nil || serviceContext.Engine == nil {
 		t.Fatal("language registry and engine were not initialized")
 	}
+	orphan := filepath.Join(serviceContext.workspace.Dir, "attempt-1-123", "artifact")
+	if err := os.MkdirAll(orphan, 0700); err != nil {
+		t.Fatal(err)
+	}
 	if err := serviceContext.Start(); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
 	if !executor.cleanupCalled {
 		t.Fatal("Start() did not clean orphaned sandbox containers")
+	}
+	if _, err := os.Stat(orphan); !os.IsNotExist(err) {
+		t.Fatalf("startup retained owned orphan: %v", err)
 	}
 	completed := make(chan struct{})
 	if err := serviceContext.Pool.Submit(context.Background(), func(context.Context) error {

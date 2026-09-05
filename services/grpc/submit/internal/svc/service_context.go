@@ -13,6 +13,7 @@ import (
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgemetrics"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgemq"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgepolicy"
 	"github.com/google/uuid"
 
 	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
@@ -265,7 +266,7 @@ func validateRuntimeConfig(c config.Config) error {
 			return err
 		}
 	}
-	if c.Limits.MaxSourceCodeBytes <= 0 || c.Limits.MaxSourceCodeBytes > 4*1024*1024 ||
+	if c.Limits.MaxSourceCodeBytes <= 0 || c.Limits.MaxSourceCodeBytes > judgepolicy.MaxSourceCodeBytes ||
 		c.Limits.MaxClientRequestBytes <= 0 || c.Limits.MaxClientRequestBytes > 128 ||
 		c.Limits.MaxPageSize <= 0 || c.Limits.MaxPageSize > 100 ||
 		c.Limits.MaxBatchRejudge <= 0 || c.Limits.MaxBatchRejudge > 100 ||

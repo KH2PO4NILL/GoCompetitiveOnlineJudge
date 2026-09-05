@@ -19,9 +19,18 @@ import (
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/language"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/sandbox"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgepolicy"
 )
 
 var ErrAttemptState = errors.New("invalid language attempt state")
+
+type sourceError struct {
+	policy language.Audit
+	err    error
+}
+
+func (err *sourceError) Error() string { return err.err.Error() }
+func (err *sourceError) Unwrap() error { return err.err }
 
 type ProblemLimits struct {
 	CPUTime     time.Duration
@@ -94,9 +103,6 @@ func (engine *Engine) Prepare(ctx context.Context, request Request) (*Attempt, e
 	if request.Sources == nil {
 		request.Sources = map[string][]byte{policy.Profile.Source.EntryFile: []byte(request.SourceCode)}
 	}
-	if err := validateSources(policy.Profile.Source, request.Sources); err != nil {
-		return nil, err
-	}
 	limits, err := effectiveLimits(policy.Profile, request.Limits)
 	if err != nil {
 		return nil, err
@@ -115,6 +121,9 @@ func (engine *Engine) Prepare(ctx context.Context, request Request) (*Attempt, e
 		return nil, err
 	}
 	policy.Audit.PolicyDigest = fmt.Sprintf("sha256:%x", sha256.Sum256(encoded))
+	if err := validateSources(policy.Profile.Source, request.Sources); err != nil {
+		return nil, &sourceError{policy: policy.Audit, err: err}
+	}
 	directory, err := os.MkdirTemp(engine.workDir, fmt.Sprintf("attempt-%d-", request.AttemptID))
 	if err != nil {
 		return nil, fmt.Errorf("create attempt directory: %w", err)
@@ -131,6 +140,7 @@ func (engine *Engine) Prepare(ctx context.Context, request Request) (*Attempt, e
 }
 
 func validateSources(rules language.SourceRules, sources map[string][]byte) error {
+	rules.MaxBytes = min(rules.MaxBytes, judgepolicy.MaxSourceCodeBytes)
 	if len(sources) == 0 || len(sources) > rules.MaxFiles {
 		return errors.New("source file count exceeds profile rules")
 	}

@@ -53,7 +53,7 @@ RedisDB:
   DB: 0
 
 Limits:
-  MaxSourceCodeBytes: 4194304
+  MaxSourceCodeBytes: 1048576
   MaxClientRequestBytes: 128
   MaxPageSize: 100
   MaxBatchRejudge: 100

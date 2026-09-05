@@ -203,7 +203,7 @@ func (c *Config) ApplyDefaults() {
 		c.Processor.ReportAttempts = 3
 	}
 	if len(c.Processor.Profiles) == 0 {
-		c.Processor.Profiles = map[string]string{"cpp20": "cpp20-v2", "cpp": "cpp20-v2", "c++20": "cpp20-v2", "go": "go-v2"}
+		c.Processor.Profiles = map[string]string{"cpp20": "cpp20-v3", "cpp": "cpp20-v3", "c++20": "cpp20-v3", "go": "go-v3"}
 	}
 	if c.Processor.Checker == "" {
 		c.Processor.Checker = "tokens"

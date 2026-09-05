@@ -46,7 +46,7 @@ func TestJudgeEngineLanguages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, pack := range []struct{ id, directory, entry, fixture string }{{"cpp20-v2", "cpp20", "main.cpp", "cases.cpp"}, {"go-v2", "go", "main.go", "cases.go"}} {
+	for _, pack := range []struct{ id, directory, entry, fixture string }{{"cpp20-v3", "cpp20", "main.cpp", "cases.cpp"}, {"go-v3", "go", "main.go", "cases.go"}} {
 		t.Run(pack.id, func(t *testing.T) {
 			source, err := os.ReadFile(filepath.Join("../../languages", pack.directory, "testdata", pack.fixture))
 			if err != nil {

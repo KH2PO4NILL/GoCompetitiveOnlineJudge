@@ -159,20 +159,24 @@ func (cache *Cache) Prepare(ctx context.Context, requestedRevision int64, spec *
 	cache.opMu.RLock()
 	defer cache.opMu.RUnlock()
 	data, err := cache.flights.Do(ctx, checksum, func() (*cachedPackage, error) {
-		if hit, hitErr := cache.loadCached(checksum); hitErr == nil {
-			return hit, nil
+		hit, hitErr := cache.loadCached(checksum)
+		if hitErr != nil {
+			hit, hitErr = cache.downloadAndInstall(ctx, spec, checksum)
 		}
-		return cache.downloadAndInstall(ctx, spec, checksum)
+		if hitErr != nil {
+			return nil, hitErr
+		}
+		if err := compareManifestToSpec(hit.manifest, spec); err != nil {
+			return nil, err
+		}
+		cache.leaseMu.Lock()
+		cache.active[checksum]++
+		cache.leaseMu.Unlock()
+		return hit, nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	if err := compareManifestToSpec(data.manifest, spec); err != nil {
-		return nil, err
-	}
-	cache.leaseMu.Lock()
-	cache.active[checksum]++
-	cache.leaseMu.Unlock()
 	return &Package{Dir: data.dir, Manifest: data.manifest, checksum: checksum, cache: cache}, nil
 }
 
@@ -190,7 +194,7 @@ func (cache *Cache) loadCached(checksum string) (*cachedPackage, error) {
 	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
 		return nil, errors.New("cache entry is not a directory")
 	}
-	if cache.now().Sub(info.ModTime()) > cache.limits.ttl {
+	if cache.now().Sub(info.ModTime()) > cache.limits.ttl && !cache.isActive(checksum) {
 		return nil, errors.New("cache entry expired")
 	}
 	manifest, err := verifyExtractedDirectory(dir, cache.limits)
@@ -274,6 +278,9 @@ func (cache *Cache) downloadAndInstall(ctx context.Context, spec *problempb.Judg
 }
 
 func (cache *Cache) removeInvalidEntry(checksum string) error {
+	if cache.isActive(checksum) {
+		return errors.New("cannot replace test data while a package lease is active")
+	}
 	path := cache.cachePath(checksum)
 	if _, err := os.Lstat(path); errors.Is(err, os.ErrNotExist) {
 		return nil
@@ -437,32 +444,35 @@ type operationGroup struct {
 
 type operationCall struct {
 	done chan struct{}
-	data *cachedPackage
-	err  error
 }
 
 func (group *operationGroup) Do(ctx context.Context, key string, function func() (*cachedPackage, error)) (*cachedPackage, error) {
-	group.mu.Lock()
-	if group.calls == nil {
-		group.calls = make(map[string]*operationCall)
-	}
-	if call, exists := group.calls[key]; exists {
-		group.mu.Unlock()
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-call.done:
-			return call.data, call.err
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
 		}
-	}
-	call := &operationCall{done: make(chan struct{})}
-	group.calls[key] = call
-	group.mu.Unlock()
+		group.mu.Lock()
+		if group.calls == nil {
+			group.calls = make(map[string]*operationCall)
+		}
+		if call, exists := group.calls[key]; exists {
+			group.mu.Unlock()
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-call.done:
+				continue
+			}
+		}
+		call := &operationCall{done: make(chan struct{})}
+		group.calls[key] = call
+		group.mu.Unlock()
 
-	call.data, call.err = function()
-	group.mu.Lock()
-	delete(group.calls, key)
-	close(call.done)
-	group.mu.Unlock()
-	return call.data, call.err
+		data, err := function()
+		group.mu.Lock()
+		delete(group.calls, key)
+		close(call.done)
+		group.mu.Unlock()
+		return data, err
+	}
 }

@@ -49,5 +49,5 @@ go test -race ./judge-worker ./services/grpc/submit/model ./services/grpc/submit
 JUDGE_MQ_INTEGRATION=1 go test -race ./pkg/judgemq ./services/grpc/submit/internal/outbox -count=1 -v 2>&1 | tee "$logs/mq.log"
 if [[ "${JUDGE_E2E_SLOW:-0}" == 1 ]]; then
   JUDGE_LANGUAGE_INTEGRATION=1 go test ./judge-worker/internal/engine -count=1 -timeout=15m -v 2>&1 | tee "$logs/languages.log"
-  JUDGE_DOCKER_INTEGRATION=1 JUDGE_SANDBOX_TEST_IMAGE=gcoj/judge-go:1.1.0-runtime go test ./judge-worker/internal/sandbox ./judge-worker/internal/consumer -count=1 -timeout=5m -v 2>&1 | tee "$logs/security.log"
+  JUDGE_DOCKER_INTEGRATION=1 JUDGE_SANDBOX_TEST_IMAGE=gcoj/judge-go:1.2.0-runtime go test ./judge-worker/internal/sandbox ./judge-worker/internal/consumer -count=1 -timeout=5m -v 2>&1 | tee "$logs/security.log"
 fi

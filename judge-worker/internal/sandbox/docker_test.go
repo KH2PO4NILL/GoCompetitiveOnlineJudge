@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -183,8 +184,11 @@ func TestExecuteCollectsOutputAndExitMetadata(t *testing.T) {
 	}
 	api.start = func() {
 		go func() {
-			_ = writeDockerFrame(serverConn, stdcopy.Stdout, []byte("out"))
-			_ = writeDockerFrame(serverConn, stdcopy.Stderr, []byte("err"))
+			_ = writeSupervisorFrame(serverConn, 1, []byte("out"))
+			_ = writeSupervisorFrame(serverConn, 2, []byte("err"))
+			var final [24]byte
+			binary.BigEndian.PutUint32(final[16:20], 7)
+			_ = writeSupervisorFrame(serverConn, 3, final[:])
 			_ = serverConn.Close()
 			resultCh <- container.WaitResponse{StatusCode: 7}
 		}()
@@ -219,6 +223,14 @@ func writeDockerFrame(writer io.Writer, stream stdcopy.StdType, payload []byte) 
 	}
 	_, err := writer.Write(payload)
 	return err
+}
+
+func writeSupervisorFrame(writer io.Writer, kind byte, payload []byte) error {
+	frame := make([]byte, 5+len(payload))
+	frame[0] = kind
+	binary.BigEndian.PutUint32(frame[1:5], uint32(len(payload)))
+	copy(frame[5:], payload)
+	return writeDockerFrame(writer, stdcopy.Stdout, frame)
 }
 
 func TestExecuteCancellationKillsWaitsAndRemovesContainer(t *testing.T) {
@@ -289,7 +301,7 @@ func TestCreateOptionsAppliesCommandLimitsLabelsAndIsolation(t *testing.T) {
 	if options.Name == "" || options.Config == nil || options.HostConfig == nil {
 		t.Fatalf("incomplete create options: %#v", options)
 	}
-	if !slices.Equal(options.Config.Entrypoint, []string{request.Program}) || !slices.Equal(options.Config.Cmd, request.Args) {
+	if !slices.Equal(options.Config.Entrypoint, []string{"/opt/judge/supervisor"}) || !slices.Equal(options.Config.Cmd, append([]string{strconv.FormatInt(int64(request.Limits.CPUTime), 10), strconv.FormatUint(request.Limits.OpenFiles, 10), request.Program}, request.Args...)) {
 		t.Fatalf("command = entrypoint %#v cmd %#v", options.Config.Entrypoint, options.Config.Cmd)
 	}
 	if options.Config.User != docker.user || options.Config.Tty || !options.Config.NetworkDisabled {
@@ -310,7 +322,7 @@ func TestCreateOptionsAppliesCommandLimitsLabelsAndIsolation(t *testing.T) {
 	if !slices.Equal([]string(host.CapDrop), []string{"ALL"}) || !slices.Contains(host.SecurityOpt, "no-new-privileges:true") {
 		t.Errorf("capabilities/security options = %#v %#v", host.CapDrop, host.SecurityOpt)
 	}
-	if host.RestartPolicy.Name != container.RestartPolicyDisabled || host.LogConfig.Type != "none" || host.Init == nil || !*host.Init {
+	if host.RestartPolicy.Name != container.RestartPolicyDisabled || host.LogConfig.Type != "none" || host.Init == nil || *host.Init || host.CgroupnsMode != container.CgroupnsModePrivate {
 		t.Errorf("lifecycle/log/init options = %#v %#v %#v", host.RestartPolicy, host.LogConfig, host.Init)
 	}
 	if host.Memory != request.Limits.MemoryBytes || host.MemorySwap != request.Limits.MemoryBytes || host.PidsLimit == nil || *host.PidsLimit != request.Limits.PIDs || host.NanoCPUs != docker.nanoCPUs {
@@ -320,7 +332,7 @@ func TestCreateOptionsAppliesCommandLimitsLabelsAndIsolation(t *testing.T) {
 	for _, limit := range host.Ulimits {
 		ulimits[limit.Name] = [2]int64{limit.Soft, limit.Hard}
 	}
-	if ulimits["nofile"] != [2]int64{int64(request.Limits.OpenFiles), int64(request.Limits.OpenFiles)} || ulimits["nproc"] != [2]int64{request.Limits.PIDs, request.Limits.PIDs} {
+	if ulimits["nofile"] != [2]int64{int64(request.Limits.OpenFiles), int64(request.Limits.OpenFiles)} || len(ulimits) != 1 {
 		t.Errorf("ulimits = %#v", ulimits)
 	}
 	if len(host.Mounts) != 1 || host.Mounts[0].Target != "/sandbox/data" || !host.Mounts[0].ReadOnly {

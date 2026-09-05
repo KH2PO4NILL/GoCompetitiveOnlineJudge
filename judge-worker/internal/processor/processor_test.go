@@ -101,7 +101,7 @@ func fixture(t *testing.T) (*Processor, *fakeSubmit, *fakeJudge, *bytes.Buffer, 
 	gateway := &fakeSubmit{lease: &submitpb.AcquireJudgeTaskResp{Acquired: true, Task: &submitpb.JudgeTask{SubmissionId: 1, AttemptId: 2, ProblemId: 3, ProblemRevision: 4, Language: "go", SourceCode: "source-code"}, LeaseToken: "sensitive-token", LeaseExpiresAt: timestamppb.New(time.Now().Add(time.Second))}}
 	judge := &fakeJudge{}
 	logs := &bytes.Buffer{}
-	processor, err := New(Options{WorkerID: "test-worker", Submit: gateway, Problem: fakeProblem{revision: 4}, Cache: fakeCache{}, Judge: judge, Logger: slog.New(slog.NewJSONHandler(logs, nil)), Profiles: map[string]string{"go": "go-v2"}, HeartbeatInterval: 10 * time.Millisecond, RetryBackoff: time.Millisecond, ReportAttempts: 3})
+	processor, err := New(Options{WorkerID: "test-worker", Submit: gateway, Problem: fakeProblem{revision: 4}, Cache: fakeCache{}, Judge: judge, Logger: slog.New(slog.NewJSONHandler(logs, nil)), Profiles: map[string]string{"go": "go-v3"}, HeartbeatInterval: 10 * time.Millisecond, RetryBackoff: time.Millisecond, ReportAttempts: 3})
 	if err != nil {
 		t.Fatal(err)
 	}

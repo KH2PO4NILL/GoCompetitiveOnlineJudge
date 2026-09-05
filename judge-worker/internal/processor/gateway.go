@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgepolicy"
 	problempb "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/pb"
 	submitpb "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/submit/pb"
 	"google.golang.org/grpc"
@@ -51,7 +52,7 @@ func rpcContext(ctx context.Context, token string, timeout time.Duration) (conte
 func (gateway *RPCSubmit) Acquire(ctx context.Context, request *submitpb.AcquireJudgeTaskReq) (*submitpb.AcquireJudgeTaskResp, error) {
 	ctx, cancel := rpcContext(ctx, gateway.Token, gateway.Timeout)
 	defer cancel()
-	return gateway.Client.AcquireJudgeTask(ctx, request)
+	return gateway.Client.AcquireJudgeTask(ctx, request, grpc.MaxCallRecvMsgSize(judgepolicy.MaxLegacyTaskMessageBytes))
 }
 func (gateway *RPCSubmit) Heartbeat(ctx context.Context, request *submitpb.HeartbeatJudgeTaskReq) (*submitpb.HeartbeatJudgeTaskResp, error) {
 	ctx, cancel := rpcContext(ctx, gateway.Token, gateway.Timeout)

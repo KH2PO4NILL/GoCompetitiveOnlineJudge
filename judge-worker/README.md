@@ -1,6 +1,6 @@
 # Judge Worker：运行与验收
 
-已支持 C++20、Go，固定 profile `cpp20-v2`、`go-v2`。标准判题支持
+已支持 C++20、Go，固定 profile `cpp20-v3`、`go-v3`。标准判题支持
 Exact Bytes、Ignore Trailing Whitespace、Token Compare；不支持 Python/Java、SPJ 或交互题。
 
 ## 本地启动
@@ -22,9 +22,26 @@ MQ 只通知，Submission/Attempt/Outbox 数据库状态才是事实来源。
 已 Acquire 任务失败时不复用过期租约；Submit Lease recovery 创建新的 Attempt 和 Outbox。
 SIGTERM 停止拉取/Claim，活跃任务继续心跳，宽限期结束才取消并清理容器。
 
+## 升级与工作目录
+
+Submit 与内置 Profile 的源码上限统一为 **1MiB（1,048,576 字节）**；部署时同步更新
+Submit 的 `Limits.MaxSourceCodeBytes`（允许更小，不允许超过全局上限）。已入库的旧超大源码
+仍可通过有界的 Acquire RPC 拉取，但直接上报 CE，不再通过新建 Attempt 永久重试。
+
+每个 Worker 在工作目录内使用 `worker-<WorkerID 的 SHA-256>` 子目录及独占文件锁。
+同一目录/WorkerID 的第二个进程会在清容器前拒绝启动；不同 WorkerID 的目录互不清理。
+重启时先清理归属本 Worker 的容器，再回收其目录内的 `attempt-<id>-<随机数>`；
+锁持有到任务全部退出，SIGKILL 会由内核释放锁。工作目录须位于支持 flock 的本地文件系统，
+WorkerID 在重启之间保持稳定，不要手动删除 `.lock` 文件或把活跃目录迁给其他实例。
+
+旧版直接位于工作目录根部的 `attempt-*` 没有归属信息，新版不会猜测并删除；
+首次升级应先停止所有旧 Worker、确认其容器与任务已退出，再由管理员清理这些旧目录。
+缓存 TTL 是闲置淘汰条件；活跃 Package 租约期间不会因重装或清理而删除测试数据。
+测试数据缓存目录须由各 Worker 独占；Package 租约是进程内机制，不用于多个 Worker 共享缓存目录。
+
 ## 一键隔离验收
 
-前提：Linux Docker daemon/cgroups、Docker Compose v2、Go（版本见 go.mod）、curl、openssl，
+前提：Linux Docker daemon/cgroup v2、Docker Compose v2、Go（版本见 go.mod）、curl、openssl、C 编译器，
 以及已构建的官方语言镜像。Docker daemon 需要访问 Worker 使用的本地临时目录。
 
 ```sh
@@ -55,6 +72,9 @@ JUDGE_E2E_SLOW=1 bash scripts/test-judge-e2e.sh
 | ZIP 攻击 | `internal/testdatacache`、`pkg/testdatamanifest`：路径穿越、绝对路径、符号链接、设备文件、压缩炸弹、数量/单文件/总量上限，失败无原子缓存命中或临时残留 |
 | 结果恰好应用一次 | E2E 丢失 Report 响应、丢失 MQ ACK、Outbox Broker ACK 后 Mark 失败；验证数据库只有一个 Finished Attempt，Applied 次数为 1 |
 | Lease 崩溃恢复 | E2E 通过真实 RPC Acquire 后停止心跳，真实 recovery worker 创建后继 Attempt，旧消息只能 ACK/拒绝 |
+| 源码永久错误收敛 | E2E 预置旧 4MiB 源码，经真实 Acquire/Report RPC 返回 CE，只有一个 Attempt，最终结果只应用一次 |
+| 可信 CPU/进程隔离 | 100ms CPU 限制下的 200ms 短程序及自动回收子孙进程均为 TLE；伪造计量帧、访问 PID 1 控制 fd、跨容器同 UID 的有界 fork 均有真实 Docker 回归 |
+| 崩溃工作目录回收 | `internal/workspace` 真正 SIGKILL 持锁子进程，验证重启回收源码/产物，保留其他活跃 Worker 和无归属目录 |
 | 临时依赖故障 | E2E 注入 Submit/Problem RPC Unavailable、真实 MinIO GET 503、Docker Execute 失败；均恢复为 AC；临时心跳失败及明确 Lease 失效另有 Processor 竞态测试 |
 | 有界并发/停机 | `signal_test.go` 通过子进程验证真实 SIGTERM 进入有界、未提前取消的退出宽限期；`internal/consumer`/`worker`/`app` 验证硬预取上限、停止拉取、活跃心跳、超时取消及 join；Consumer 在确认 C++ 容器运行后强制关闭，并检查容器、目录及 goroutine 无残留 |
 | 可观测性/脱敏 | E2E 与 Consumer 测试校验指标 scrape、零 inflight、关联 ID/阶段，且不包含故障注入的秘密标记或源码全文 |

@@ -124,6 +124,14 @@ func (engine *Engine) Judge(ctx context.Context, input JudgeInput) (outcome Outc
 	input.Request.Binding = PolicyBinding{ProblemID: input.Spec.ProblemId, Revision: input.Spec.Revision, Checker: string(input.Checker)}
 	attempt, err := engine.Prepare(ctx, input.Request)
 	if err != nil {
+		var invalid *sourceError
+		if errors.As(err, &invalid) {
+			outcome.Policy = invalid.policy
+			outcome.Verdict, outcome.Cases = CE, nil
+			outcome.CompileOutput = boundedDiagnostic([]byte(invalid.Error()))
+			progress("done", 0)
+			return outcome, nil
+		}
 		return outcome, err
 	}
 	outcome.Policy = attempt.Audit()

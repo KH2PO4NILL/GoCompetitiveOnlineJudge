@@ -8,7 +8,33 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgepolicy"
 )
+
+func TestBuiltInSourceLimitsMatchSubmit(t *testing.T) {
+	profiles, err := LoadProfiles("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, profile := range profiles {
+		if profile.Source.MaxBytes != judgepolicy.MaxSourceCodeBytes {
+			t.Fatalf("%s source limit differs from Submit", profile.ID)
+		}
+	}
+}
+
+func TestProfileCannotAdvertiseSourceBeyondSubmitLimit(t *testing.T) {
+	profiles, err := LoadProfiles("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile := profiles[0]
+	profile.Source.MaxBytes = judgepolicy.MaxSourceCodeBytes + 1
+	if err := profile.Validate(); err == nil {
+		t.Fatal("accepted a profile above the global source limit")
+	}
+}
 
 type fakeResolver struct {
 	digest string
@@ -104,7 +130,7 @@ func TestLoadStrictRegistry(t *testing.T) {
 		"nested unknown":     strings.Replace(string(defaultProfiles), "entry_file:", "entry_flie:", 1),
 		"multiple documents": string(defaultProfiles) + "---\nprofiles: []\n",
 		"duplicate field":    strings.Replace(string(defaultProfiles), "schema_version: 1", "schema_version: 1\n    schema_version: 1", 1),
-		"duplicate id":       strings.Replace(string(defaultProfiles), "id: go-v2", "id: cpp20-v2", 1),
+		"duplicate id":       strings.Replace(string(defaultProfiles), "id: go-v3", "id: cpp20-v3", 1),
 		"oversized":          strings.Repeat(" ", (1<<20)+1),
 	} {
 		t.Run(name, func(t *testing.T) {
