@@ -61,6 +61,11 @@ JUDGE_E2E_SLOW=1 bash scripts/test-judge-e2e.sh
 诊断只保存测试结果和有限 Broker 状态到 `.run/judge-e2e/<project>`，不导出环境变量、
 源码、Token、对象存储凭据、数据库转储或容器文件系统。
 
+脚本同时对 Problem、Contest、Submit 三个 Model 执行真实 MySQL 集成测试，
+三个 `*_MODEL_TEST_DSN` 仅指向本次隔离 MySQL；结果单独写入 `models.log`。
+它们覆盖题目 revision / 发布快照、上传事务回滚、比赛报名 / 冻结榜单、提交租约 / 幂等事务，
+仍不能代替浏览器、完整 HTTP 鉴权或真实题目上传验收。运行期间不要编辑该脚本。
+
 ## 验收矩阵
 
 | 范围 | 测试及真实边界 |
@@ -85,7 +90,7 @@ Docker 暂时故障在 Execute 接口注入，避免停止同机 Docker daemon �
 
 ## CI 与单独运行
 
-`.github/workflows/judge.yml` 在 push/PR 运行普通竞态测试和 vet；
+`.github/workflows/judge.yml` 在 push/PR 运行普通竞态测试、vet 和完整 Go build；
 昂贵、需 Docker 权限的语言/安全/E2E Job 仅手动 `workflow_dispatch` 触发。
 本地可独立运行 `go test -race ./...`，默认跳过需要基础设施的测试。
 真实 MQ 单包测试必须使用隔离 Broker；不要把 `JUDGE_MQ_INTEGRATION=1` 指向业务队列。
