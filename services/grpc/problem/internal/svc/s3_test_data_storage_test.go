@@ -16,9 +16,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/testdatamanifest"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/internal/config"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/model"
 )
+
+const manifestFileName = testdatamanifest.FileName
+
+type testDataManifest = testdatamanifest.Manifest
+type testDataManifestCase = testdatamanifest.TestCase
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
@@ -154,6 +160,8 @@ func TestInspectTestDataArchiveRejectsUnsafePackages(t *testing.T) {
 	}{
 		{name: "path traversal", entries: map[string][]byte{manifestFileName: validManifest, "../escape": []byte("x"), "1.in": {}, "1.out": {}}},
 		{name: "missing referenced file", entries: map[string][]byte{manifestFileName: validManifest, "1.in": {}}},
+		{name: "undeclared directory", entries: map[string][]byte{manifestFileName: validManifest, "empty/": {}, "1.in": {}, "1.out": {}}},
+		{name: "regular file parent", entries: map[string][]byte{manifestFileName: validManifest, "1.in": {}, "1.out": {}, "extra": {}, "extra/child": {}}},
 		{name: "unknown manifest field", entries: map[string][]byte{manifestFileName: []byte(`{"test_cases":[],"unknown":true}`)}},
 		{name: "duplicate ordinal", entries: map[string][]byte{
 			manifestFileName: manifestJSON(t, []testDataManifestCase{
@@ -196,6 +204,27 @@ func TestInspectTestDataArchiveEnforcesUncompressedLimit(t *testing.T) {
 
 func testArchive(t *testing.T, entries map[string][]byte) []byte {
 	t.Helper()
+	if raw, exists := entries[manifestFileName]; exists {
+		var manifest testdatamanifest.Manifest
+		if err := json.Unmarshal(raw, &manifest); err == nil {
+			manifest.Version = testdatamanifest.CurrentVersion
+			manifest.Files = nil
+			for name, content := range entries {
+				if name == manifestFileName || strings.HasSuffix(name, "/") {
+					continue
+				}
+				digest := sha256.Sum256(content)
+				manifest.Files = append(manifest.Files, testdatamanifest.File{
+					Path: name, Size: int64(len(content)), SHA256: hex.EncodeToString(digest[:]),
+				})
+			}
+			encoded, err := json.Marshal(manifest)
+			if err != nil {
+				t.Fatalf("json.Marshal(manifest) error = %v", err)
+			}
+			entries[manifestFileName] = encoded
+		}
+	}
 	var buffer bytes.Buffer
 	writer := zip.NewWriter(&buffer)
 	for name, content := range entries {
@@ -215,7 +244,7 @@ func testArchive(t *testing.T, entries map[string][]byte) []byte {
 
 func manifestJSON(t *testing.T, testCases []testDataManifestCase) []byte {
 	t.Helper()
-	content, err := json.Marshal(testDataManifest{TestCases: testCases})
+	content, err := json.Marshal(testDataManifest{Version: testdatamanifest.CurrentVersion, TestCases: testCases})
 	if err != nil {
 		t.Fatalf("json.Marshal() error = %v", err)
 	}

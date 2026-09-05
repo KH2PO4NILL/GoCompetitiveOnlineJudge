@@ -270,6 +270,19 @@ make infra-reset
 
 ```json
 {
+  "version": 1,
+  "files": [
+    {
+      "path": "cases/1.in",
+      "sha256": "<64 位十六进制 SHA-256>",
+      "size": 4
+    },
+    {
+      "path": "cases/1.out",
+      "sha256": "<64 位十六进制 SHA-256>",
+      "size": 2
+    }
+  ],
   "test_cases": [
     {
       "name": "case-1",
@@ -284,7 +297,7 @@ make infra-reset
 }
 ```
 
-服务端会拒绝路径穿越、符号链接、重复路径、缺失文件以及超出文件数或解压大小限制的压缩包。完整规范见 [Problem test data package](services/grpc/problem/TEST_DATA_FORMAT.md)。
+`files` 必须精确列出 ZIP 中除 `manifest.json` 外的全部普通文件。Problem 服务和 Judge Worker 都会校验路径、文件类型、大小、SHA-256、文件清单、解压总量及压缩比；Worker 仅使用只读对象存储凭据，并以包 checksum 为键原子缓存已验证的数据。完整规范见 [Problem test data package](services/grpc/problem/TEST_DATA_FORMAT.md)。
 
 ## 项目结构
 

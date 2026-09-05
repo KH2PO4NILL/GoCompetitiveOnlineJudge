@@ -56,8 +56,10 @@ Upload:
   AllowedExtensions:
   - .zip
   MaxUncompressedBytes: 2147483648
+  MaxFileBytes: 536870912
   MaxFileCount: 20000
   MaxManifestBytes: 2097152
+  MaxCompressionRatio: 200
 
 ObjectStorage:
   Endpoint: "${PROBLEM_OBJECT_STORAGE_ENDPOINT}"
