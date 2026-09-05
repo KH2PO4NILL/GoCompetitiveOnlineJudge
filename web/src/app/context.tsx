@@ -19,7 +19,7 @@ const Context = createContext(runtimes.app.api)
 
 export function ScopeProvider({ scope, children }: { scope: Scope; children: ReactNode }) {
   const { api, queries } = runtimes[scope]
-  return <Context.Provider value={api}><QueryClientProvider client={queries}>{children}</QueryClientProvider></Context.Provider>
+  return <Context.Provider key={scope} value={api}><QueryClientProvider client={queries}>{children}</QueryClientProvider></Context.Provider>
 }
 
 export const useApi = () => useContext(Context)

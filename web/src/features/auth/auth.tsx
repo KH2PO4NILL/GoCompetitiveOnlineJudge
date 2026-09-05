@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { useApi, useSession } from '../../app/context'
 import type { GetCurrentUserResp, SendEmailCodeResp } from '../../api/contracts/app'
 import { ActionForm, ErrorNotice, Field } from '../../components/shared'
+import { ServiceIcon } from '../../components/service-icon'
 
 function returnPath(value: string | null, admin: boolean) {
   const fallback = admin ? '/admin' : '/account'
@@ -28,9 +29,11 @@ export function LoginPage() {
   const remaining = Math.max(0, Math.ceil((retryAt - clock) / 1000))
   const withCode = ['email-code', 'register', 'reset'].includes(mode)
   const purpose = mode === 'register' ? 'register' : mode === 'reset' ? 'reset_password' : 'login'
-  return <section className="auth-card"><p className="eyebrow">{admin ? 'ADMIN ACCESS' : 'WELCOME TO GCOJ'}</p>
-    <h1>{admin ? '登录管理工作台' : '继续你的解题之旅'}</h1>
-    <p className="muted">会话仅保存在内存中，刷新页面后需重新登录。用户端和管理端分别登录。</p>
+  return <><div className="breadcrumb"><Link to="/">服务首页</Link><span aria-hidden="true">/</span><span>{admin ? '管理身份认证' : '统一身份认证'}</span></div>
+    <div className="auth-layout"><aside className="auth-introduction"><span className="auth-emblem"><ServiceIcon name="building" /></span><p className="eyebrow">GCOJ · 在线服务大厅</p><h2>{admin ? '规范管理服务' : '一个账号'}<br />{admin ? '守护平台运行' : '开启便捷服务'}</h2><p>统一身份认证，安全访问平台。<br />让每一项服务清晰、有序、可追踪。</p><ul><li><ServiceIcon name="user" />{admin ? '管理端独立身份认证' : '多种方式验证身份'}</li><li><ServiceIcon name="shield" />账号信息与会话安全隔离</li><li><ServiceIcon name="list" />真实接口办理，即时反馈结果</li></ul><div className="auth-side-note">{admin ? '本入口仅面向具备管理权限的账号。' : '尚无账号？请在认证方式中选择「注册账号」。'}</div></aside>
+    <section className="auth-card"><p className="eyebrow">{admin ? '管理端入口' : '统一身份认证'}</p>
+    <h1>{admin ? '登录管理工作台' : '登录服务大厅'}</h1>
+    <p className="muted auth-description">请选择认证方式，按提示完成身份验证。</p>
     <label>认证方式<select value={mode} onChange={(event) => { setMode(event.target.value); setNotice(''); setCodeError(undefined) }}>
       <option value="username">用户名密码登录</option><option value="email-password">邮箱密码登录</option><option value="email-code">邮箱验证码登录</option>
       {!admin && <option value="register">注册账号</option>}<option value="reset">找回密码</option>
@@ -58,8 +61,9 @@ export function LoginPage() {
       }}>{sending ? '发送中…' : remaining ? `${remaining} 秒后可重发` : '发送验证码'}</button></>}
     </ActionForm>
     <ErrorNotice error={codeError} />{notice && <p role="status" className="notice">{notice}</p>}
-    <Link to={admin ? '/login' : '/admin/login'}>{admin ? '返回用户登录' : '管理员入口'}</Link>
-  </section>
+    <div className="session-note"><ServiceIcon name="shield" /><p>会话仅保存在内存中，刷新页面后需重新登录。用户端和管理端分别登录。</p></div>
+    <div className="auth-bottom"><Link to="/">返回服务首页</Link><Link to={admin ? '/login' : '/admin/login'}>{admin ? '返回用户登录' : '管理员入口'} <span aria-hidden="true">›</span></Link></div>
+  </section></div></>
 }
 
 export function AccountPage() {
@@ -68,7 +72,7 @@ export function AccountPage() {
   const [email, setEmail] = useState('')
   const [codeReadyAt, setCodeReadyAt] = useState(0)
   if (!session) return null
-  return <><h1>账号与安全</h1><p className="muted">{session.user.email} · {session.user.role}</p><div className="cards">
+  return <><div className="breadcrumb"><Link to={api.scope === 'admin' ? '/admin' : '/'}>服务首页</Link><span aria-hidden="true">/</span><span>我的账号</span></div><div className="account-heading"><div><p className="eyebrow">个人中心 · 在线办理</p><h1>账号与安全</h1><p className="muted">{session.user.email} · {session.user.role}</p></div><ServiceIcon name="shield" /></div><div className="cards account-panels">
     <section className="panel"><h2>个人资料</h2><ActionForm onSuccess="资料已保存" action={async (values) => {
       const school = values.school_id.trim()
       if (school && !/^\d+$/.test(school)) throw new Error('学校 ID 必须是非负整数')
