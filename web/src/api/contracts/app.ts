@@ -456,4 +456,3 @@ export type ListSubmissionsResp = {
   total: Int64
   submissions: SubmissionSummary[]
 }
-

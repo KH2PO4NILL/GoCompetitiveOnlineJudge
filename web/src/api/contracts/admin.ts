@@ -671,4 +671,3 @@ export type BatchRejudgeItem = {
 export type BatchRejudgeSubmissionsResp = {
   accepted: BatchRejudgeItem[]
 }
-

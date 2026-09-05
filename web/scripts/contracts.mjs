@@ -16,6 +16,7 @@ for (const scope of ['app', 'admin']) {
     }
     output += `export type ${type[1]} = {\n${fields.join('\n')}\n}\n\n`
   }
+  output = output.trimEnd() + '\n'
   const destination = new URL(`../src/api/contracts/${scope}.ts`, import.meta.url)
   if (process.argv.includes('--check')) {
     if (readFileSync(destination, 'utf8') !== output) throw new Error(`Stale ${scope} contracts; run npm run contracts`)
