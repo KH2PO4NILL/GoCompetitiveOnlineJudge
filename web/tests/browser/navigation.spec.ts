@@ -3,11 +3,12 @@ import { expect, test } from '@playwright/test'
 test('public navigation and unauthenticated management guard', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { level: 1 })).toContainText('让思考')
+  if (process.env.GCOJ_PUBLIC_SCREENSHOT) await page.screenshot({ path: process.env.GCOJ_PUBLIC_SCREENSHOT, fullPage: true })
   await page.goto('/admin/account')
   await expect(page).toHaveURL(/\/admin\/login\?returnTo=/)
   await expect(page.getByRole('heading', { name: '登录管理工作台' })).toBeVisible()
   await page.reload()
-  await expect(page.getByLabel('用户名')).toBeVisible()
+  await expect(page.getByRole('textbox', { name: '用户名', exact: true })).toBeVisible()
   await expect(page.getByLabel('密码', { exact: true })).toHaveAttribute('type', 'password')
   expect(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length }))).toEqual({ local: 0, session: 0 })
 })
