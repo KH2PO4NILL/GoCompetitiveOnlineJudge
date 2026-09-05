@@ -18,6 +18,7 @@ import (
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgemq"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/submit/pb"
 	"github.com/google/uuid"
+	"go.uber.org/goleak"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -203,6 +204,8 @@ func TestBoundedReceiveAndGracefulDrain(t *testing.T) {
 }
 
 func TestForcedShutdownJoinsTasks(t *testing.T) {
+	baseline := goleak.IgnoreCurrent()
+	t.Cleanup(func() { goleak.VerifyNone(t, baseline) })
 	started, exited := make(chan struct{}), make(chan struct{})
 	driver, broker := fixture(t, func(ctx context.Context, _ *pb.JudgeTaskEvent) processor.Result {
 		close(started)

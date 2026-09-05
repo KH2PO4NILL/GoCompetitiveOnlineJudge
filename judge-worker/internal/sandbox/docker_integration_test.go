@@ -11,6 +11,7 @@ import (
 	"time"
 
 	cerrdefs "github.com/containerd/errdefs"
+	"github.com/google/uuid"
 	"github.com/moby/moby/client"
 )
 
@@ -29,8 +30,12 @@ func TestDockerSandboxIntegration(t *testing.T) {
 
 	root := t.TempDir()
 	helper := buildSandboxIntegrationHelper(t, root)
+	hostSecret := filepath.Join(root, "host-sensitive-file")
+	if err := os.WriteFile(hostSecret, []byte("host-secret-sentinel"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	docker, err := NewDocker(DockerOptions{
-		Endpoint: endpoint, WorkerID: "sandbox-integration", User: "65532:65532",
+		Endpoint: endpoint, WorkerID: "sandbox-" + uuid.NewString(), User: "65532:65532",
 		AllowedRoots: []AllowedRoot{{Path: root, Writable: true}},
 		APITimeout:   10 * time.Second, StopTimeout: 3 * time.Second,
 	})
@@ -48,7 +53,7 @@ func TestDockerSandboxIntegration(t *testing.T) {
 		attemptID++
 		result, err := docker.Execute(context.Background(), ExecuteRequest{
 			AttemptID: attemptID, SubmissionID: 1, Image: image,
-			Program: "/sandbox/helper", Args: []string{mode}, WorkingDir: "/sandbox",
+			Program: "/sandbox/helper", Args: []string{mode, hostSecret}, WorkingDir: "/sandbox",
 			Mounts: []Mount{{Source: helper, Target: "/sandbox/helper", ReadOnly: true}},
 			Limits: limits,
 		})
@@ -159,6 +164,10 @@ func TestDockerSandboxIntegration(t *testing.T) {
 			t.Fatalf("container %q still exists: %v", result.ContainerID, inspectErr)
 		}
 	})
+	cleanup, err := docker.Cleanup(context.Background())
+	if err != nil || cleanup.Found != 0 {
+		t.Fatalf("residual containers after security matrix: %+v %v", cleanup, err)
+	}
 }
 
 func buildSandboxIntegrationHelper(t *testing.T, root string) string {
@@ -189,7 +198,7 @@ import (
 )
 
 func main() {
-    if len(os.Args) != 2 { os.Exit(64) }
+    if len(os.Args) < 2 { os.Exit(64) }
     switch os.Args[1] {
     case "normal":
         fmt.Fprint(os.Stdout, "stdout")
@@ -217,6 +226,13 @@ func main() {
     case "security":
         if os.Geteuid() == 0 { os.Exit(10) }
         if err := os.WriteFile("/rootfs-write-test", []byte("bad"), 0600); err == nil { os.Exit(11) }
+        interfaces, err := net.Interfaces()
+        if err != nil { os.Exit(15) }
+        for _, adapter := range interfaces { if adapter.Flags & net.FlagLoopback == 0 { os.Exit(16) } }
+        if _, err := os.ReadFile(os.Args[2]); err == nil { os.Exit(17) }
+        if _, err := os.ReadFile("/proc/1/root"+os.Args[2]); err == nil { os.Exit(18) }
+        if _, err := os.Stat("/var/run/docker.sock"); err == nil { os.Exit(19) }
+        if _, err := os.ReadFile("/etc/shadow"); err == nil { os.Exit(20) }
         connection, err := net.DialTimeout("tcp", "198.18.0.1:80", 250*time.Millisecond)
         if err == nil { _ = connection.Close(); os.Exit(12) }
         fmt.Fprint(os.Stdout, "secured")

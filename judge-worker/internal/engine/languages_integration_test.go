@@ -12,6 +12,7 @@ import (
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/language"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/sandbox"
+	"github.com/google/uuid"
 )
 
 func TestLanguageImagesIntegration(t *testing.T) {
@@ -29,7 +30,7 @@ func TestLanguageImagesIntegration(t *testing.T) {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	executor, err := sandbox.NewDocker(sandbox.DockerOptions{
-		Endpoint: endpoint, WorkerID: "language-integration", User: "65532:65532",
+		Endpoint: endpoint, WorkerID: "language-" + uuid.NewString(), User: "65532:65532",
 		AllowedRoots: []sandbox.AllowedRoot{{Path: root, Writable: true}}, Logger: logger,
 	})
 	if err != nil {

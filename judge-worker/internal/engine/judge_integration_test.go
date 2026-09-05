@@ -16,6 +16,7 @@ import (
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/testdatacache"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/testdatamanifest"
 	problempb "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/pb"
+	"github.com/google/uuid"
 )
 
 func TestJudgeEngineLanguages(t *testing.T) {
@@ -28,7 +29,7 @@ func TestJudgeEngineLanguages(t *testing.T) {
 		endpoint = "unix:///var/run/docker.sock"
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	executor, err := sandbox.NewDocker(sandbox.DockerOptions{Endpoint: endpoint, WorkerID: "judge-matrix", User: "65532:65532", AllowedRoots: []sandbox.AllowedRoot{{Path: root, Writable: true}}, Logger: logger})
+	executor, err := sandbox.NewDocker(sandbox.DockerOptions{Endpoint: endpoint, WorkerID: "judge-matrix-" + uuid.NewString(), User: "65532:65532", AllowedRoots: []sandbox.AllowedRoot{{Path: root, Writable: true}}, Logger: logger})
 	if err != nil {
 		t.Fatal(err)
 	}

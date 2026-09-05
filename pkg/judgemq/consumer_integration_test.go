@@ -9,6 +9,7 @@ import (
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgeevent"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/submit/pb"
 	"github.com/google/uuid"
+	"go.uber.org/goleak"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -16,6 +17,8 @@ func TestSimpleConsumerIntegration(t *testing.T) {
 	if os.Getenv("JUDGE_MQ_INTEGRATION") != "1" {
 		t.Skip("set JUDGE_MQ_INTEGRATION=1 with isolated broker")
 	}
+	baseline := goleak.IgnoreCurrent()
+	t.Cleanup(func() { goleak.VerifyNone(t, baseline) })
 	endpoint := os.Getenv("ROCKETMQ_ENDPOINT")
 	if endpoint == "" {
 		endpoint = "127.0.0.1:18081"

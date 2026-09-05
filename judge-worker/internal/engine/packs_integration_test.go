@@ -13,6 +13,7 @@ import (
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/language"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/sandbox"
+	"github.com/google/uuid"
 )
 
 func TestOfficialLanguagePacks(t *testing.T) {
@@ -29,7 +30,7 @@ func TestOfficialLanguagePacks(t *testing.T) {
 		endpoint = "unix:///var/run/docker.sock"
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	executor, err := sandbox.NewDocker(sandbox.DockerOptions{Endpoint: endpoint, WorkerID: "packs-integration", User: "65532:65532", AllowedRoots: []sandbox.AllowedRoot{{Path: root, Writable: true}}, Logger: logger})
+	executor, err := sandbox.NewDocker(sandbox.DockerOptions{Endpoint: endpoint, WorkerID: "packs-" + uuid.NewString(), User: "65532:65532", AllowedRoots: []sandbox.AllowedRoot{{Path: root, Writable: true}}, Logger: logger})
 	if err != nil {
 		t.Fatal(err)
 	}

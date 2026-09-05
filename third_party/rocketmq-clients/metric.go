@@ -152,7 +152,7 @@ var _ = ClientMeterProvider(&defaultClientMeterProvider{})
 type defaultClientMeterProvider struct {
 	client      Client
 	clientMeter *defaultClientMeter
-	globalMutex sync.Mutex
+	globalMutex sync.RWMutex
 }
 
 func (dcmp *defaultClientMeterProvider) getClientImpl() isClient {
@@ -318,6 +318,8 @@ func (dmmi *defaultMessageMeterInterceptor) doAfter(messageHookPoints MessageHoo
 	return nil
 }
 func (dcmp *defaultClientMeterProvider) isEnabled() bool {
+	dcmp.globalMutex.RLock()
+	defer dcmp.globalMutex.RUnlock()
 	return dcmp.clientMeter.enabled.Load()
 }
 func (dcmp *defaultClientMeterProvider) getClientID() string {

@@ -20,11 +20,8 @@ package golang
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
-	"math"
 	"time"
 
-	"github.com/apache/rocketmq-clients/golang/v5/pkg/zaplog"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -62,13 +59,12 @@ type connOptions struct {
 
 var defaultConnOptions = connOptions{
 	DialTimeout:        time.Second * 5,
-	MaxCallSendMsgSize: 2 * 1024 * 1024,
-	MaxCallRecvMsgSize: math.MaxInt32,
+	MaxCallSendMsgSize: 512 * 1024,
+	MaxCallRecvMsgSize: 1024 * 1024,
 	TLS: &tls.Config{
-		RootCAs:            x509.NewCertPool(),
-		InsecureSkipVerify: true,
+		MinVersion: tls.VersionTLS12,
 	},
-	Logger:            zaplog.New(),
+	Logger: zap.NewNop(),
 }
 
 // A ConnOption sets options such as tls.Config, etc.

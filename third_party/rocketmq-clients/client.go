@@ -555,6 +555,8 @@ func (cli *defaultClient) telemeter(target string, command *v2.TelemetryCommand)
 }
 
 func (cli *defaultClient) startUp() error {
+	startupCtx, startupCancel := context.WithTimeout(context.Background(), cli.opts.timeout)
+	defer startupCancel()
 	cli.log.Infof("begin to start the rocketmq client")
 	cm := NewDefaultClientManager()
 	cm.startUp()
@@ -562,7 +564,7 @@ func (cli *defaultClient) startUp() error {
 	cli.clientManager = cm
 
 	for _, topic := range cli.initTopics {
-		_, err := cli.getMessageQueues(context.Background(), topic)
+		_, err := cli.getMessageQueues(startupCtx, topic)
 		if err != nil {
 			return fmt.Errorf("failed to get topic route data result from remote during client startup, clientId=%s, topics=%v, err=%v", cli.clientID, cli.initTopics, err)
 		}
@@ -621,7 +623,13 @@ func (cli *defaultClient) startUp() error {
 			return startupErr
 		}
 		sugarBaseLogger.Infoln("wait for sync settings finish")
-		time.Sleep(time.Second)
+		timer := time.NewTimer(10 * time.Millisecond)
+		select {
+		case <-startupCtx.Done():
+			timer.Stop()
+			return fmt.Errorf("RocketMQ settings handshake timed out: %w", startupCtx.Err())
+		case <-timer.C:
+		}
 	}
 	sugarBaseLogger.Infoln("sync settings finished")
 	return nil
