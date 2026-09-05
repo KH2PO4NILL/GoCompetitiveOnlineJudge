@@ -34,6 +34,7 @@ import (
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/testdatacache"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/worker"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgeevent"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgemetrics"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgemq"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/testdatamanifest"
 	problempb "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/pb"
@@ -236,6 +237,12 @@ func TestJudgeEndToEndRecovery(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer driver.Stop(context.Background())
+			probes, err := driver.Metrics.ListenWithProbes("127.0.0.1:0", "/metrics", driver.Ready)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = judgemetrics.Close(context.Background(), probes) })
+			assertProbeStatus(t, probes, "/readyz", http.StatusServiceUnavailable)
 			code, languageID := "package main\nimport \"fmt\"\nfunc main(){fmt.Println(42)}\n", "go"
 			if scenario == "cpp20" {
 				code, languageID = "#include <iostream>\nint main(){std::cout << 42 << '\\n';}\n", "cpp20"
@@ -272,8 +279,11 @@ func TestJudgeEndToEndRecovery(t *testing.T) {
 			if scenario == "oversized_legacy_source" {
 				wantVerdict, wantCases = model.VerdictCompileError, 0
 			}
-			if err != nil || state.Verdict == nil || *state.Verdict != wantVerdict || len(state.CaseResults) != wantCases {
-				t.Fatalf("end-to-end result does not match verdict %d/cases %d: %+v %v", wantVerdict, wantCases, state, err)
+			if err != nil {
+				t.Fatal("read final submission state failed")
+			}
+			if state.Verdict == nil || *state.Verdict != wantVerdict || len(state.CaseResults) != wantCases {
+				t.Fatalf("end-to-end result does not match verdict %d/cases %d: submission_id=%d status=%d cases=%d", wantVerdict, wantCases, state.SubmissionID, state.Status, len(state.CaseResults))
 			}
 			if scenario == "oversized_legacy_source" && state.AttemptCount != 1 {
 				t.Fatal("permanent source rejection created successor attempts")
@@ -293,11 +303,15 @@ func TestJudgeEndToEndRecovery(t *testing.T) {
 			if scenario == "cpp20" && (receiver.lost.Load() != 1 || harness.DropReport.Load() || harness.LoseMark.Load()) {
 				t.Fatal("loss injection was not exercised")
 			}
+			await(t, ctx, driver.Ready)
+			assertProbeStatus(t, probes, "/readyz", http.StatusOK)
 			shutdown, stop := context.WithTimeout(context.Background(), 10*time.Second)
 			defer stop()
 			if err := driver.Stop(shutdown); err != nil {
 				t.Fatal(err)
 			}
+			assertProbeStatus(t, probes, "/readyz", http.StatusServiceUnavailable)
+			assertProbeStatus(t, probes, "/healthz", http.StatusOK)
 			cleanup, err := docker.Cleanup(ctx)
 			if err != nil || cleanup.Found != 0 {
 				t.Fatalf("sandbox cleanup after %s: found=%d removed=%d failed=%d error=%v", scenario, cleanup.Found, cleanup.Removed, cleanup.Failed, err)
@@ -333,6 +347,20 @@ func TestJudgeEndToEndRecovery(t *testing.T) {
 		if !strings.Contains(logs.String(), field) {
 			t.Fatal("log context missing", field)
 		}
+	}
+}
+
+func assertProbeStatus(t *testing.T, server *http.Server, path string, want int) {
+	t.Helper()
+	client := &http.Client{Timeout: time.Second, Transport: &http.Transport{Proxy: nil}}
+	defer client.CloseIdleConnections()
+	response, err := client.Get("http://" + server.Addr + path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != want {
+		t.Fatalf("%s status=%d, want %d", path, response.StatusCode, want)
 	}
 }
 

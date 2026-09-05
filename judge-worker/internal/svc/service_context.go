@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/checker"
@@ -47,6 +48,12 @@ type ServiceContext struct {
 	closed      bool
 	shutdownErr error
 	workspace   *workspace.Workspace
+	ready       atomic.Bool
+	draining    atomic.Bool
+}
+
+func (s *ServiceContext) Ready() bool {
+	return s != nil && s.ready.Load() && !s.draining.Load() && s.Consumer.Ready()
 }
 
 type sandboxFactory func(config.Config, *slog.Logger) (sandbox.Sandbox, error)
@@ -257,7 +264,7 @@ func (s *ServiceContext) Start() (startErr error) {
 			metrics = s.Consumer.Metrics
 		}
 		var err error
-		s.metrics, err = metrics.Listen(s.Config.Metrics.ListenOn, s.Config.Metrics.Path)
+		s.metrics, err = metrics.ListenWithProbes(s.Config.Metrics.ListenOn, s.Config.Metrics.Path, s.Ready)
 		if err != nil {
 			return errors.New("start judge metrics listener failed")
 		}
@@ -268,6 +275,7 @@ func (s *ServiceContext) Start() (startErr error) {
 		}
 	}
 	s.started = true
+	s.ready.Store(true)
 	return nil
 }
 
@@ -275,6 +283,7 @@ func (s *ServiceContext) Shutdown(ctx context.Context) error {
 	if s == nil {
 		return nil
 	}
+	s.draining.Store(true)
 	s.lifecycleMu.Lock()
 	defer s.lifecycleMu.Unlock()
 	if s.closed {

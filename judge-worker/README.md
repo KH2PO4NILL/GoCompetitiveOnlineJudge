@@ -17,6 +17,20 @@ Worker 必填环境变量见 `.env.example`：唯一 `JUDGE_WORKER_ID`、Submit/
 启用 Worker YAML 的 `Metrics.Enabled` 后监听 `127.0.0.1:9100/metrics`；
 Submit Outbox 指标默认 `127.0.0.1:9101/metrics`。均不应直接暴露到公网。
 
+### Worker 存活与消费就绪
+
+启用 `Metrics.Enabled` 后，同一个内部监听地址额外提供 `GET /healthz` 与 `GET /readyz`（也支持 HEAD）。
+`/healthz` 返回 200 只表示监控 HTTP 服务存活；`/readyz` 仅在 Worker 启动完成、Consumer 启用，
+且最近一次 Receive 成功后返回 200，否则为 503。收到合法的“空队列”结果同样视为消费通道正常，
+不会增加 receive failure 计数；网络错误、鉴权失败或 Topic 不存在仍会撤销就绪状态。
+工作槽位全满属于正常背压，不因暂时没有发起新 Receive 而撤销就绪。停机开始即撤销就绪，
+不等待长任务排空；存活探针可在排空期间继续返回 200，最终监听器随进程资源一起关闭。
+
+探针不返回凭据、具体依赖地址或错误详情，响应禁止缓存；Metrics.Path 不能占用 `/healthz`、
+`/readyz`，也不能使用 ServeMux 通配符或非法请求路径。
+**消费就绪不是端到端可评测保证**：该探针不主动执行 Submit / Problem 业务 RPC，也不下载私有测试数据。
+RPC 权限、对象存储和镜像实际执行仍由真实评测验收验证，不能用这个 200 替代全栈验收。
+
 MQ 只通知，Submission/Attempt/Outbox 数据库状态才是事实来源。
 重复发布、ACK 丢失、Report 响应丢失不会重复应用最终结果。
 已 Acquire 任务失败时不复用过期租约；Submit Lease recovery 创建新的 Attempt 和 Outbox。

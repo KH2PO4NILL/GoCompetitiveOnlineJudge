@@ -137,6 +137,8 @@ func TestValidateRejectsInvalidRuntimeConfiguration(t *testing.T) {
 	}{
 		{name: "metrics address", mutate: func(c *Config) { c.Metrics.Enabled = true; c.Metrics.ListenOn = "bad" }, want: "Metrics.ListenOn"},
 		{name: "metrics path", mutate: func(c *Config) { c.Metrics.Path = "metrics" }, want: "Metrics.Path"},
+		{name: "reserved probe path", mutate: func(c *Config) { c.Metrics.Path = "/readyz" }, want: "Metrics.Path"},
+		{name: "invalid mux pattern", mutate: func(c *Config) { c.Metrics.Path = "/{" }, want: "Metrics.Path"},
 		{name: "docker endpoint", mutate: func(c *Config) { c.Sandbox.Docker.Endpoint = "file:///tmp/docker.sock" }, want: "Sandbox.Docker.Endpoint"},
 		{name: "cache root", mutate: func(c *Config) { c.TestDataCache.Dir = string(filepath.Separator) }, want: "TestDataCache.Dir"},
 		{name: "shutdown timeout", mutate: func(c *Config) { c.Timeouts.ShutdownSeconds = int64(MaxShutdownTimeout/time.Second) + 1 }, want: "Timeouts.ShutdownSeconds"},
