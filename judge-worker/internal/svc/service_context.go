@@ -9,11 +9,14 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/checker"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/config"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/engine"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/language"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/logging"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/processor"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/sandbox"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/testdatacache"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/worker"
@@ -27,6 +30,8 @@ type ServiceContext struct {
 	Sandbox       sandbox.Sandbox
 	Languages     language.Registry
 	Engine        *engine.Engine
+	Processor     *processor.Processor
+	closeRPC      func() error
 
 	lifecycleMu sync.Mutex
 	started     bool
@@ -111,9 +116,20 @@ func newServiceContext(c config.Config, createSandbox sandboxFactory) (*ServiceC
 		_ = executor.Close()
 		return nil, fmt.Errorf("configure worker pool: %w", err)
 	}
+	submit, problem, closeRPC, err := processor.NewGateways(c.SubmitRPC.Target, c.ProblemRPC.Target, c.InternalAuth.SubmitToken, c.InternalAuth.ProblemToken, c.RPCTimeout())
+	if err != nil {
+		_ = executor.Close()
+		return nil, fmt.Errorf("configure judge RPC gateways: %w", err)
+	}
+	taskProcessor, err := processor.New(processor.Options{WorkerID: c.Worker.ID, Submit: submit, Problem: problem, Cache: dataCache, Judge: judgeEngine, Logger: logger, Profiles: c.Processor.Profiles, Checker: checker.Mode(c.Processor.Checker), HeartbeatInterval: time.Duration(c.Processor.HeartbeatSeconds) * time.Second, RetryBackoff: time.Duration(c.Processor.RetryBackoffMS) * time.Millisecond, ReportAttempts: c.Processor.ReportAttempts})
+	if err != nil {
+		_ = closeRPC()
+		_ = executor.Close()
+		return nil, fmt.Errorf("configure task processor: %w", err)
+	}
 	return &ServiceContext{
 		Config: c, Logger: logger, Pool: pool, TestDataCache: dataCache, Sandbox: executor,
-		Languages: registry, Engine: judgeEngine,
+		Languages: registry, Engine: judgeEngine, Processor: taskProcessor, closeRPC: closeRPC,
 	}, nil
 }
 
@@ -175,6 +191,9 @@ func (s *ServiceContext) Start() error {
 	cancel()
 	if err != nil {
 		s.closed = true
+		if s.closeRPC != nil {
+			_ = s.closeRPC()
+		}
 		closeErr := s.Sandbox.Close()
 		return errors.Join(fmt.Errorf("clean orphaned sandbox containers: %w", err), closeSandboxError(closeErr))
 	}
@@ -184,6 +203,9 @@ func (s *ServiceContext) Start() error {
 	s.TestDataCache.Start()
 	if err := s.Pool.Start(); err != nil {
 		s.closed = true
+		if s.closeRPC != nil {
+			_ = s.closeRPC()
+		}
 		s.TestDataCache.Close()
 		return errors.Join(err, closeSandboxError(s.Sandbox.Close()))
 	}
@@ -215,6 +237,9 @@ func (s *ServiceContext) Shutdown(ctx context.Context) error {
 		if err := s.Sandbox.Close(); err != nil {
 			shutdownErrors = append(shutdownErrors, fmt.Errorf("close sandbox: %w", err))
 		}
+	}
+	if s.closeRPC != nil {
+		shutdownErrors = append(shutdownErrors, s.closeRPC())
 	}
 	s.shutdownErr = errors.Join(shutdownErrors...)
 	return s.shutdownErr

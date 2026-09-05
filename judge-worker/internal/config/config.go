@@ -123,7 +123,16 @@ type TimeoutConf struct {
 	ShutdownSeconds int64 `json:",optional" yaml:"ShutdownSeconds"`
 }
 
+type ProcessorConf struct {
+	HeartbeatSeconds int64             `json:",optional" yaml:"HeartbeatSeconds"`
+	RetryBackoffMS   int64             `json:",optional" yaml:"RetryBackoffMS"`
+	ReportAttempts   int               `json:",optional" yaml:"ReportAttempts"`
+	Profiles         map[string]string `json:",optional" yaml:"Profiles"`
+	Checker          string            `json:",optional" yaml:"Checker"`
+}
+
 type Config struct {
+	Processor            ProcessorConf     `json:",optional" yaml:"Processor"`
 	LanguageRegistryFile string            `json:",optional" yaml:"LanguageRegistryFile"`
 	Worker               WorkerConf        `json:",optional" yaml:"Worker"`
 	SubmitRPC            RPCConf           `json:",optional" yaml:"SubmitRPC"`
@@ -174,6 +183,21 @@ func Load(path string) (Config, error) {
 func (c *Config) ApplyDefaults() {
 	if c == nil {
 		return
+	}
+	if c.Processor.HeartbeatSeconds == 0 {
+		c.Processor.HeartbeatSeconds = 5
+	}
+	if c.Processor.RetryBackoffMS == 0 {
+		c.Processor.RetryBackoffMS = 100
+	}
+	if c.Processor.ReportAttempts == 0 {
+		c.Processor.ReportAttempts = 3
+	}
+	if len(c.Processor.Profiles) == 0 {
+		c.Processor.Profiles = map[string]string{"cpp20": "cpp20-v2", "cpp": "cpp20-v2", "c++20": "cpp20-v2", "go": "go-v2"}
+	}
+	if c.Processor.Checker == "" {
+		c.Processor.Checker = "tokens"
 	}
 	c.Worker.ID = strings.TrimSpace(c.Worker.ID)
 	if c.Worker.Concurrency == 0 {
@@ -267,6 +291,17 @@ func (c *Config) ApplyDefaults() {
 
 func (c Config) Validate() error {
 	var errs []error
+	if c.Processor.HeartbeatSeconds < 1 || c.Processor.HeartbeatSeconds > 60 || c.Processor.RetryBackoffMS < 1 || c.Processor.RetryBackoffMS > 10000 || c.Processor.ReportAttempts < 1 || c.Processor.ReportAttempts > 16 || len(c.Processor.Profiles) == 0 || len(c.Processor.Profiles) > 256 {
+		errs = append(errs, errors.New("Processor heartbeat, retry or profile mapping exceeds bounds"))
+	}
+	if c.Processor.Checker != "tokens" && c.Processor.Checker != "exact" && c.Processor.Checker != "trailing_whitespace" {
+		errs = append(errs, errors.New("Processor.Checker must be tokens, exact or trailing_whitespace"))
+	}
+	for name, profile := range c.Processor.Profiles {
+		if strings.TrimSpace(name) == "" || len(name) > 64 || strings.TrimSpace(profile) == "" || len(profile) > 128 {
+			errs = append(errs, errors.New("Processor.Profiles contains invalid language binding"))
+		}
+	}
 	workerID := strings.TrimSpace(c.Worker.ID)
 	if workerID == "" {
 		errs = append(errs, errors.New("Worker.ID is required"))

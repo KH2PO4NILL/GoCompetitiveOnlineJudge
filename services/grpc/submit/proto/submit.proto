@@ -201,6 +201,7 @@ message HeartbeatJudgeTaskReq {
   int64 attempt_id = 3;
   string lease_token = 4;
   int32 completed_test_cases = 5;
+  string current_stage = 6;
 }
 
 message HeartbeatJudgeTaskResp {

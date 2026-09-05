@@ -5,8 +5,17 @@ Worker:
 
 LanguageRegistryFile: "${JUDGE_LANGUAGE_REGISTRY_FILE}"
 
-# These targets are validated now and will be used when RPC orchestration is
-# introduced. This skeleton does not dial either service.
+Processor:
+  HeartbeatSeconds: 5
+  RetryBackoffMS: 100
+  ReportAttempts: 3
+  Checker: tokens
+  Profiles:
+    cpp20: cpp20-v2
+    cpp: cpp20-v2
+    c++20: cpp20-v2
+    go: go-v2
+
 SubmitRPC:
   Target: "${JUDGE_SUBMIT_RPC_TARGET}"
 ProblemRPC:

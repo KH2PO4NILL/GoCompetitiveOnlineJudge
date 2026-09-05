@@ -34,6 +34,7 @@ type Request struct {
 	SubmissionID int64
 	ProfileID    string
 	Sources      map[string][]byte
+	SourceCode   string
 	Limits       ProblemLimits
 	Binding      PolicyBinding
 }
@@ -89,6 +90,9 @@ func (engine *Engine) Prepare(ctx context.Context, request Request) (*Attempt, e
 	policy, err := engine.registry.Snapshot(ctx, request.ProfileID)
 	if err != nil {
 		return nil, err
+	}
+	if request.Sources == nil {
+		request.Sources = map[string][]byte{policy.Profile.Source.EntryFile: []byte(request.SourceCode)}
 	}
 	if err := validateSources(policy.Profile.Source, request.Sources); err != nil {
 		return nil, err

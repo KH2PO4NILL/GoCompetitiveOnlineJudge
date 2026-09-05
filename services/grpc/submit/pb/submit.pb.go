@@ -1553,6 +1553,7 @@ type HeartbeatJudgeTaskReq struct {
 	AttemptId          int64                  `protobuf:"varint,3,opt,name=attempt_id,json=attemptId,proto3" json:"attempt_id,omitempty"`
 	LeaseToken         string                 `protobuf:"bytes,4,opt,name=lease_token,json=leaseToken,proto3" json:"lease_token,omitempty"`
 	CompletedTestCases int32                  `protobuf:"varint,5,opt,name=completed_test_cases,json=completedTestCases,proto3" json:"completed_test_cases,omitempty"`
+	CurrentStage       string                 `protobuf:"bytes,6,opt,name=current_stage,json=currentStage,proto3" json:"current_stage,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
 }
@@ -1620,6 +1621,13 @@ func (x *HeartbeatJudgeTaskReq) GetCompletedTestCases() int32 {
 		return x.CompletedTestCases
 	}
 	return 0
+}
+
+func (x *HeartbeatJudgeTaskReq) GetCurrentStage() string {
+	if x != nil {
+		return x.CurrentStage
+	}
+	return ""
 }
 
 type HeartbeatJudgeTaskResp struct {
@@ -2198,7 +2206,7 @@ const file_proto_submit_proto_rawDesc = "" +
 	"\x04task\x18\x03 \x01(\v2\x11.submit.JudgeTaskR\x04task\x12\x1f\n" +
 	"\vlease_token\x18\x04 \x01(\tR\n" +
 	"leaseToken\x12D\n" +
-	"\x10lease_expires_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x0eleaseExpiresAt\"\xcb\x01\n" +
+	"\x10lease_expires_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x0eleaseExpiresAt\"\xf0\x01\n" +
 	"\x15HeartbeatJudgeTaskReq\x12\x1b\n" +
 	"\tworker_id\x18\x01 \x01(\tR\bworkerId\x12#\n" +
 	"\rsubmission_id\x18\x02 \x01(\x03R\fsubmissionId\x12\x1d\n" +
@@ -2206,7 +2214,8 @@ const file_proto_submit_proto_rawDesc = "" +
 	"attempt_id\x18\x03 \x01(\x03R\tattemptId\x12\x1f\n" +
 	"\vlease_token\x18\x04 \x01(\tR\n" +
 	"leaseToken\x120\n" +
-	"\x14completed_test_cases\x18\x05 \x01(\x05R\x12completedTestCases\"^\n" +
+	"\x14completed_test_cases\x18\x05 \x01(\x05R\x12completedTestCases\x12#\n" +
+	"\rcurrent_stage\x18\x06 \x01(\tR\fcurrentStage\"^\n" +
 	"\x16HeartbeatJudgeTaskResp\x12D\n" +
 	"\x10lease_expires_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x0eleaseExpiresAt\"\x9e\x02\n" +
 	"\x13JudgeTestCaseResult\x12 \n" +
