@@ -1250,6 +1250,7 @@ type JudgeTaskEvent struct {
 	SubmissionId  int64                  `protobuf:"varint,2,opt,name=submission_id,json=submissionId,proto3" json:"submission_id,omitempty"`
 	AttemptId     int64                  `protobuf:"varint,3,opt,name=attempt_id,json=attemptId,proto3" json:"attempt_id,omitempty"`
 	EnqueuedAt    *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=enqueued_at,json=enqueuedAt,proto3" json:"enqueued_at,omitempty"`
+	SchemaVersion uint32                 `protobuf:"varint,5,opt,name=schema_version,json=schemaVersion,proto3" json:"schema_version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1310,6 +1311,13 @@ func (x *JudgeTaskEvent) GetEnqueuedAt() *timestamppb.Timestamp {
 		return x.EnqueuedAt
 	}
 	return nil
+}
+
+func (x *JudgeTaskEvent) GetSchemaVersion() uint32 {
+	if x != nil {
+		return x.SchemaVersion
+	}
+	return 0
 }
 
 // Returned only after a trusted worker acquires the current attempt. The worker
@@ -2174,14 +2182,15 @@ const file_proto_submit_proto_rawDesc = "" +
 	"\n" +
 	"attempt_id\x18\x02 \x01(\x03R\tattemptId\"S\n" +
 	"\x1bBatchRejudgeSubmissionsResp\x124\n" +
-	"\baccepted\x18\x01 \x03(\v2\x18.submit.BatchRejudgeItemR\baccepted\"\xac\x01\n" +
+	"\baccepted\x18\x01 \x03(\v2\x18.submit.BatchRejudgeItemR\baccepted\"\xd3\x01\n" +
 	"\x0eJudgeTaskEvent\x12\x19\n" +
 	"\bevent_id\x18\x01 \x01(\tR\aeventId\x12#\n" +
 	"\rsubmission_id\x18\x02 \x01(\x03R\fsubmissionId\x12\x1d\n" +
 	"\n" +
 	"attempt_id\x18\x03 \x01(\x03R\tattemptId\x12;\n" +
 	"\venqueued_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"enqueuedAt\"\xd6\x01\n" +
+	"enqueuedAt\x12%\n" +
+	"\x0eschema_version\x18\x05 \x01(\rR\rschemaVersion\"\xd6\x01\n" +
 	"\tJudgeTask\x12#\n" +
 	"\rsubmission_id\x18\x01 \x01(\x03R\fsubmissionId\x12\x1d\n" +
 	"\n" +

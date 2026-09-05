@@ -163,6 +163,7 @@ message JudgeTaskEvent {
   int64 submission_id = 2;
   int64 attempt_id = 3;
   google.protobuf.Timestamp enqueued_at = 4;
+  uint32 schema_version = 5;
 }
 
 // Returned only after a trusted worker acquires the current attempt. The worker

@@ -6,12 +6,19 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
+	"net/http"
 	"os"
 	"time"
+
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgemetrics"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgemq"
+	"github.com/google/uuid"
 
 	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
 	authservice "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/client/authservice"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/submit/internal/config"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/submit/internal/outbox"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/submit/model"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/submit/pb"
 
@@ -43,9 +50,15 @@ type ServiceContext struct {
 	leaseWorker *LeaseRecoveryWorker
 	db          *gorm.DB
 	sqlDB       *sql.DB
+	publisher   *outbox.Publisher
+	producer    *judgemq.Producer
+	metrics     *http.Server
 }
 
 func NewServiceContext(c config.Config) (*ServiceContext, error) {
+	if err := c.ApplyEnvironment(); err != nil {
+		return nil, errors.New("SUBMIT_OUTBOX_ENABLED must be a boolean")
+	}
 	if c.Mysql.DSN == "" {
 		return nil, errors.New("mysql DSN is required")
 	}
@@ -173,6 +186,28 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 		redis: redisClient, leaseWorker: worker, db: db, sqlDB: sqlDB,
 	}
 	worker.Start()
+	if c.Outbox.Enabled {
+		sender, err := judgemq.NewProducer(judgemq.Config{Endpoint: c.Outbox.Endpoint, TLS: c.Outbox.TLS, AccessKey: c.Outbox.AccessKey, SecretKey: c.Outbox.SecretKey, Timeout: time.Duration(c.Outbox.TimeoutSeconds) * time.Second})
+		if err != nil {
+			_ = result.Close()
+			return nil, fmt.Errorf("configure outbox transport: %w", err)
+		}
+		result.producer = sender
+		publisher, err := outbox.New(repository, sender, c.Outbox.Options(c.Outbox.ID+"-"+uuid.NewString()), slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+		if err != nil {
+			_ = result.Close()
+			return nil, err
+		}
+		result.publisher = publisher
+		if c.Outbox.MetricsListenOn != "" {
+			result.metrics, err = publisher.Metrics.Listen(c.Outbox.MetricsListenOn, "/metrics")
+			if err != nil {
+				_ = result.Close()
+				return nil, err
+			}
+		}
+		publisher.Start()
+	}
 	return result, nil
 }
 
@@ -181,6 +216,20 @@ func (s *ServiceContext) Close() error {
 		return nil
 	}
 	var workerErr error
+	var publisherErr, producerErr, metricsErr error
+	if s.publisher != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(s.Config.Outbox.ShutdownSeconds)*time.Second)
+		publisherErr = s.publisher.Stop(ctx)
+		cancel()
+	}
+	if s.producer != nil {
+		producerErr = s.producer.Close()
+	}
+	if s.metrics != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		metricsErr = judgemetrics.Close(ctx, s.metrics)
+		cancel()
+	}
 	if s.leaseWorker != nil {
 		workerErr = s.leaseWorker.Stop()
 	}
@@ -204,10 +253,18 @@ func (s *ServiceContext) Close() error {
 	if s.sqlDB != nil {
 		sqlErr = s.sqlDB.Close()
 	}
-	return errors.Join(workerErr, authErr, problemErr, contestErr, redisErr, sqlErr)
+	return errors.Join(workerErr, publisherErr, producerErr, metricsErr, authErr, problemErr, contestErr, redisErr, sqlErr)
 }
 
 func validateRuntimeConfig(c config.Config) error {
+	if c.Outbox.Enabled {
+		if c.Outbox.Endpoint == "" || len(c.Outbox.ID) > 64 || c.Outbox.ShutdownSeconds < 1 || c.Outbox.ShutdownSeconds > 300 {
+			return errors.New("invalid outbox endpoint, instance ID or shutdown timeout")
+		}
+		if err := c.Outbox.Options(c.Outbox.ID + "-instance").Validate(); err != nil {
+			return err
+		}
+	}
 	if c.Limits.MaxSourceCodeBytes <= 0 || c.Limits.MaxSourceCodeBytes > 4*1024*1024 ||
 		c.Limits.MaxClientRequestBytes <= 0 || c.Limits.MaxClientRequestBytes > 128 ||
 		c.Limits.MaxPageSize <= 0 || c.Limits.MaxPageSize > 100 ||

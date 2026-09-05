@@ -17,12 +17,19 @@ func (m *defaultSubmitModel) ClaimOutboxEvents(ctx context.Context, input ClaimO
 		input.Limit <= 0 || input.Limit > maxOutboxClaimBatch || input.LockDuration <= 0 || input.LockDuration > time.Hour {
 		return nil, fmt.Errorf("%w: invalid outbox claim input", ErrInvalidSubmissionInput)
 	}
+	if input.EventType != 0 && input.EventType != OutboxEventJudgeTask && input.EventType != OutboxEventSubmissionJudged {
+		return nil, ErrInvalidSubmissionInput
+	}
 	result := make([]OutboxEvent, 0)
 	err := m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		at := m.now().UTC()
 		lockedUntil := at.Add(input.LockDuration)
 		var rows []outboxRow
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"}).
+		query := tx.Clauses(clause.Locking{Strength: "UPDATE", Options: "SKIP LOCKED"})
+		if input.EventType != 0 {
+			query = query.Where("event_type = ?", input.EventType)
+		}
+		if err := query.
 			Where("status = ? AND available_at <= ? AND (locked_by IS NULL OR locked_until <= ?)", OutboxStatusPending, at, at).
 			Order("available_at ASC, id ASC").Limit(input.Limit).Find(&rows).Error; err != nil {
 			return normalizeDatabaseError(err)
@@ -58,6 +65,12 @@ func (m *defaultSubmitModel) ClaimOutboxEvents(ctx context.Context, input ClaimO
 		return nil, normalizeDatabaseError(err)
 	}
 	return result, nil
+}
+
+func (m *defaultSubmitModel) JudgeOutboxBacklog(ctx context.Context) (int64, error) {
+	var count int64
+	err := m.db.WithContext(ctx).Model(&outboxRow{}).Where("status = ? AND event_type = ?", OutboxStatusPending, OutboxEventJudgeTask).Count(&count).Error
+	return count, normalizeDatabaseError(err)
 }
 
 func (m *defaultSubmitModel) MarkOutboxPublished(ctx context.Context, input MarkOutboxPublishedInput) error {
