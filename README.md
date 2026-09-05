@@ -4,6 +4,9 @@ GoCompetitiveOnlineJudge是一个安全隔离的分布式代码执行与调度�
 
 项目基于 go-zero 拆分 HTTP 网关与 gRPC 服务，通过 etcd 完成服务发现，使用 MySQL 持久化业务数据、Redis 承载缓存与限流、RocketMQ 分发异步评测任务、MinIO/S3 保存测试数据，并通过可水平扩展的 Judge Worker 执行用户代码。
 
+浏览器前端位于 `web/`，启动、质量检查和当前交付边界见 `web/README.md`；
+全栈核验基线与 HTTP 契约清单见 `docs/audit/`。前端基础工程不代表完整浏览器业务闭环已验收。
+
 ## 功能特性
 
 ### 用户与权限
