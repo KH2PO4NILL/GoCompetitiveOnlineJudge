@@ -200,8 +200,8 @@ go run ./services/grpc/auth -f services/grpc/auth/etc/auth.yaml
 go run ./services/grpc/problem -f services/grpc/problem/etc/problem.yaml
 go run ./services/grpc/contest -f services/grpc/contest/etc/contest.yaml
 go run ./services/grpc/submit -f services/grpc/submit/etc/submit.yaml
-go run ./cmd/app -f cmd/app/etc/app.yaml
-go run ./cmd/admin -f cmd/admin/etc/admin.yaml
+go run ./cmd/app -f cmd/app/etc/app-api.yaml
+go run ./cmd/admin -f cmd/admin/etc/admin-api.yaml
 go run ./judge-worker -f judge-worker/etc/judge-worker.yaml
 ```
 

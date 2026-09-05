@@ -1,0 +1,902 @@
+syntax = "v1"
+
+info (
+	title:       "GoCompetitiveOnlineJudge Admin API"
+	description: "面向管理后台的 HTTP API；管理权限和业务约束必须由下游 gRPC 服务再次校验。"
+	version:     "v1"
+)
+
+// 重要：AdminIdentity 中间件用于尽早拒绝普通用户，但它不是最终权限边界。
+// Authorization 必须继续写入 outgoing gRPC metadata，由每个 RPC 按最新用户状态、
+// 角色、资源归属和 revision 再次鉴权。严禁只相信 HTTP 中间件或客户端传入的角色。
+// 本服务不得配置 x-service-name/x-service-token，也不得暴露任何内部服务或 Worker RPC。
+// HTTP 枚举统一使用去掉 Proto 前缀后的小写 snake_case，Logic 必须显式映射并拒绝未知值；
+// 所有时间字符串统一使用 UTC RFC3339。密码、验证码、Token、源码不得写入访问日志。
+
+// ============================== 通用与认证 ==============================
+
+type EmptyResp {}
+
+type HealthResp {
+	Status string `json:"status"`
+}
+
+type UserInfo {
+	UserID   int64  `json:"user_id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Role     string `json:"role"`
+	Status   string `json:"status"`
+	SchoolID int64  `json:"school_id"`
+}
+
+type TokenPair {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int64  `json:"expires_in"`
+}
+
+type UsernameLoginReq {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
+
+type EmailPasswordLoginReq {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type EmailCodeLoginReq {
+	Email string `json:"email"`
+	Code  string `json:"code"`
+}
+
+type LoginResp {
+	Tokens TokenPair `json:"tokens"`
+	User   UserInfo  `json:"user"`
+}
+
+type SendEmailCodeReq {
+	Email   string `json:"email"`
+	Purpose string `json:"purpose,options=login|change_email|reset_password"`
+}
+
+// 验证码仅通过邮件发送，响应中绝不能返回验证码正文。
+type SendEmailCodeResp {
+	ExpiresIn  int32 `json:"expires_in"`
+	RetryAfter int32 `json:"retry_after"`
+}
+
+type RefreshTokenReq {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type RefreshTokenResp {
+	Tokens TokenPair `json:"tokens"`
+}
+
+type LogoutReq {
+	AccessToken  string `json:"access_token,optional"`
+	RefreshToken string `json:"refresh_token,optional"`
+}
+
+type ResetPasswordReq {
+	Email       string `json:"email"`
+	Code        string `json:"code"`
+	NewPassword string `json:"new_password"`
+}
+
+type ChangePasswordReq {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
+}
+
+type GetCurrentUserResp {
+	User UserInfo `json:"user"`
+}
+
+type UpdateProfileReq {
+	// 指针字段用于保留 Proto optional 的“未修改”语义。
+	Username *string `json:"username,optional"`
+	SchoolID *int64  `json:"school_id,optional"`
+}
+
+type UpdateProfileResp {
+	User UserInfo `json:"user"`
+}
+
+type ChangeEmailReq {
+	NewEmail string `json:"new_email"`
+	Code     string `json:"code"`
+}
+
+type ChangeEmailResp {
+	User UserInfo `json:"user"`
+}
+
+// ============================== 用户管理 ==============================
+
+type ListUsersReq {
+	Page     int32  `form:"page,optional,default=1"`
+	PageSize int32  `form:"page_size,optional,default=20"`
+	Status   string `form:"status,optional"`
+	Role     string `form:"role,optional"`
+	SchoolID int64  `form:"school_id,optional"`
+	Keyword  string `form:"keyword,optional"`
+}
+
+type ListUsersResp {
+	Total int64      `json:"total"`
+	Users []UserInfo `json:"users"`
+}
+
+type GetUserReq {
+	UserID int64 `path:"user_id"`
+}
+
+type GetUserResp {
+	User UserInfo `json:"user"`
+}
+
+type AdminUpdateUserReq {
+	UserID int64 `path:"user_id"`
+	// 角色和状态都必须由 Auth RPC 校验；普通管理员不能越权提升或操作更高角色。
+	Role   *string `json:"role,optional"`
+	Status *string `json:"status,optional"`
+}
+
+type AdminUpdateUserResp {
+	User UserInfo `json:"user"`
+}
+
+type DeleteUserReq {
+	UserID int64 `path:"user_id"`
+}
+
+// ============================== 题目管理 ==============================
+
+type ProblemSample {
+	Input       string `json:"input"`
+	Output      string `json:"output"`
+	Explanation string `json:"explanation"`
+}
+
+type ProblemStatement {
+	Title             string          `json:"title"`
+	Description       string          `json:"description"`
+	InputDescription  string          `json:"input_description"`
+	OutputDescription string          `json:"output_description"`
+	Samples           []ProblemSample `json:"samples"`
+	Hint              string          `json:"hint"`
+}
+
+type ProblemMetadata {
+	Difficulty string   `json:"difficulty"`
+	Tags       []string `json:"tags"`
+	Source     string   `json:"source"`
+	AuthorID   int64    `json:"author_id"`
+}
+
+type JudgeSettings {
+	TimeLimitMs      int32    `json:"time_limit_ms"`
+	MemoryLimitMB    int32    `json:"memory_limit_mb"`
+	AllowedLanguages []string `json:"allowed_languages"`
+	CheckerType      string   `json:"checker_type"`
+}
+
+// 管理端可以查看这些配置，但仍不得返回测试数据包正文、标准答案或 JudgeProblemSpec。
+type JudgeConfig {
+	Settings          JudgeSettings `json:"settings"`
+	TestDataVersion   string        `json:"test_data_version"`
+	CheckerFileKey    string        `json:"checker_file_key"`
+	InteractorFileKey string        `json:"interactor_file_key"`
+}
+
+type ProblemEditableFields {
+	Statement     ProblemStatement `json:"statement"`
+	Difficulty    string           `json:"difficulty"`
+	Tags          []string         `json:"tags"`
+	Source        string           `json:"source"`
+	JudgeSettings JudgeSettings    `json:"judge_settings"`
+	Visibility    string           `json:"visibility"`
+}
+
+// ProblemStatementPatch 仅用于 PATCH 请求。
+// 所有字段都必须是可选的，真正需要修改的字段由 update_mask 决定；这样也能表达“设置为空值”。
+type ProblemStatementPatch {
+	Title             *string         `json:"title,optional"`
+	Description       *string         `json:"description,optional"`
+	InputDescription  *string         `json:"input_description,optional"`
+	OutputDescription *string         `json:"output_description,optional"`
+	Samples           []ProblemSample `json:"samples,optional"`
+	Hint              *string         `json:"hint,optional"`
+}
+
+// JudgeSettingsPatch 与 Proto FieldMask 配合使用，不能复用创建时的必填 DTO。
+type JudgeSettingsPatch {
+	TimeLimitMs      *int32   `json:"time_limit_ms,optional"`
+	MemoryLimitMB    *int32   `json:"memory_limit_mb,optional"`
+	AllowedLanguages []string `json:"allowed_languages,optional"`
+	CheckerType      *string  `json:"checker_type,optional"`
+}
+
+type ProblemPatch {
+	Statement     *ProblemStatementPatch `json:"statement,optional"`
+	Difficulty    *string                `json:"difficulty,optional"`
+	Tags          []string               `json:"tags,optional"`
+	Source        *string                `json:"source,optional"`
+	JudgeSettings *JudgeSettingsPatch    `json:"judge_settings,optional"`
+	Visibility    *string                `json:"visibility,optional"`
+}
+
+type Problem {
+	ProblemID   int64            `json:"problem_id"`
+	Statement   ProblemStatement `json:"statement"`
+	Metadata    ProblemMetadata  `json:"metadata"`
+	JudgeConfig JudgeConfig      `json:"judge_config"`
+	Status      string           `json:"status"`
+	Visibility  string           `json:"visibility"`
+	Revision    int64            `json:"revision"`
+	CreatedAt   *string          `json:"created_at,optional"`
+	UpdatedAt   *string          `json:"updated_at,optional"`
+	PublishedAt *string          `json:"published_at,optional"`
+}
+
+type ProblemSummary {
+	ProblemID  int64    `json:"problem_id"`
+	Title      string   `json:"title"`
+	Difficulty string   `json:"difficulty"`
+	Tags       []string `json:"tags"`
+	Status     string   `json:"status"`
+	Visibility string   `json:"visibility"`
+	AuthorID   int64    `json:"author_id"`
+	UpdatedAt  *string  `json:"updated_at,optional"`
+	Revision   int64    `json:"revision"`
+}
+
+type TestCaseInfo {
+	TestCaseID int64  `json:"test_case_id"`
+	Name       string `json:"name"`
+	Score      int32  `json:"score"`
+	Ordinal    int32  `json:"ordinal"`
+	Enabled    bool   `json:"enabled"`
+	GroupName  string `json:"group_name"`
+}
+
+type ListProblemsReq {
+	Page       int32    `form:"page,optional,default=1"`
+	PageSize   int32    `form:"page_size,optional,default=20"`
+	Keyword    string   `form:"keyword,optional"`
+	Tags       []string `form:"tags,optional"`
+	Difficulty string   `form:"difficulty,optional"`
+	Status     string   `form:"status,optional"`
+	Visibility string   `form:"visibility,optional"`
+	AuthorID   *int64   `form:"author_id,optional"`
+}
+
+type ListProblemsResp {
+	Total    int64            `json:"total"`
+	Problems []ProblemSummary `json:"problems"`
+}
+
+type CreateProblemReq {
+	Problem ProblemEditableFields `json:"problem"`
+}
+
+type CreateProblemResp {
+	Problem Problem `json:"problem"`
+}
+
+type GetProblemForEditReq {
+	ProblemID int64 `path:"problem_id"`
+}
+
+type GetProblemForEditResp {
+	Problem   Problem        `json:"problem"`
+	TestCases []TestCaseInfo `json:"test_cases"`
+}
+
+type UpdateProblemReq {
+	ProblemID int64        `path:"problem_id"`
+	Problem   ProblemPatch `json:"problem"`
+	// update_mask 的路径相对于 ProblemPatch，例如 statement.title、judge_settings.time_limit_ms。
+	// Logic 必须校验 mask 中的每条路径，并将未出现在 mask 中的 DTO 字段忽略。
+	UpdateMask []string `json:"update_mask"`
+	// expected_revision 是乐观锁，冲突时 RPC 返回 ABORTED，HTTP 层应映射为 409。
+	ExpectedRevision int64 `json:"expected_revision"`
+}
+
+type UpdateProblemResp {
+	Problem Problem `json:"problem"`
+}
+
+type PublishProblemReq {
+	ProblemID        int64 `path:"problem_id"`
+	ExpectedRevision int64 `json:"expected_revision"`
+}
+
+type PublishProblemResp {
+	Problem Problem `json:"problem"`
+}
+
+type ArchiveProblemReq {
+	ProblemID        int64 `path:"problem_id"`
+	ExpectedRevision int64 `json:"expected_revision"`
+}
+
+type ArchiveProblemResp {
+	Problem Problem `json:"problem"`
+}
+
+type DeleteProblemReq {
+	ProblemID        int64 `path:"problem_id"`
+	ExpectedRevision int64 `json:"expected_revision"`
+}
+
+type DeleteProblemResp {
+	Revision int64 `json:"revision"`
+}
+
+type RestoreProblemReq {
+	ProblemID        int64 `path:"problem_id"`
+	ExpectedRevision int64 `json:"expected_revision"`
+}
+
+type RestoreProblemResp {
+	Problem Problem `json:"problem"`
+}
+
+type CreateTestDataUploadReq {
+	ProblemID     int64  `path:"problem_id"`
+	FileName      string `json:"file_name"`
+	ContentLength int64  `json:"content_length"`
+	SHA256        string `json:"sha256"`
+}
+
+type CreateTestDataUploadResp {
+	UploadID  string  `json:"upload_id"`
+	UploadURL string  `json:"upload_url"`
+	ExpiresAt *string `json:"expires_at,optional"`
+}
+
+type FinalizeTestDataUploadReq {
+	ProblemID        int64  `path:"problem_id"`
+	UploadID         string `path:"upload_id"`
+	SHA256           string `json:"sha256"`
+	ExpectedRevision int64  `json:"expected_revision"`
+}
+
+type FinalizeTestDataUploadResp {
+	TestDataVersion string         `json:"test_data_version"`
+	Revision        int64          `json:"revision"`
+	TestCases       []TestCaseInfo `json:"test_cases"`
+}
+
+// ============================== 比赛管理 ==============================
+
+type ContestEditableFields {
+	Title                string  `json:"title"`
+	Description          string  `json:"description"`
+	Mode                 string  `json:"mode"`
+	StartAt              string  `json:"start_at"`
+	EndAt                string  `json:"end_at"`
+	RegistrationStartAt  *string `json:"registration_start_at,optional"`
+	RegistrationEndAt    *string `json:"registration_end_at,optional"`
+	RegistrationPolicy   string  `json:"registration_policy"`
+	Visibility           string  `json:"visibility"`
+	ScoreboardVisibility string  `json:"scoreboard_visibility"`
+	// 下面两个字段对应 Proto oneof，Logic 必须拒绝二者同时出现；仅 ICPC 比赛可配置。
+	ScoreboardFreezeAt           *string `json:"scoreboard_freeze_at,optional"`
+	ScoreboardFreezeBeforeEndSec *int64  `json:"scoreboard_freeze_before_end_seconds,optional"`
+	// invite_code 是管理端敏感字段，绝不能复用到 App 侧响应 DTO。
+	InviteCode *string `json:"invite_code,optional"`
+}
+
+// ContestPatch 只用于局部更新。字段是否生效由 update_mask 决定，
+// 因此即使要把字符串清空，也不需要强制客户端重传整个比赛对象。
+type ContestPatch {
+	Title                *string `json:"title,optional"`
+	Description          *string `json:"description,optional"`
+	Mode                 *string `json:"mode,optional"`
+	StartAt              *string `json:"start_at,optional"`
+	EndAt                *string `json:"end_at,optional"`
+	RegistrationStartAt  *string `json:"registration_start_at,optional"`
+	RegistrationEndAt    *string `json:"registration_end_at,optional"`
+	RegistrationPolicy   *string `json:"registration_policy,optional"`
+	Visibility           *string `json:"visibility,optional"`
+	ScoreboardVisibility *string `json:"scoreboard_visibility,optional"`
+	// 两个封榜字段对应 Proto oneof；同时提供时 Logic 必须拒绝。
+	ScoreboardFreezeAt           *string `json:"scoreboard_freeze_at,optional"`
+	ScoreboardFreezeBeforeEndSec *int64  `json:"scoreboard_freeze_before_end_seconds,optional"`
+	InviteCode                   *string `json:"invite_code,optional"`
+}
+
+type Contest {
+	ContestID          int64                 `json:"contest_id"`
+	CreatorID          int64                 `json:"creator_id"`
+	Editable           ContestEditableFields `json:"editable"`
+	Status             string                `json:"status"`
+	Revision           int64                 `json:"revision"`
+	CreatedAt          *string               `json:"created_at,optional"`
+	UpdatedAt          *string               `json:"updated_at,optional"`
+	PublishedAt        *string               `json:"published_at,optional"`
+	CancelledAt        *string               `json:"cancelled_at,optional"`
+	ArchivedAt         *string               `json:"archived_at,optional"`
+	DeletedAt          *string               `json:"deleted_at,optional"`
+	ScoreboardFrozen   bool                  `json:"scoreboard_frozen"`
+	ScoreboardFrozenAt *string               `json:"scoreboard_frozen_at,optional"`
+}
+
+type ContestSummary {
+	ContestID          int64   `json:"contest_id"`
+	Title              string  `json:"title"`
+	Mode               string  `json:"mode"`
+	Status             string  `json:"status"`
+	StartAt            *string `json:"start_at,optional"`
+	EndAt              *string `json:"end_at,optional"`
+	RegistrationPolicy string  `json:"registration_policy"`
+	Visibility         string  `json:"visibility"`
+	RegistrationOpen   bool    `json:"registration_open"`
+	ParticipantCount   int64   `json:"participant_count"`
+}
+
+type ContestProblem {
+	ProblemID    int64  `json:"problem_id"`
+	Label        string `json:"label"`
+	DisplayOrder int32  `json:"display_order"`
+	MaxScore     int64  `json:"max_score"`
+}
+
+type ContestRegistration {
+	RegistrationID  int64   `json:"registration_id"`
+	ContestID       int64   `json:"contest_id"`
+	UserID          int64   `json:"user_id"`
+	Status          string  `json:"status"`
+	ApplicationNote string  `json:"application_note"`
+	ReviewerID      int64   `json:"reviewer_id"`
+	ReviewNote      string  `json:"review_note"`
+	Revision        int64   `json:"revision"`
+	CreatedAt       *string `json:"created_at,optional"`
+	ReviewedAt      *string `json:"reviewed_at,optional"`
+	CancelledAt     *string `json:"cancelled_at,optional"`
+	UpdatedAt       *string `json:"updated_at,optional"`
+}
+
+type ContestParticipant {
+	ContestID   int64   `json:"contest_id"`
+	UserID      int64   `json:"user_id"`
+	Status      string  `json:"status"`
+	QualifiedAt *string `json:"qualified_at,optional"`
+	UpdatedAt   *string `json:"updated_at,optional"`
+}
+
+type ListContestsReq {
+	Page     int32  `form:"page,optional,default=1"`
+	PageSize int32  `form:"page_size,optional,default=20"`
+	Keyword  string `form:"keyword,optional"`
+	Status   string `form:"status,optional"`
+	Mode     string `form:"mode,optional"`
+}
+
+type ListContestsResp {
+	Total    int64            `json:"total"`
+	Contests []ContestSummary `json:"contests"`
+}
+
+type CreateContestReq {
+	Contest ContestEditableFields `json:"contest"`
+}
+
+type CreateContestResp {
+	Contest Contest `json:"contest"`
+}
+
+type GetContestForEditReq {
+	ContestID int64 `path:"contest_id"`
+}
+
+type GetContestForEditResp {
+	Contest  Contest          `json:"contest"`
+	Problems []ContestProblem `json:"problems"`
+}
+
+type UpdateContestReq {
+	ContestID int64        `path:"contest_id"`
+	Contest   ContestPatch `json:"contest"`
+	// 路径相对于 ContestPatch，例如 title、start_at、scoreboard_freeze_at。
+	// Logic 必须只向 Proto 填充 mask 指定的字段，防止零值覆盖未修改配置。
+	UpdateMask       []string `json:"update_mask"`
+	ExpectedRevision int64    `json:"expected_revision"`
+}
+
+type UpdateContestResp {
+	Contest Contest `json:"contest"`
+}
+
+type PublishContestReq {
+	ContestID        int64 `path:"contest_id"`
+	ExpectedRevision int64 `json:"expected_revision"`
+}
+
+type PublishContestResp {
+	Contest Contest `json:"contest"`
+}
+
+type CancelContestReq {
+	ContestID        int64  `path:"contest_id"`
+	ExpectedRevision int64  `json:"expected_revision"`
+	Reason           string `json:"reason"`
+}
+
+type CancelContestResp {
+	Contest Contest `json:"contest"`
+}
+
+type ArchiveContestReq {
+	ContestID        int64 `path:"contest_id"`
+	ExpectedRevision int64 `json:"expected_revision"`
+}
+
+type ArchiveContestResp {
+	Contest Contest `json:"contest"`
+}
+
+type DeleteContestReq {
+	ContestID        int64 `path:"contest_id"`
+	ExpectedRevision int64 `json:"expected_revision"`
+}
+
+type DeleteContestResp {
+	Revision int64 `json:"revision"`
+}
+
+type RestoreContestReq {
+	ContestID        int64 `path:"contest_id"`
+	ExpectedRevision int64 `json:"expected_revision"`
+}
+
+type RestoreContestResp {
+	Contest Contest `json:"contest"`
+}
+
+type SetContestProblemsReq {
+	ContestID int64 `path:"contest_id"`
+	// 该操作原子替换完整题目编排，任一条非法时整个请求都应失败。
+	Problems         []ContestProblem `json:"problems"`
+	ExpectedRevision int64            `json:"expected_revision"`
+}
+
+type SetContestProblemsResp {
+	Contest  Contest          `json:"contest"`
+	Problems []ContestProblem `json:"problems"`
+}
+
+type ListRegistrationsReq {
+	ContestID int64  `path:"contest_id"`
+	Page      int32  `form:"page,optional,default=1"`
+	PageSize  int32  `form:"page_size,optional,default=20"`
+	Status    string `form:"status,optional"`
+}
+
+type ListRegistrationsResp {
+	Total         int64                 `json:"total"`
+	Registrations []ContestRegistration `json:"registrations"`
+}
+
+type ReviewRegistrationReq {
+	ContestID        int64  `path:"contest_id"`
+	RegistrationID   int64  `path:"registration_id"`
+	Decision         string `json:"decision,options=approve|reject"`
+	ReviewNote       string `json:"review_note,optional"`
+	ExpectedRevision int64  `json:"expected_revision"`
+}
+
+type ReviewRegistrationResp {
+	Registration ContestRegistration `json:"registration"`
+	// 驳回申请时 gRPC 不会创建参赛者，此时 participant 必须为 null。
+	Participant *ContestParticipant `json:"participant,optional"`
+}
+
+type ListParticipantsReq {
+	ContestID int64  `path:"contest_id"`
+	Page      int32  `form:"page,optional,default=1"`
+	PageSize  int32  `form:"page_size,optional,default=20"`
+	Status    string `form:"status,optional"`
+}
+
+type ListParticipantsResp {
+	Total        int64                `json:"total"`
+	Participants []ContestParticipant `json:"participants"`
+}
+
+type FreezeScoreboardReq {
+	ContestID        int64 `path:"contest_id"`
+	ExpectedRevision int64 `json:"expected_revision"`
+}
+
+type FreezeScoreboardResp {
+	Contest Contest `json:"contest"`
+}
+
+type UnfreezeScoreboardReq {
+	ContestID        int64 `path:"contest_id"`
+	ExpectedRevision int64 `json:"expected_revision"`
+}
+
+type UnfreezeScoreboardResp {
+	Contest Contest `json:"contest"`
+}
+
+// ============================== 提交管理 ==============================
+
+type SubmissionSummary {
+	SubmissionID     int64   `json:"submission_id"`
+	UserID           int64   `json:"user_id"`
+	ProblemID        int64   `json:"problem_id"`
+	ContestID        *int64  `json:"contest_id,optional"`
+	Language         string  `json:"language"`
+	Status           string  `json:"status"`
+	Verdict          string  `json:"verdict"`
+	Score            int64   `json:"score"`
+	MaxScore         int64   `json:"max_score"`
+	ProblemRevision  int64   `json:"problem_revision"`
+	AttemptCount     int32   `json:"attempt_count"`
+	ResultVisibility string  `json:"result_visibility"`
+	SubmittedAt      *string `json:"submitted_at,optional"`
+	JudgingStartedAt *string `json:"judging_started_at,optional"`
+	FinishedAt       *string `json:"finished_at,optional"`
+}
+
+// 即使在管理端也只返回 Submit RPC 的公开安全投影，不得加入 Worker judge_message。
+type TestCaseResult {
+	TestCaseID   int64  `json:"test_case_id"`
+	Ordinal      int32  `json:"ordinal"`
+	GroupName    string `json:"group_name"`
+	Verdict      string `json:"verdict"`
+	Score        int64  `json:"score"`
+	TimeUsedMs   int64  `json:"time_used_ms"`
+	MemoryUsedKB int64  `json:"memory_used_kb"`
+}
+
+type SubmissionDetail {
+	Summary       SubmissionSummary `json:"summary"`
+	SourceCode    string            `json:"source_code"`
+	CompileOutput string            `json:"compile_output"`
+	CaseResults   []TestCaseResult  `json:"case_results"`
+}
+
+type ListSubmissionsReq {
+	Page      int32  `form:"page,optional,default=1"`
+	PageSize  int32  `form:"page_size,optional,default=20"`
+	UserID    *int64 `form:"user_id,optional"`
+	ProblemID *int64 `form:"problem_id,optional"`
+	ContestID *int64 `form:"contest_id,optional"`
+	Status    string `form:"status,optional"`
+	Verdict   string `form:"verdict,optional"`
+	Language  string `form:"language,optional"`
+}
+
+type ListSubmissionsResp {
+	Total       int64               `json:"total"`
+	Submissions []SubmissionSummary `json:"submissions"`
+}
+
+type GetSubmissionReq {
+	SubmissionID int64 `path:"submission_id"`
+}
+
+type GetSubmissionResp {
+	Submission SubmissionDetail `json:"submission"`
+}
+
+type RejudgeSubmissionReq {
+	SubmissionID int64  `path:"submission_id"`
+	Reason       string `json:"reason,optional"`
+}
+
+type RejudgeSubmissionResp {
+	Submission SubmissionSummary `json:"submission"`
+	AttemptID  int64             `json:"attempt_id"`
+}
+
+type BatchRejudgeSubmissionsReq {
+	SubmissionIDs []int64 `json:"submission_ids"`
+	Reason        string  `json:"reason,optional"`
+}
+
+type BatchRejudgeItem {
+	SubmissionID int64 `json:"submission_id"`
+	AttemptID    int64 `json:"attempt_id"`
+}
+
+type BatchRejudgeSubmissionsResp {
+	Accepted []BatchRejudgeItem `json:"accepted"`
+}
+
+// ============================== 路由 ==============================
+
+@server (
+	group: health
+)
+service admin-api {
+	// 存活探针不访问数据库；依赖就绪检查应在后续实现中单独提供 readyz。
+	@handler Health
+	get /healthz returns (HealthResp)
+}
+
+@server (
+	prefix: /api/v1/admin
+	group:  auth
+)
+service admin-api {
+	@handler AdminUsernameLogin
+	post /auth/login/username (UsernameLoginReq) returns (LoginResp)
+
+	@handler AdminEmailPasswordLogin
+	post /auth/login/email-password (EmailPasswordLoginReq) returns (LoginResp)
+
+	@handler AdminEmailCodeLogin
+	post /auth/login/email-code (EmailCodeLoginReq) returns (LoginResp)
+
+	@handler AdminSendEmailCode
+	post /auth/email-codes (SendEmailCodeReq) returns (SendEmailCodeResp)
+
+	@handler AdminRefreshToken
+	post /auth/token/refresh (RefreshTokenReq) returns (RefreshTokenResp)
+
+	@handler AdminLogout
+	post /auth/logout (LogoutReq) returns (EmptyResp)
+
+	@handler AdminResetPassword
+	post /auth/password/reset (ResetPasswordReq) returns (EmptyResp)
+}
+
+@server (
+	prefix:     /api/v1/admin
+	group:      account
+	middleware: AdminIdentity
+)
+service admin-api {
+	@handler AdminGetCurrentUser
+	get /users/me returns (GetCurrentUserResp)
+
+	@handler AdminUpdateProfile
+	patch /users/me (UpdateProfileReq) returns (UpdateProfileResp)
+
+	@handler AdminChangeEmail
+	put /users/me/email (ChangeEmailReq) returns (ChangeEmailResp)
+
+	@handler AdminChangePassword
+	put /users/me/password (ChangePasswordReq) returns (EmptyResp)
+}
+
+@server (
+	prefix:     /api/v1/admin
+	group:      user
+	middleware: AdminIdentity
+)
+service admin-api {
+	@handler ListUsers
+	get /users (ListUsersReq) returns (ListUsersResp)
+
+	@handler GetUser
+	get /users/:user_id (GetUserReq) returns (GetUserResp)
+
+	@handler AdminUpdateUser
+	patch /users/:user_id (AdminUpdateUserReq) returns (AdminUpdateUserResp)
+
+	@handler DeleteUser
+	delete /users/:user_id (DeleteUserReq) returns (EmptyResp)
+}
+
+@server (
+	prefix:     /api/v1/admin
+	group:      problem
+	middleware: AdminIdentity
+)
+service admin-api {
+	// HTTP Logic 必须调用 ProblemService.ListProblemsForManagement；
+	// 不得回退到只返回公开题目的 ListProblems。
+	@handler AdminListProblems
+	get /problems (ListProblemsReq) returns (ListProblemsResp)
+
+	@handler CreateProblem
+	post /problems (CreateProblemReq) returns (CreateProblemResp)
+
+	@handler GetProblemForEdit
+	get /problems/:problem_id (GetProblemForEditReq) returns (GetProblemForEditResp)
+
+	@handler UpdateProblem
+	patch /problems/:problem_id (UpdateProblemReq) returns (UpdateProblemResp)
+
+	@handler PublishProblem
+	post /problems/:problem_id/publish (PublishProblemReq) returns (PublishProblemResp)
+
+	@handler ArchiveProblem
+	post /problems/:problem_id/archive (ArchiveProblemReq) returns (ArchiveProblemResp)
+
+	@handler DeleteProblem
+	delete /problems/:problem_id (DeleteProblemReq) returns (DeleteProblemResp)
+
+	@handler RestoreProblem
+	post /problems/:problem_id/restore (RestoreProblemReq) returns (RestoreProblemResp)
+
+	@handler CreateTestDataUpload
+	post /problems/:problem_id/test-data/uploads (CreateTestDataUploadReq) returns (CreateTestDataUploadResp)
+
+	@handler FinalizeTestDataUpload
+	post /problems/:problem_id/test-data/uploads/:upload_id/finalize (FinalizeTestDataUploadReq) returns (FinalizeTestDataUploadResp)
+}
+
+@server (
+	prefix:     /api/v1/admin
+	group:      contest
+	middleware: AdminIdentity
+)
+service admin-api {
+	// HTTP Logic 必须调用 ContestService.ListContestsForManagement，
+	// 由 Contest RPC 验证管理员身份并返回草稿、私有、归档等完整管理数据。
+	@handler AdminListContests
+	get /contests (ListContestsReq) returns (ListContestsResp)
+
+	@handler CreateContest
+	post /contests (CreateContestReq) returns (CreateContestResp)
+
+	@handler GetContestForEdit
+	get /contests/:contest_id (GetContestForEditReq) returns (GetContestForEditResp)
+
+	@handler UpdateContest
+	patch /contests/:contest_id (UpdateContestReq) returns (UpdateContestResp)
+
+	@handler PublishContest
+	post /contests/:contest_id/publish (PublishContestReq) returns (PublishContestResp)
+
+	@handler CancelContest
+	post /contests/:contest_id/cancel (CancelContestReq) returns (CancelContestResp)
+
+	@handler ArchiveContest
+	post /contests/:contest_id/archive (ArchiveContestReq) returns (ArchiveContestResp)
+
+	@handler DeleteContest
+	delete /contests/:contest_id (DeleteContestReq) returns (DeleteContestResp)
+
+	@handler RestoreContest
+	post /contests/:contest_id/restore (RestoreContestReq) returns (RestoreContestResp)
+
+	@handler SetContestProblems
+	put /contests/:contest_id/problems (SetContestProblemsReq) returns (SetContestProblemsResp)
+
+	@handler ListRegistrations
+	get /contests/:contest_id/registrations (ListRegistrationsReq) returns (ListRegistrationsResp)
+
+	@handler ReviewRegistration
+	post /contests/:contest_id/registrations/:registration_id/review (ReviewRegistrationReq) returns (ReviewRegistrationResp)
+
+	@handler ListParticipants
+	get /contests/:contest_id/participants (ListParticipantsReq) returns (ListParticipantsResp)
+
+	@handler FreezeScoreboard
+	post /contests/:contest_id/scoreboard/freeze (FreezeScoreboardReq) returns (FreezeScoreboardResp)
+
+	@handler UnfreezeScoreboard
+	post /contests/:contest_id/scoreboard/unfreeze (UnfreezeScoreboardReq) returns (UnfreezeScoreboardResp)
+}
+
+@server (
+	prefix:     /api/v1/admin
+	group:      submission
+	middleware: AdminIdentity
+)
+service admin-api {
+	@handler AdminListSubmissions
+	get /submissions (ListSubmissionsReq) returns (ListSubmissionsResp)
+
+	@handler AdminGetSubmission
+	get /submissions/:submission_id (GetSubmissionReq) returns (GetSubmissionResp)
+
+	@handler RejudgeSubmission
+	post /submissions/:submission_id/rejudge (RejudgeSubmissionReq) returns (RejudgeSubmissionResp)
+
+	@handler BatchRejudgeSubmissions
+	post /submissions/rejudge (BatchRejudgeSubmissionsReq) returns (BatchRejudgeSubmissionsResp)
+}

@@ -90,7 +90,8 @@ services:
       retries: 20
 
   minio:
-    image: minio/minio:latest
+    # 使用 MinIO 官方 Quay 仓库，绕过 Docker Hub 镜像加速源拉取不稳定的问题。
+    image: quay.io/minio/minio:latest
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
@@ -112,7 +113,8 @@ services:
       retries: 20
 
   minio-init:
-    image: minio/mc:latest
+    # mc 也必须使用同一官方源，否则初始化 Bucket 时仍会访问 Docker Hub。
+    image: quay.io/minio/mc:latest
     profiles:
       - init
     depends_on:

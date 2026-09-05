@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/contest/pb"
 	"github.com/zeromicro/go-zero/core/conf"
 )
 
@@ -38,5 +39,19 @@ func TestContestConfigLoadsMySQLDSNFromEnvironment(t *testing.T) {
 	if c.ScoreboardFreeze.IntervalSeconds != 10 || c.ScoreboardFreeze.BatchSize != 100 ||
 		c.ScoreboardFreeze.OperationTimeoutSeconds != 5 {
 		t.Fatalf("ScoreboardFreeze = %+v", c.ScoreboardFreeze)
+	}
+	ignored := make(map[string]struct{}, len(c.Middlewares.StatConf.IgnoreContentMethods))
+	for _, method := range c.Middlewares.StatConf.IgnoreContentMethods {
+		ignored[method] = struct{}{}
+	}
+	for _, method := range []string{
+		pb.ContestService_CreateContest_FullMethodName,
+		pb.ContestService_UpdateContest_FullMethodName,
+		pb.ContestService_RegisterContest_FullMethodName,
+		pb.ContestService_ReviewRegistration_FullMethodName,
+	} {
+		if _, ok := ignored[method]; !ok {
+			t.Errorf("sensitive RPC %q is not excluded from content logging", method)
+		}
 	}
 }

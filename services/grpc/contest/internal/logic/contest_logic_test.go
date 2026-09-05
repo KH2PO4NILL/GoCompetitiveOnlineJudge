@@ -35,6 +35,8 @@ type logicContestModel struct {
 	lastScoreboard   model.ScoreboardFilter
 	lastAccessAt     time.Time
 	softDeleteCalled bool
+	listPublicCalls  int
+	listManageCalls  int
 	operationError   error
 }
 
@@ -68,6 +70,14 @@ func (m *logicContestModel) GetDetail(context.Context, int64, time.Time) (*model
 	return m.detail, m.operationError
 }
 func (m *logicContestModel) ListPublic(context.Context, model.ContestListFilter) ([]model.ContestSummary, int64, error) {
+	m.listPublicCalls++
+	return m.contestSummaries()
+}
+func (m *logicContestModel) ListForManagement(context.Context, model.ContestListFilter) ([]model.ContestSummary, int64, error) {
+	m.listManageCalls++
+	return m.contestSummaries()
+}
+func (m *logicContestModel) contestSummaries() ([]model.ContestSummary, int64, error) {
 	return []model.ContestSummary{{
 		ContestID: m.detail.ContestID, Title: m.detail.Title, Mode: m.detail.Mode, Status: m.detail.Status,
 		StartAt: m.detail.StartAt, EndAt: m.detail.EndAt, RegistrationPolicy: m.detail.RegistrationPolicy,
@@ -312,6 +322,29 @@ func TestAllContestRPCLogicHappyPaths(t *testing.T) {
 			ContestId: 10, UserId: 7, ObservedAt: timestamppb.New(now),
 		}); err != nil || response.Visibility != pb.SubmissionResultVisibility_SUBMISSION_RESULT_VISIBILITY_FULL {
 		t.Fatalf("ResolveSubmissionResultVisibility() = (%+v, %v)", response, err)
+	}
+}
+
+func TestListContestsForManagementRequiresAdminAndUsesManagementRepository(t *testing.T) {
+	now := time.Date(2026, 8, 30, 4, 0, 0, 0, time.UTC)
+	repository, svcCtx := testContestFixture(now)
+
+	userLogic := NewListContestsForManagementLogic(
+		contestPrincipal(7, authpb.UserRole_USER_ROLE_USER), svcCtx,
+	)
+	if _, err := userLogic.ListContestsForManagement(&pb.ListContestsReq{}); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("user ListContestsForManagement() code = %s, want %s", status.Code(err), codes.PermissionDenied)
+	}
+
+	adminLogic := NewListContestsForManagementLogic(
+		contestPrincipal(8, authpb.UserRole_USER_ROLE_ADMIN), svcCtx,
+	)
+	response, err := adminLogic.ListContestsForManagement(&pb.ListContestsReq{})
+	if err != nil || response.Total != 1 || len(response.Contests) != 1 {
+		t.Fatalf("ListContestsForManagement() = (%+v, %v)", response, err)
+	}
+	if repository.listManageCalls != 1 || repository.listPublicCalls != 0 {
+		t.Fatalf("repository calls: management=%d public=%d", repository.listManageCalls, repository.listPublicCalls)
 	}
 }
 
