@@ -30,7 +30,8 @@ func TestDockerSandboxIntegration(t *testing.T) {
 	root := t.TempDir()
 	helper := buildSandboxIntegrationHelper(t, root)
 	docker, err := NewDocker(DockerOptions{
-		Endpoint: endpoint, WorkerID: "sandbox-integration", User: "65532:65532",
+		Endpoint: endpoint, AllowUnrestrictedDaemon: true,
+		WorkerID: "sandbox-integration", User: "65532:65532",
 		AllowedRoots: []AllowedRoot{{Path: root, Writable: true}},
 		APITimeout:   10 * time.Second, StopTimeout: 3 * time.Second,
 	})

@@ -4,12 +4,15 @@ import (
 	"bufio"
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"net"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -48,7 +51,7 @@ func (f *fakeDockerAPI) ContainerStart(context.Context, string, client.Container
 	panic("unexpected ContainerStart")
 }
 func (f *fakeDockerAPI) ContainerStats(context.Context, string, client.ContainerStatsOptions) (client.ContainerStatsResult, error) {
-	return client.ContainerStatsResult{Body: io.NopCloser(strings.NewReader(""))}, nil
+	return client.ContainerStatsResult{Body: io.NopCloser(strings.NewReader("{}"))}, nil
 }
 func (f *fakeDockerAPI) ContainerInspect(context.Context, string, client.ContainerInspectOptions) (client.ContainerInspectResult, error) {
 	panic("unexpected ContainerInspect")
@@ -80,7 +83,9 @@ type executeDockerAPI struct {
 	waitOptions   client.ContainerWaitOptions
 	inspectResult client.ContainerInspectResult
 	start         func()
+	startErr      error
 	kill          func()
+	stats         func(context.Context, client.ContainerStatsOptions) (client.ContainerStatsResult, error)
 }
 
 func (f *executeDockerAPI) ContainerCreate(ctx context.Context, options client.ContainerCreateOptions) (client.ContainerCreateResult, error) {
@@ -101,10 +106,13 @@ func (f *executeDockerAPI) ContainerStart(context.Context, string, client.Contai
 	if f.start != nil {
 		f.start()
 	}
-	return client.ContainerStartResult{}, nil
+	return client.ContainerStartResult{}, f.startErr
 }
-func (f *executeDockerAPI) ContainerStats(context.Context, string, client.ContainerStatsOptions) (client.ContainerStatsResult, error) {
-	return client.ContainerStatsResult{Body: io.NopCloser(strings.NewReader(""))}, nil
+func (f *executeDockerAPI) ContainerStats(ctx context.Context, _ string, options client.ContainerStatsOptions) (client.ContainerStatsResult, error) {
+	if f.stats != nil {
+		return f.stats(ctx, options)
+	}
+	return client.ContainerStatsResult{Body: io.NopCloser(strings.NewReader("{}"))}, nil
 }
 func (f *executeDockerAPI) ContainerInspect(context.Context, string, client.ContainerInspectOptions) (client.ContainerInspectResult, error) {
 	return f.inspectResult, nil
@@ -210,6 +218,281 @@ func TestExecuteCollectsOutputAndExitMetadata(t *testing.T) {
 	}
 }
 
+func TestExecuteOpensStatsBeforeStartAndCapturesShortExecutionUsage(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	resultCh := make(chan container.WaitResponse, 1)
+	errorCh := make(chan error, 1)
+	streamReader, streamWriter := io.Pipe()
+	defer streamWriter.Close()
+	var streamOpened atomic.Bool
+	api := &executeDockerAPI{
+		attachResult: client.ContainerAttachResult{HijackedResponse: client.HijackedResponse{
+			Conn: clientConn, Reader: bufio.NewReader(clientConn),
+		}},
+		waitResult: client.ContainerWaitResult{Result: resultCh, Error: errorCh},
+		inspectResult: client.ContainerInspectResult{Container: container.InspectResponse{
+			State: &container.State{ExitCode: 0},
+		}},
+		stats: func(_ context.Context, options client.ContainerStatsOptions) (client.ContainerStatsResult, error) {
+			if options.Stream {
+				streamOpened.Store(true)
+				return client.ContainerStatsResult{Body: streamReader}, nil
+			}
+			return statsResult(0, 0, 0), nil
+		},
+	}
+	api.start = func() {
+		if !streamOpened.Load() {
+			t.Fatal("resource statistics stream was not opened before container start")
+		}
+		go func() {
+			_ = json.NewEncoder(streamWriter).Encode(container.StatsResponse{
+				CPUStats:    container.CPUStats{CPUUsage: container.CPUUsage{TotalUsage: uint64(25 * time.Millisecond)}},
+				MemoryStats: container.MemoryStats{Usage: 4096, MaxUsage: 8192},
+			})
+			_ = streamWriter.Close()
+			_ = serverConn.Close()
+			resultCh <- container.WaitResponse{StatusCode: 0}
+		}()
+	}
+
+	docker := testDocker(t, api)
+	request := validExecuteRequest()
+	request.Mounts = nil
+	result, err := docker.Execute(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Reason != ExitNormal || result.CPUTime != 25*time.Millisecond || result.PeakMemory != 8192 {
+		t.Fatalf("resource result = reason %q CPU %s peak %d", result.Reason, result.CPUTime, result.PeakMemory)
+	}
+}
+
+func TestExecutePollingEnforcesCPUTimeLimit(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	resultCh := make(chan container.WaitResponse, 1)
+	errorCh := make(chan error, 1)
+	streamReader, streamWriter := io.Pipe()
+	defer streamWriter.Close()
+	limit := 100 * time.Millisecond
+	api := &executeDockerAPI{
+		attachResult: client.ContainerAttachResult{HijackedResponse: client.HijackedResponse{
+			Conn: clientConn, Reader: bufio.NewReader(clientConn),
+		}},
+		waitResult: client.ContainerWaitResult{Result: resultCh, Error: errorCh},
+		inspectResult: client.ContainerInspectResult{Container: container.InspectResponse{
+			State: &container.State{ExitCode: 137},
+		}},
+		stats: func(_ context.Context, options client.ContainerStatsOptions) (client.ContainerStatsResult, error) {
+			if options.Stream {
+				return client.ContainerStatsResult{Body: streamReader}, nil
+			}
+			return statsResult(uint64(limit+10*time.Millisecond), 2048, 4096), nil
+		},
+	}
+	api.kill = func() {
+		_ = serverConn.Close()
+		resultCh <- container.WaitResponse{StatusCode: 137}
+	}
+
+	docker := testDocker(t, api)
+	request := validExecuteRequest()
+	request.Mounts = nil
+	request.Limits.CPUTime = limit
+	result, err := docker.Execute(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Reason != ExitTLE || result.CPUTime < limit || !slices.Equal(api.killIDs, []string{"container-1"}) {
+		t.Fatalf("CPU enforcement result = %#v, kills=%#v", result, api.killIDs)
+	}
+}
+
+func TestExecuteCountsContainerStartLatencyTowardWallTime(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	resultCh := make(chan container.WaitResponse, 1)
+	errorCh := make(chan error, 1)
+	api := &executeDockerAPI{
+		attachResult: client.ContainerAttachResult{HijackedResponse: client.HijackedResponse{
+			Conn: clientConn, Reader: bufio.NewReader(clientConn),
+		}},
+		waitResult: client.ContainerWaitResult{Result: resultCh, Error: errorCh},
+		inspectResult: client.ContainerInspectResult{Container: container.InspectResponse{
+			State: &container.State{ExitCode: 0},
+		}},
+	}
+	api.start = func() {
+		time.Sleep(20 * time.Millisecond)
+		_ = serverConn.Close()
+		resultCh <- container.WaitResponse{StatusCode: 0}
+	}
+
+	docker := testDocker(t, api)
+	request := validExecuteRequest()
+	request.Mounts = nil
+	request.Limits.CPUTime = 5 * time.Millisecond
+	request.Limits.WallTime = 5 * time.Millisecond
+	result, err := docker.Execute(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Reason != ExitTLE || result.WallTime < request.Limits.WallTime {
+		t.Fatalf("start latency result = reason %q wall %s", result.Reason, result.WallTime)
+	}
+	if !slices.Equal(api.killIDs, []string{"container-1"}) {
+		t.Fatalf("start latency kills = %#v", api.killIDs)
+	}
+}
+
+func TestExecuteStartFailureStopsResourceMonitors(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	defer serverConn.Close()
+	streamBody := newBlockingReadCloser()
+	pollStarted := make(chan struct{})
+	pollFinished := make(chan struct{})
+	var pollStart sync.Once
+	var pollFinish sync.Once
+	api := &executeDockerAPI{
+		attachResult: client.ContainerAttachResult{HijackedResponse: client.HijackedResponse{
+			Conn: clientConn, Reader: bufio.NewReader(clientConn),
+		}},
+		waitResult: client.ContainerWaitResult{Result: make(chan container.WaitResponse), Error: make(chan error)},
+		startErr:   errors.New("start failed"),
+		stats: func(ctx context.Context, options client.ContainerStatsOptions) (client.ContainerStatsResult, error) {
+			if options.Stream {
+				return client.ContainerStatsResult{Body: streamBody}, nil
+			}
+			pollStart.Do(func() { close(pollStarted) })
+			<-ctx.Done()
+			pollFinish.Do(func() { close(pollFinished) })
+			return client.ContainerStatsResult{}, ctx.Err()
+		},
+	}
+	api.start = func() {
+		<-streamBody.started
+		<-pollStarted
+	}
+
+	docker := testDocker(t, api)
+	request := validExecuteRequest()
+	request.Mounts = nil
+	result, err := docker.Execute(context.Background(), request)
+	if err == nil || !strings.Contains(err.Error(), "start failed") {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Reason != ExitSandboxError {
+		t.Fatalf("result reason = %q", result.Reason)
+	}
+	select {
+	case <-streamBody.finished:
+	default:
+		t.Fatal("stream monitor was not stopped before Execute returned")
+	}
+	select {
+	case <-pollFinished:
+	default:
+		t.Fatal("poll monitor was not stopped before Execute returned")
+	}
+}
+
+func TestExecuteClosesBlockingStdinAfterNormalExit(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	resultCh := make(chan container.WaitResponse, 1)
+	errorCh := make(chan error, 1)
+	stdin := newBlockingReadCloser()
+	api := &executeDockerAPI{
+		attachResult: client.ContainerAttachResult{HijackedResponse: client.HijackedResponse{
+			Conn: clientConn, Reader: bufio.NewReader(clientConn),
+		}},
+		waitResult: client.ContainerWaitResult{Result: resultCh, Error: errorCh},
+		inspectResult: client.ContainerInspectResult{Container: container.InspectResponse{
+			State: &container.State{ExitCode: 0},
+		}},
+	}
+	api.start = func() {
+		go func() {
+			<-stdin.started
+			_ = serverConn.Close()
+			resultCh <- container.WaitResponse{StatusCode: 0}
+		}()
+	}
+
+	docker := testDocker(t, api)
+	request := validExecuteRequest()
+	request.Mounts = nil
+	request.Stdin = stdin
+	result, err := docker.Execute(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Reason != ExitNormal {
+		t.Fatalf("result reason = %q", result.Reason)
+	}
+	select {
+	case <-stdin.closed:
+	default:
+		t.Fatal("blocking stdin was not closed")
+	}
+	select {
+	case <-stdin.finished:
+	default:
+		t.Fatal("stdin copy goroutine did not finish")
+	}
+}
+
+func TestResourcePollIntervalIsBounded(t *testing.T) {
+	for _, test := range []struct {
+		limit time.Duration
+		want  time.Duration
+	}{
+		{limit: time.Millisecond, want: MinResourcePoll},
+		{limit: 400 * time.Millisecond, want: 20 * time.Millisecond},
+		{limit: 10 * time.Second, want: MaxResourcePoll},
+	} {
+		if got := resourcePollInterval(test.limit); got != test.want {
+			t.Errorf("resourcePollInterval(%s) = %s, want %s", test.limit, got, test.want)
+		}
+	}
+}
+
+func statsResult(cpu, usage, peak uint64) client.ContainerStatsResult {
+	encoded, err := json.Marshal(container.StatsResponse{
+		CPUStats:    container.CPUStats{CPUUsage: container.CPUUsage{TotalUsage: cpu}},
+		MemoryStats: container.MemoryStats{Usage: usage, MaxUsage: peak},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return client.ContainerStatsResult{Body: io.NopCloser(strings.NewReader(string(encoded)))}
+}
+
+type blockingReadCloser struct {
+	started  chan struct{}
+	closed   chan struct{}
+	finished chan struct{}
+	start    sync.Once
+	close    sync.Once
+	finish   sync.Once
+}
+
+func newBlockingReadCloser() *blockingReadCloser {
+	return &blockingReadCloser{
+		started: make(chan struct{}), closed: make(chan struct{}), finished: make(chan struct{}),
+	}
+}
+
+func (reader *blockingReadCloser) Read([]byte) (int, error) {
+	reader.start.Do(func() { close(reader.started) })
+	<-reader.closed
+	reader.finish.Do(func() { close(reader.finished) })
+	return 0, io.EOF
+}
+
+func (reader *blockingReadCloser) Close() error {
+	reader.close.Do(func() { close(reader.closed) })
+	return nil
+}
+
 func writeDockerFrame(writer io.Writer, stream stdcopy.StdType, payload []byte) error {
 	var header [8]byte
 	header[0] = byte(stream)
@@ -255,12 +538,50 @@ func TestExecuteCancellationKillsWaitsAndRemovesContainer(t *testing.T) {
 	}
 }
 
+func TestNewDockerRejectsUnsafeEndpoints(t *testing.T) {
+	root := t.TempDir()
+	base := DockerOptions{
+		WorkerID: "worker-1", User: "65532:65532",
+		AllowedRoots: []AllowedRoot{{Path: root}},
+	}
+	for _, endpoint := range []string{
+		"unix:///var/run/docker.sock",
+		"unix:///run/docker.sock",
+		"tcp://127.0.0.1:2375",
+		"http://127.0.0.1:2375",
+		"https://127.0.0.1:2376/version",
+	} {
+		t.Run(endpoint, func(t *testing.T) {
+			options := base
+			options.Endpoint = endpoint
+			if _, err := newDockerWithClient(options, &fakeDockerAPI{}); err == nil {
+				t.Fatalf("unsafe endpoint %q was accepted", endpoint)
+			}
+		})
+	}
+
+	for _, options := range []DockerOptions{
+		{Endpoint: "unix:///var/run/gcoj-docker-proxy.sock"},
+		{Endpoint: "https://docker.internal:2376"},
+		{Endpoint: "unix:///var/run/docker.sock", AllowUnrestrictedDaemon: true},
+	} {
+		options.WorkerID = base.WorkerID
+		options.User = base.User
+		options.AllowedRoots = base.AllowedRoots
+		if docker, err := newDockerWithClient(options, &fakeDockerAPI{}); err != nil {
+			t.Errorf("safe/explicit endpoint %q rejected: %v", options.Endpoint, err)
+		} else {
+			_ = docker.Close()
+		}
+	}
+}
+
 func TestNewDockerValidatesSecurityInputs(t *testing.T) {
 	root := t.TempDir()
 	for _, user := range []string{"", "root", "0", "00", "0:1000", "user", "1000:", "1000:group"} {
 		t.Run(user, func(t *testing.T) {
 			_, err := newDockerWithClient(DockerOptions{
-				Endpoint: "unix:///var/run/docker.sock", WorkerID: "worker-1", User: user,
+				Endpoint: "unix:///var/run/docker.sock", AllowUnrestrictedDaemon: true, WorkerID: "worker-1", User: user,
 				AllowedRoots: []AllowedRoot{{Path: root}},
 			}, &fakeDockerAPI{})
 			if err == nil {
@@ -269,7 +590,7 @@ func TestNewDockerValidatesSecurityInputs(t *testing.T) {
 		})
 	}
 	if _, err := newDockerWithClient(DockerOptions{
-		Endpoint: "unix:///var/run/docker.sock", WorkerID: "worker-1", User: "65532:65532",
+		Endpoint: "unix:///var/run/docker.sock", AllowUnrestrictedDaemon: true, WorkerID: "worker-1", User: "65532:65532",
 		AllowedRoots: []AllowedRoot{{Path: root}}, NanoCPUs: 64*DefaultNanoCPUs + 1,
 	}, &fakeDockerAPI{}); err == nil {
 		t.Fatal("excessive NanoCPUs was accepted")
@@ -282,7 +603,7 @@ func TestCreateOptionsAppliesCommandLimitsLabelsAndIsolation(t *testing.T) {
 		stopTimeout: 5 * time.Second, logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 	request := validExecuteRequest()
-	request.Stdin = strings.NewReader("input")
+	request.Stdin = io.NopCloser(strings.NewReader("input"))
 	binds := []mount.Mount{{Type: mount.TypeBind, Source: "/host/data", Target: "/sandbox/data", ReadOnly: true}}
 	options := docker.createOptions(request, binds, "gcoj-worker-1-attempt-1-random")
 
@@ -328,6 +649,38 @@ func TestCreateOptionsAppliesCommandLimitsLabelsAndIsolation(t *testing.T) {
 	}
 	if options.Config.Entrypoint[0] == "sh" || slices.Contains(options.Config.Cmd, "-c") && options.Config.Entrypoint[0] == "sh" {
 		t.Fatal("create options introduced a command shell")
+	}
+}
+
+func TestExecuteReportsMemoryLimitAsPeakAfterOOM(t *testing.T) {
+	clientConn, serverConn := net.Pipe()
+	resultCh := make(chan container.WaitResponse, 1)
+	errorCh := make(chan error, 1)
+	api := &executeDockerAPI{
+		attachResult: client.ContainerAttachResult{HijackedResponse: client.HijackedResponse{
+			Conn: clientConn, Reader: bufio.NewReader(clientConn),
+		}},
+		waitResult: client.ContainerWaitResult{Result: resultCh, Error: errorCh},
+		inspectResult: client.ContainerInspectResult{Container: container.InspectResponse{
+			State: &container.State{ExitCode: 137, OOMKilled: true},
+		}},
+	}
+	api.start = func() {
+		go func() {
+			_ = serverConn.Close()
+			resultCh <- container.WaitResponse{StatusCode: 137}
+		}()
+	}
+
+	docker := testDocker(t, api)
+	request := validExecuteRequest()
+	request.Mounts = nil
+	result, err := docker.Execute(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if result.Reason != ExitMLE || result.PeakMemory != request.Limits.MemoryBytes {
+		t.Fatalf("OOM result = reason %q peak %d, want %d", result.Reason, result.PeakMemory, request.Limits.MemoryBytes)
 	}
 }
 
@@ -407,7 +760,7 @@ func TestDockerCloseIsIdempotent(t *testing.T) {
 func testDocker(t *testing.T, api dockerAPI) *Docker {
 	t.Helper()
 	docker, err := newDockerWithClient(DockerOptions{
-		Endpoint: "unix:///var/run/docker.sock", WorkerID: "worker-1", User: "65532:65532",
+		Endpoint: "unix:///var/run/docker.sock", AllowUnrestrictedDaemon: true, WorkerID: "worker-1", User: "65532:65532",
 		AllowedRoots: []AllowedRoot{{Path: t.TempDir(), Writable: true}},
 		APITimeout:   100 * time.Millisecond, StopTimeout: 100 * time.Millisecond,
 	}, api)

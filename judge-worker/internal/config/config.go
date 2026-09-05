@@ -40,7 +40,7 @@ const (
 	DefaultMaxCompressionRatio  = int64(200)
 	DefaultObjectRequestTimeout = 60 * time.Second
 	DefaultSandboxWorkDirectory = ".run/judge-worker/work"
-	DefaultDockerEndpoint       = "unix:///var/run/docker.sock"
+	DefaultDockerEndpoint       = "unix:///var/run/gcoj-docker-proxy.sock"
 	DefaultDockerUser           = "65532:65532"
 	DefaultDockerAPITimeout     = 10 * time.Second
 	DefaultDockerStopTimeout    = 5 * time.Second
@@ -92,11 +92,12 @@ type ObjectStorageConf struct {
 }
 
 type DockerConf struct {
-	Endpoint           string `json:",optional" yaml:"Endpoint"`
-	User               string `json:",optional" yaml:"User"`
-	APITimeoutSeconds  int64  `json:",optional" yaml:"APITimeoutSeconds"`
-	StopTimeoutSeconds int64  `json:",optional" yaml:"StopTimeoutSeconds"`
-	NanoCPUs           int64  `json:",optional" yaml:"NanoCPUs"`
+	Endpoint                string `json:",optional" yaml:"Endpoint"`
+	User                    string `json:",optional" yaml:"User"`
+	APITimeoutSeconds       int64  `json:",optional" yaml:"APITimeoutSeconds"`
+	StopTimeoutSeconds      int64  `json:",optional" yaml:"StopTimeoutSeconds"`
+	NanoCPUs                int64  `json:",optional" yaml:"NanoCPUs"`
+	AllowUnrestrictedDaemon bool   `json:",optional" yaml:"AllowUnrestrictedDaemon"`
 }
 
 type SandboxConf struct {
@@ -431,7 +432,7 @@ func validBucketName(value string) bool {
 
 func validateDocker(c DockerConf) error {
 	var errs []error
-	if err := validateDockerEndpoint(c.Endpoint); err != nil {
+	if err := validateDockerEndpoint(c.Endpoint, c.AllowUnrestrictedDaemon); err != nil {
 		errs = append(errs, err)
 	}
 	if !validContainerUser(c.User) {
@@ -465,14 +466,14 @@ func validContainerUser(value string) bool {
 	return err == nil
 }
 
-func validateDockerEndpoint(endpoint string) error {
+func validateDockerEndpoint(endpoint string, allowUnrestricted bool) error {
 	endpoint = strings.TrimSpace(endpoint)
 	if endpoint == "" {
 		return errors.New("Sandbox.Docker.Endpoint is required")
 	}
 	parsed, err := url.Parse(endpoint)
 	if err != nil || parsed.Scheme == "" || parsed.Opaque != "" {
-		return errors.New("Sandbox.Docker.Endpoint must be a valid unix, tcp, http or https URL")
+		return errors.New("Sandbox.Docker.Endpoint must be a valid unix or https URL")
 	}
 	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return errors.New("Sandbox.Docker.Endpoint must not contain credentials, query parameters or fragments")
@@ -482,20 +483,20 @@ func validateDockerEndpoint(endpoint string) error {
 		if parsed.Host != "" || !filepath.IsAbs(parsed.Path) || filepath.Clean(parsed.Path) == string(filepath.Separator) {
 			return errors.New("Sandbox.Docker.Endpoint unix URL must contain an absolute socket path")
 		}
-		return nil
-	case "tcp":
-		host, port, err := net.SplitHostPort(parsed.Host)
-		if err != nil || strings.TrimSpace(host) == "" || !validPort(port) || parsed.Path != "" {
-			return errors.New("Sandbox.Docker.Endpoint tcp URL must contain a valid host:port")
+		cleaned := filepath.Clean(parsed.Path)
+		if !allowUnrestricted && (cleaned == "/var/run/docker.sock" || cleaned == "/run/docker.sock") {
+			return errors.New("Sandbox.Docker.Endpoint must use a restricted Docker API proxy; set AllowUnrestrictedDaemon only for isolated development hosts")
 		}
 		return nil
-	case "http", "https":
-		if strings.TrimSpace(parsed.Hostname()) == "" || (parsed.Port() != "" && !validPort(parsed.Port())) {
-			return errors.New("Sandbox.Docker.Endpoint HTTP URL must contain a valid host and optional port")
+	case "https":
+		if strings.TrimSpace(parsed.Hostname()) == "" || (parsed.Port() != "" && !validPort(parsed.Port())) || (parsed.Path != "" && parsed.Path != "/") {
+			return errors.New("Sandbox.Docker.Endpoint HTTPS URL must contain a valid host and optional port")
 		}
 		return nil
+	case "tcp", "http":
+		return errors.New("Sandbox.Docker.Endpoint must not use an unauthenticated plaintext Docker API transport")
 	default:
-		return errors.New("Sandbox.Docker.Endpoint must use unix, tcp, http or https")
+		return errors.New("Sandbox.Docker.Endpoint must use unix or https")
 	}
 }
 

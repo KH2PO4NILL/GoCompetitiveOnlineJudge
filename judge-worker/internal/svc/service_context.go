@@ -91,9 +91,10 @@ func newServiceContext(c config.Config, createSandbox sandboxFactory) (*ServiceC
 
 func newDockerSandbox(c config.Config, logger *slog.Logger) (sandbox.Sandbox, error) {
 	return sandbox.NewDocker(sandbox.DockerOptions{
-		Endpoint: c.Sandbox.Docker.Endpoint,
-		WorkerID: c.Worker.ID,
-		User:     c.Sandbox.Docker.User,
+		Endpoint:                c.Sandbox.Docker.Endpoint,
+		AllowUnrestrictedDaemon: c.Sandbox.Docker.AllowUnrestrictedDaemon,
+		WorkerID:                c.Worker.ID,
+		User:                    c.Sandbox.Docker.User,
 		AllowedRoots: []sandbox.AllowedRoot{
 			{Path: c.TestDataCache.Dir, Writable: false},
 			{Path: c.Sandbox.WorkDir, Writable: true},

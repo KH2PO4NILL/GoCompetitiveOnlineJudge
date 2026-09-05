@@ -23,6 +23,9 @@ const (
 	MaxOpenFiles       = uint64(65536)
 	DefaultNanoCPUs    = int64(1_000_000_000)
 	DefaultStopTimeout = 5 * time.Second
+	MinResourcePoll    = 10 * time.Millisecond
+	MaxResourcePoll    = 50 * time.Millisecond
+	ResourceDrainTime  = 500 * time.Millisecond
 	MaxAPITimeout      = time.Minute
 	MaxStopTimeout     = time.Minute
 )
@@ -71,9 +74,12 @@ type ExecuteRequest struct {
 	Args         []string
 	Env          []string
 	WorkingDir   string
-	Stdin        io.Reader
-	Mounts       []Mount
-	Limits       Limits
+	// Stdin ownership transfers to Execute once the container starts. Execute
+	// closes it on completion or cancellation so blocked input reads can be
+	// interrupted and reclaimed.
+	Stdin  io.ReadCloser
+	Mounts []Mount
+	Limits Limits
 }
 
 type ExecuteResult struct {

@@ -45,6 +45,9 @@ Sandbox:
   WorkDir: "${JUDGE_SANDBOX_WORK_DIR}"
   Docker:
     Endpoint: "${JUDGE_DOCKER_ENDPOINT}"
+    # Production should use a Unix-socket API proxy that only exposes the
+    # container lifecycle operations needed by the sandbox.
+    AllowUnrestrictedDaemon: ${JUDGE_DOCKER_ALLOW_UNRESTRICTED_DAEMON}
     User: "65532:65532"
     APITimeoutSeconds: 10
     StopTimeoutSeconds: 5
