@@ -17,6 +17,34 @@ Worker 必填环境变量见 `.env.example`：唯一 `JUDGE_WORKER_ID`、Submit/
 启用 Worker YAML 的 `Metrics.Enabled` 后监听 `127.0.0.1:9100/metrics`；
 Submit Outbox 指标默认 `127.0.0.1:9101/metrics`。均不应直接暴露到公网。
 
+### 独立运行命令
+
+准备好上述依赖与可信的 shell 环境文件后：
+
+```bash
+ENV_FILE=/absolute/path/to/worker.env make worker-run
+ENV_FILE=/absolute/path/to/worker.env make worker-status
+```
+
+在两个终端分别运行。`worker-run`（兼容别名 `run-judge`）先构建二进制，再以前台方式运行；
+Ctrl-C 或向 Worker 发送 SIGTERM 会进入既有的有界优雅退出流程。不会使用 `go run` 中间进程，
+不维护可误指向其他进程的 PID 文件，也不会强制杀进程。`make up/down/stop` 仍只管理原有六个
+HTTP/RPC 服务，**不包含 Worker**；停止基础设施前先停止 Worker，运行期间不要执行 `make clean`。
+生产进程守护交给部署环境的进程管理器，退出宽限期须大于配置中的 `Timeouts.ShutdownSeconds`。
+
+仅构建使用 `make worker-build`，该命令不加载环境文件。已有二进制可直接执行
+`ENV_FILE=/absolute/path/to/worker.env bash scripts/dev-worker.sh run`；启动包装器使用 `exec`，
+信号直接交给 Worker。脚本不启动或修改基础设施、不补写环境文件、不打印环境变量。
+环境文件会被 shell 执行，只能加载可信文件；默认路径为根目录 `.env`。
+
+启动脚本默认启用 `JUDGE_CONSUMER_ENABLED=true`、`JUDGE_METRICS_ENABLED=true`，
+默认 `JUDGE_METRICS_LISTEN_ON=127.0.0.1:9100`；环境文件中的显式设置仍被保留。
+直接运行二进制时，后两项同样可覆盖 YAML，但未设置时仍遵循 YAML 的禁用默认值。
+可用 `WORKER_CONFIG` 指定配置文件、`RUNTIME_DIR` 指定二进制目录。
+`worker-status` 使用相同环境文件中的监控地址，只支持显式端口的 loopback 地址；
+不会跟随重定向、使用 HTTP 代理或输出响应体。只有 `/readyz` 返回 200 才退出 0，
+503、端口未监听及其他 HTTP 状态均返回非零；这不验证端口的进程身份或完整业务依赖。
+
 ### Worker 存活与消费就绪
 
 启用 `Metrics.Enabled` 后，同一个内部监听地址额外提供 `GET /healthz` 与 `GET /readyz`（也支持 HEAD）。
