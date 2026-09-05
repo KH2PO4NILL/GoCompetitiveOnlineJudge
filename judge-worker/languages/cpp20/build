@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+umask 022
+export TMPDIR=/tmp
+/usr/local/bin/g++ -std=c++20 -O2 -pipe "$@" /sandbox/source/main.cpp -o /sandbox/artifact/main

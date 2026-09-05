@@ -11,6 +11,8 @@ import (
 	"sync"
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/config"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/engine"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/language"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/logging"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/sandbox"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/testdatacache"
@@ -23,6 +25,8 @@ type ServiceContext struct {
 	Pool          *worker.Pool
 	TestDataCache *testdatacache.Cache
 	Sandbox       sandbox.Sandbox
+	Languages     language.Registry
+	Engine        *engine.Engine
 
 	lifecycleMu sync.Mutex
 	started     bool
@@ -43,6 +47,10 @@ func newServiceContext(c config.Config, createSandbox sandboxFactory) (*ServiceC
 	}
 	if createSandbox == nil {
 		return nil, errors.New("sandbox factory is required")
+	}
+	profiles, err := language.LoadProfiles(c.LanguageRegistryFile)
+	if err != nil {
+		return nil, fmt.Errorf("load language registry: %w", err)
 	}
 	logger, err := logging.New(c.Log, os.Stdout)
 	if err != nil {
@@ -74,6 +82,25 @@ func newServiceContext(c config.Config, createSandbox sandboxFactory) (*ServiceC
 	if err != nil {
 		return nil, fmt.Errorf("configure sandbox: %w", err)
 	}
+	resolver, ok := executor.(language.ImageResolver)
+	if !ok {
+		_ = executor.Close()
+		return nil, errors.New("sandbox must support immutable image resolution")
+	}
+	registry, err := language.NewRegistry(profiles, resolver)
+	if err != nil {
+		_ = executor.Close()
+		return nil, fmt.Errorf("configure language registry: %w", err)
+	}
+	judgeEngine, err := engine.New(registry, executor, c.Sandbox.WorkDir, logger)
+	if err != nil {
+		_ = executor.Close()
+		return nil, fmt.Errorf("configure judge engine: %w", err)
+	}
+	for _, profile := range profiles {
+		logger.Info("language profile loaded", "profile_id", profile.ID, "schema_version", profile.SchemaVersion,
+			"enabled", profile.Enabled, "compiler_image", profile.Build.Image, "runtime_image", profile.Run.Image)
+	}
 	pool, err := worker.NewPool(
 		c.Worker.Concurrency,
 		c.Worker.QueueCapacity,
@@ -86,6 +113,7 @@ func newServiceContext(c config.Config, createSandbox sandboxFactory) (*ServiceC
 	}
 	return &ServiceContext{
 		Config: c, Logger: logger, Pool: pool, TestDataCache: dataCache, Sandbox: executor,
+		Languages: registry, Engine: judgeEngine,
 	}, nil
 }
 

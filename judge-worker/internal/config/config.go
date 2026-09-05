@@ -124,16 +124,17 @@ type TimeoutConf struct {
 }
 
 type Config struct {
-	Worker        WorkerConf        `json:",optional" yaml:"Worker"`
-	SubmitRPC     RPCConf           `json:",optional" yaml:"SubmitRPC"`
-	ProblemRPC    RPCConf           `json:",optional" yaml:"ProblemRPC"`
-	InternalAuth  InternalAuthConf  `json:",optional" yaml:"InternalAuth"`
-	TestDataCache TestDataCacheConf `json:",optional" yaml:"TestDataCache"`
-	ObjectStorage ObjectStorageConf `json:",optional" yaml:"ObjectStorage"`
-	Sandbox       SandboxConf       `json:",optional" yaml:"Sandbox"`
-	Log           LogConf           `json:",optional" yaml:"Log"`
-	Metrics       MetricsConf       `json:",optional" yaml:"Metrics"`
-	Timeouts      TimeoutConf       `json:",optional" yaml:"Timeouts"`
+	LanguageRegistryFile string            `json:",optional" yaml:"LanguageRegistryFile"`
+	Worker               WorkerConf        `json:",optional" yaml:"Worker"`
+	SubmitRPC            RPCConf           `json:",optional" yaml:"SubmitRPC"`
+	ProblemRPC           RPCConf           `json:",optional" yaml:"ProblemRPC"`
+	InternalAuth         InternalAuthConf  `json:",optional" yaml:"InternalAuth"`
+	TestDataCache        TestDataCacheConf `json:",optional" yaml:"TestDataCache"`
+	ObjectStorage        ObjectStorageConf `json:",optional" yaml:"ObjectStorage"`
+	Sandbox              SandboxConf       `json:",optional" yaml:"Sandbox"`
+	Log                  LogConf           `json:",optional" yaml:"Log"`
+	Metrics              MetricsConf       `json:",optional" yaml:"Metrics"`
+	Timeouts             TimeoutConf       `json:",optional" yaml:"Timeouts"`
 }
 
 // Load reads the YAML configuration, expands environment variables, applies

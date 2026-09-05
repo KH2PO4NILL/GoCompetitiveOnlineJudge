@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+umask 022
+export TMPDIR=/tmp
+/usr/local/go/bin/go build -trimpath -buildvcs=false "$@" -o /sandbox/artifact/main /sandbox/source/main.go

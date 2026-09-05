@@ -427,13 +427,15 @@ make build
 
 ## 扩展 Judge 语言
 
-语言执行器负责定义源文件名、编译命令、运行命令、镜像和资源上限。增加新语言时应：
+Judge Worker 使用声明式 Language Profile 和只读 Registry。内置 `cpp20-v1`、`go-v1`，
+也可通过 `JUDGE_LANGUAGE_REGISTRY_FILE` 加载完整的外部注册表；启动时拒绝非法 Profile。
+每个 Attempt 固定镜像内容摘要、资源策略和 Policy Digest，Build/Run 统一调用
+`/opt/judge/build`、`/opt/judge/run`，运行阶段只读挂载 Artifact。
 
-1. 在 `judge-worker` 中实现并注册执行器。
-2. 固定编译器或运行时镜像版本，不使用浮动标签。
-3. 为编译超时、运行超时、内存超限和异常退出补充测试。
-4. 更新题目服务允许的语言列表和管理端选项。
-5. 在隔离环境中验证网络、文件系统、进程数和系统调用限制。
+新增语言只需增加版本化 Profile、固定 Compiler/Runtime 镜像、标准入口和语言包测试，
+不修改 Judge Engine 主流程。题目服务允许的语言列表和管理端选项仍需同步维护。
+首次使用前须构建并预置语言镜像；完整 Schema、部署命令、审计规则与测试说明见
+[Language Profile 与镜像协议](judge-worker/languages/README.md)。
 
 ## 贡献
 

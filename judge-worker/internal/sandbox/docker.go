@@ -72,6 +72,22 @@ type Docker struct {
 	closeErr    error
 }
 
+func (docker *Docker) ResolveImage(ctx context.Context, image string) (string, error) {
+	inspector, ok := docker.client.(interface {
+		ImageInspect(context.Context, string, ...client.ImageInspectOption) (client.ImageInspectResult, error)
+	})
+	if !ok {
+		return "", errors.New("Docker client does not support image inspection")
+	}
+	inspectCtx, cancel := context.WithTimeout(ctx, docker.apiTimeout)
+	defer cancel()
+	result, err := inspector.ImageInspect(inspectCtx, image)
+	if err != nil {
+		return "", fmt.Errorf("inspect preloaded image %q: %w", image, err)
+	}
+	return result.ID, nil
+}
+
 type resourceUsage struct {
 	cpuNanos   atomic.Uint64
 	peakMemory atomic.Uint64
@@ -412,6 +428,9 @@ func (docker *Docker) createOptions(request ExecuteRequest, mounts []mount.Mount
 	tmpfsBytes := min(request.Limits.MemoryBytes/4, int64(64<<20))
 	if tmpfsBytes < 1<<20 {
 		tmpfsBytes = 1 << 20
+	}
+	if request.Limits.TmpfsBytes > 0 {
+		tmpfsBytes = request.Limits.TmpfsBytes
 	}
 	return client.ContainerCreateOptions{
 		Name: name,

@@ -3,6 +3,8 @@ Worker:
   Concurrency: 4
   QueueCapacity: 128
 
+LanguageRegistryFile: "${JUDGE_LANGUAGE_REGISTRY_FILE}"
+
 # These targets are validated now and will be used when RPC orchestration is
 # introduced. This skeleton does not dial either service.
 SubmitRPC:

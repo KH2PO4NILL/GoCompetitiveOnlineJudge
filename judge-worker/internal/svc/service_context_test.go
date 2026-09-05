@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -21,6 +22,10 @@ type fakeSandbox struct {
 	cleanupCalls  int
 	closed        bool
 	closeCalls    int
+}
+
+func (f *fakeSandbox) ResolveImage(context.Context, string) (string, error) {
+	return "sha256:" + strings.Repeat("a", 64), nil
 }
 
 func (f *fakeSandbox) Execute(context.Context, sandbox.ExecuteRequest) (sandbox.ExecuteResult, error) {
@@ -49,6 +54,9 @@ func TestServiceContextCreatesDirectoriesCleansSandboxAndRunsPool(t *testing.T) 
 	if err != nil {
 		t.Fatalf("newServiceContext() error = %v", err)
 	}
+	if serviceContext.Languages == nil || serviceContext.Engine == nil {
+		t.Fatal("language registry and engine were not initialized")
+	}
 	if err := serviceContext.Start(); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
@@ -74,6 +82,23 @@ func TestServiceContextCreatesDirectoriesCleansSandboxAndRunsPool(t *testing.T) 
 	}
 	if !executor.closed {
 		t.Fatal("Shutdown() did not close sandbox")
+	}
+}
+
+func TestServiceContextRejectsInvalidProfilesBeforeSandboxCreation(t *testing.T) {
+	root := t.TempDir()
+	c := testConfig(root)
+	c.LanguageRegistryFile = filepath.Join(root, "invalid.yaml")
+	if err := os.WriteFile(c.LanguageRegistryFile, []byte("profiles: []\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	_, err := newServiceContext(c, func(config.Config, *slog.Logger) (sandbox.Sandbox, error) {
+		called = true
+		return &fakeSandbox{}, nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "language registry") || called {
+		t.Fatalf("error = %v, sandbox created = %v", err, called)
 	}
 }
 
