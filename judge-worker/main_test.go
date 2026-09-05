@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"path/filepath"
 	"testing"
 	"time"
@@ -23,16 +25,41 @@ func TestExampleConfigLoads(t *testing.T) {
 	}
 }
 
+type testLifecycle struct {
+	started  bool
+	shutdown bool
+}
+
+func (l *testLifecycle) Start() error {
+	l.started = true
+	return nil
+}
+
+func (l *testLifecycle) Shutdown(context.Context) error {
+	l.shutdown = true
+	return nil
+}
+
 func TestRunStartsAndStopsWithCancelledParent(t *testing.T) {
 	setExampleEnvironment(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
+	lifecycle := &testLifecycle{}
 	started := time.Now()
-	if err := run(ctx, []string{"-f", filepath.Join("etc", "judge-worker.yaml")}); err != nil {
-		t.Fatalf("run() error = %v", err)
+	err := runWithFactory(ctx, []string{"-f", filepath.Join("etc", "judge-worker.yaml")}, func(config.Config) (serviceRuntime, error) {
+		return serviceRuntime{
+			lifecycle: lifecycle,
+			logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		}, nil
+	})
+	if err != nil {
+		t.Fatalf("runWithFactory() error = %v", err)
+	}
+	if !lifecycle.started || !lifecycle.shutdown {
+		t.Fatalf("lifecycle calls = started %v shutdown %v", lifecycle.started, lifecycle.shutdown)
 	}
 	if elapsed := time.Since(started); elapsed > time.Second {
-		t.Fatalf("run() took %s with a cancelled parent", elapsed)
+		t.Fatalf("runWithFactory() took %s with a cancelled parent", elapsed)
 	}
 }
 

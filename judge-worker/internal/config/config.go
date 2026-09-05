@@ -41,6 +41,13 @@ const (
 	DefaultObjectRequestTimeout = 60 * time.Second
 	DefaultSandboxWorkDirectory = ".run/judge-worker/work"
 	DefaultDockerEndpoint       = "unix:///var/run/docker.sock"
+	DefaultDockerUser           = "65532:65532"
+	DefaultDockerAPITimeout     = 10 * time.Second
+	DefaultDockerStopTimeout    = 5 * time.Second
+	DefaultDockerNanoCPUs       = int64(1_000_000_000)
+	MaxDockerAPITimeout         = time.Minute
+	MaxDockerStopTimeout        = time.Minute
+	MaxDockerNanoCPUs           = int64(64_000_000_000)
 	DefaultMetricsListenOn      = "127.0.0.1:9100"
 	DefaultMetricsPath          = "/metrics"
 )
@@ -85,7 +92,11 @@ type ObjectStorageConf struct {
 }
 
 type DockerConf struct {
-	Endpoint string `json:",optional" yaml:"Endpoint"`
+	Endpoint           string `json:",optional" yaml:"Endpoint"`
+	User               string `json:",optional" yaml:"User"`
+	APITimeoutSeconds  int64  `json:",optional" yaml:"APITimeoutSeconds"`
+	StopTimeoutSeconds int64  `json:",optional" yaml:"StopTimeoutSeconds"`
+	NanoCPUs           int64  `json:",optional" yaml:"NanoCPUs"`
 }
 
 type SandboxConf struct {
@@ -218,6 +229,18 @@ func (c *Config) ApplyDefaults() {
 	if strings.TrimSpace(c.Sandbox.Docker.Endpoint) == "" {
 		c.Sandbox.Docker.Endpoint = DefaultDockerEndpoint
 	}
+	if strings.TrimSpace(c.Sandbox.Docker.User) == "" {
+		c.Sandbox.Docker.User = DefaultDockerUser
+	}
+	if c.Sandbox.Docker.APITimeoutSeconds == 0 {
+		c.Sandbox.Docker.APITimeoutSeconds = int64(DefaultDockerAPITimeout / time.Second)
+	}
+	if c.Sandbox.Docker.StopTimeoutSeconds == 0 {
+		c.Sandbox.Docker.StopTimeoutSeconds = int64(DefaultDockerStopTimeout / time.Second)
+	}
+	if c.Sandbox.Docker.NanoCPUs == 0 {
+		c.Sandbox.Docker.NanoCPUs = DefaultDockerNanoCPUs
+	}
 	if strings.TrimSpace(c.Log.Level) == "" {
 		c.Log.Level = "info"
 	}
@@ -284,7 +307,7 @@ func (c Config) Validate() error {
 	if !strings.EqualFold(strings.TrimSpace(c.Sandbox.Driver), "docker") {
 		errs = append(errs, errors.New("Sandbox.Driver must be docker"))
 	}
-	if err := validateDockerEndpoint(c.Sandbox.Docker.Endpoint); err != nil {
+	if err := validateDocker(c.Sandbox.Docker); err != nil {
 		errs = append(errs, err)
 	}
 	if err := validateLog(c.Log); err != nil {
@@ -315,6 +338,14 @@ func (c Config) TaskTimeout() time.Duration {
 
 func (c Config) ShutdownTimeout() time.Duration {
 	return time.Duration(c.Timeouts.ShutdownSeconds) * time.Second
+}
+
+func (c Config) DockerAPITimeout() time.Duration {
+	return time.Duration(c.Sandbox.Docker.APITimeoutSeconds) * time.Second
+}
+
+func (c Config) DockerStopTimeout() time.Duration {
+	return time.Duration(c.Sandbox.Docker.StopTimeoutSeconds) * time.Second
 }
 
 func validPrintableASCII(value string) bool {
@@ -396,6 +427,42 @@ func validBucketName(value string) bool {
 		}
 	}
 	return true
+}
+
+func validateDocker(c DockerConf) error {
+	var errs []error
+	if err := validateDockerEndpoint(c.Endpoint); err != nil {
+		errs = append(errs, err)
+	}
+	if !validContainerUser(c.User) {
+		errs = append(errs, errors.New("Sandbox.Docker.User must be a non-root numeric UID or UID:GID"))
+	}
+	if err := validateTimeout("Sandbox.Docker.APITimeoutSeconds", c.APITimeoutSeconds, MaxDockerAPITimeout); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateTimeout("Sandbox.Docker.StopTimeoutSeconds", c.StopTimeoutSeconds, MaxDockerStopTimeout); err != nil {
+		errs = append(errs, err)
+	}
+	if c.NanoCPUs < 1 || c.NanoCPUs > MaxDockerNanoCPUs {
+		errs = append(errs, fmt.Errorf("Sandbox.Docker.NanoCPUs must be between 1 and %d", MaxDockerNanoCPUs))
+	}
+	return errors.Join(errs...)
+}
+
+func validContainerUser(value string) bool {
+	uidText, gidText, hasGID := strings.Cut(strings.TrimSpace(value), ":")
+	uid, err := strconv.ParseUint(uidText, 10, 31)
+	if err != nil || uid == 0 {
+		return false
+	}
+	if !hasGID {
+		return true
+	}
+	if gidText == "" || strings.Contains(gidText, ":") {
+		return false
+	}
+	_, err = strconv.ParseUint(gidText, 10, 31)
+	return err == nil
 }
 
 func validateDockerEndpoint(endpoint string) error {

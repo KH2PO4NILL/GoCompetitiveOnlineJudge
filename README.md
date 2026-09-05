@@ -205,7 +205,50 @@ go run ./cmd/admin -f cmd/admin/etc/admin-api.yaml
 go run ./judge-worker -f judge-worker/etc/judge-worker.yaml
 ```
 
-开发时建议在不同终端中运行这些进程。需要提高评测吞吐量时，可以使用相同配置启动多个 Judge Worker。
+开发时建议在不同终端中运行这些进程。需要提高评测吞吐量时，应为每个 Judge Worker 配置不同的 `Worker.ID`。
+
+#### Judge Worker Docker 沙箱
+
+Worker 启动时会连接 `Sandbox.Docker.Endpoint`，并先清理由当前 `Worker.ID` 创建但未正常回收的沙箱容器。Docker daemon 必须运行在 Linux 上，运行镜像由可信的语言执行器预先配置并加载；沙箱不会根据用户输入自动拉取镜像。
+
+默认配置使用：
+
+```yaml
+Sandbox:
+  Driver: docker
+  WorkDir: .run/judge-worker/work
+  Docker:
+    Endpoint: unix:///var/run/docker.sock
+    User: "65532:65532"
+    APITimeoutSeconds: 10
+    StopTimeoutSeconds: 5
+    NanoCPUs: 1000000000
+```
+
+`TestDataCache.Dir` 与 `Sandbox.WorkDir` 必须是互不包含的独立目录。测试数据目录仅允许只读挂载，工作目录才允许读写挂载；所有容器内挂载点必须位于 `/sandbox/` 下。
+
+每次执行都直接传递 `Program` 与 `Args`，不会拼接命令字符串或隐式调用 `sh -c`。容器固定启用以下边界：
+
+- 非 root 数字 UID/GID；
+- `network=none`，禁用网络；
+- RootFS 只读，仅提供受限 `/tmp` tmpfs 和显式允许的挂载；
+- 删除全部 Linux capabilities，并启用 `no-new-privileges`；
+- 禁止特权模式、自动重启和 Docker 容器日志落盘；
+- 设置 CPU、Wall Time、内存、输出、PID 与文件描述符上限；
+- 请求取消或超限后强制终止并删除容器。
+
+沙箱返回执行事实，包括退出码、可识别的终止信号、CPU/Wall Time、峰值内存及 stdout/stderr。结果分为 `normal`、`signal`、`time_limit_exceeded`、`memory_limit_exceeded`、`output_limit_exceeded` 和 `sandbox_error`；AC、WA、CE、RE 等评测结论仍由上层 Judge Engine 根据编译阶段和 Checker 结果产生。
+
+> **Docker API 权限边界：** 能访问 Docker socket 的进程通常等同于拥有宿主机高权限。不要把 `/var/run/docker.sock` 挂入评测容器，不要向提交代码暴露 Docker Endpoint，也不要让公网直接访问未认证的 Docker TCP API。生产环境应为 Worker 使用独立宿主机或受控 daemon，并只允许受信任的运维配置修改镜像、挂载根目录和 Endpoint。
+
+Docker 集成测试默认跳过，运行前需要预加载一个 Linux 镜像：
+
+```bash
+JUDGE_DOCKER_INTEGRATION=1 \
+JUDGE_SANDBOX_TEST_IMAGE=alpine:3.20 \
+JUDGE_DOCKER_ENDPOINT=unix:///var/run/docker.sock \
+go test ./judge-worker/internal/sandbox -run TestDockerSandboxIntegration -v
+```
 
 ### 4. 检查基础设施
 

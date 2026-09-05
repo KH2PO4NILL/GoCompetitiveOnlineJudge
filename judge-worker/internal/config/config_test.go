@@ -46,6 +46,11 @@ ObjectStorage:
 	if c.TestDataCache.Dir != DefaultCacheDirectory || c.Sandbox.WorkDir != DefaultSandboxWorkDirectory {
 		t.Fatalf("directory defaults = cache %q work %q", c.TestDataCache.Dir, c.Sandbox.WorkDir)
 	}
+	if c.Sandbox.Docker.Endpoint != DefaultDockerEndpoint || c.Sandbox.Docker.User != DefaultDockerUser ||
+		c.Sandbox.Docker.NanoCPUs != DefaultDockerNanoCPUs || c.DockerAPITimeout() != DefaultDockerAPITimeout ||
+		c.DockerStopTimeout() != DefaultDockerStopTimeout {
+		t.Fatalf("Docker defaults = %#v", c.Sandbox.Docker)
+	}
 	if c.RPCTimeout() != DefaultRPCTimeout || c.TaskTimeout() != DefaultTaskTimeout ||
 		c.ShutdownTimeout() != DefaultShutdownTimeout {
 		t.Fatalf("timeout defaults = rpc %s task %s shutdown %s", c.RPCTimeout(), c.TaskTimeout(), c.ShutdownTimeout())
@@ -140,6 +145,29 @@ func TestValidateRejectsInvalidRuntimeConfiguration(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			c := validConfig(t)
 			test.mutate(&c)
+			if err := c.Validate(); err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("Validate() error = %v, want field %s", err, test.want)
+			}
+		})
+	}
+}
+
+func TestValidateRejectsUnsafeDockerRuntimeOptions(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*DockerConf)
+		want   string
+	}{
+		{name: "root user", mutate: func(c *DockerConf) { c.User = "0:0" }, want: "Sandbox.Docker.User"},
+		{name: "named user", mutate: func(c *DockerConf) { c.User = "nobody" }, want: "Sandbox.Docker.User"},
+		{name: "API timeout", mutate: func(c *DockerConf) { c.APITimeoutSeconds = 0 }, want: "APITimeoutSeconds"},
+		{name: "stop timeout", mutate: func(c *DockerConf) { c.StopTimeoutSeconds = int64(MaxDockerStopTimeout/time.Second) + 1 }, want: "StopTimeoutSeconds"},
+		{name: "CPU quota", mutate: func(c *DockerConf) { c.NanoCPUs = MaxDockerNanoCPUs + 1 }, want: "NanoCPUs"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			c := validConfig(t)
+			c.ApplyDefaults()
+			test.mutate(&c.Sandbox.Docker)
 			if err := c.Validate(); err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Validate() error = %v, want field %s", err, test.want)
 			}
