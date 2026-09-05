@@ -7,6 +7,10 @@ GoCompetitiveOnlineJudge是一个安全隔离的分布式代码执行与调度�
 浏览器前端位于 `web/`，启动、质量检查和当前交付边界见 `web/README.md`；
 全栈核验基线与 HTTP 契约清单见 `docs/audit/`。前端基础工程不代表完整浏览器业务闭环已验收。
 
+HTTP 网关使用 `cmd/internal/httpbridge` 的安全服务构造器，强制关闭框架的请求 / 响应转储日志，
+仅记录方法、状态、耗时和上下文关联信息；即使启用 Verbose 或下游返回 5xx，也不应恢复原生内容日志。
+HTTP 响应默认 `Cache-Control: no-store`，Token、源码与预签名地址不得进入浏览器或代理缓存。
+
 ## 功能特性
 
 ### 用户与权限
