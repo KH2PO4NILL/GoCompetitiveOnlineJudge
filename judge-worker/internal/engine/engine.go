@@ -189,6 +189,9 @@ func (attempt *Attempt) writeSources(sources map[string][]byte) error {
 		if err := os.Chmod(filename, 0o444); err != nil {
 			return err
 		}
+		if err := os.Chtimes(filename, time.Unix(0, 0), time.Unix(0, 0)); err != nil {
+			return err
+		}
 	}
 	return nil
 }

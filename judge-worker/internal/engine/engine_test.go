@@ -300,5 +300,8 @@ func TestSourcePermissionsIgnoreRestrictiveHostUmask(t *testing.T) {
 		if err != nil || info.Mode().Perm() != want {
 			t.Fatalf("%s: info = %v, error = %v, want mode %o", name, info, err, want)
 		}
+		if name == "source/main.fake" && info.ModTime().Unix() != 0 {
+			t.Fatal("source timestamp is not reproducible")
+		}
 	}
 }

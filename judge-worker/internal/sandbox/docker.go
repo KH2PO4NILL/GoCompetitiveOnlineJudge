@@ -395,9 +395,7 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 	result.CPUTime = durationFromUint64(usage.cpuNanos.Load())
 	result.PeakMemory = int64(min(usage.peakMemory.Load(), uint64(math.MaxInt64)))
 
-	inspectCtx, inspectCancel := context.WithTimeout(context.Background(), docker.apiTimeout)
-	inspected, inspectErr := docker.client.ContainerInspect(inspectCtx, created.ID, client.ContainerInspectOptions{})
-	inspectCancel()
+	inspected, inspectErr := docker.inspectExit(created.ID, waitResponse.StatusCode, forcedReason)
 	if inspectErr != nil && executionErr == nil {
 		forcedReason = ExitSandboxError
 		executionErr = fmt.Errorf("inspect sandbox container: %w", inspectErr)
@@ -418,6 +416,25 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 		return result, executionErr
 	}
 	return result, nil
+}
+
+func (docker *Docker) inspectExit(id string, exitCode int64, forced ExitReason) (client.ContainerInspectResult, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), docker.apiTimeout)
+	defer cancel()
+	deadline := time.Now().Add(min(200*time.Millisecond, docker.apiTimeout/2))
+	for {
+		result, err := docker.client.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
+		if err != nil || exitCode != 137 || forced != "" || result.Container.State == nil || result.Container.State.OOMKilled || !time.Now().Before(deadline) {
+			return result, err
+		}
+		timer := time.NewTimer(min(20*time.Millisecond, time.Until(deadline)))
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return result, ctx.Err()
+		case <-timer.C:
+		}
+	}
 }
 
 func (docker *Docker) createOptions(request ExecuteRequest, mounts []mount.Mount, name string) client.ContainerCreateOptions {

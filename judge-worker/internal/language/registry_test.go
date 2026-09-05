@@ -104,7 +104,7 @@ func TestLoadStrictRegistry(t *testing.T) {
 		"nested unknown":     strings.Replace(string(defaultProfiles), "entry_file:", "entry_flie:", 1),
 		"multiple documents": string(defaultProfiles) + "---\nprofiles: []\n",
 		"duplicate field":    strings.Replace(string(defaultProfiles), "schema_version: 1", "schema_version: 1\n    schema_version: 1", 1),
-		"duplicate id":       strings.Replace(string(defaultProfiles), "id: go-v1", "id: cpp20-v1", 1),
+		"duplicate id":       strings.Replace(string(defaultProfiles), "id: go-v2", "id: cpp20-v2", 1),
 		"oversized":          strings.Repeat(" ", (1<<20)+1),
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -132,7 +132,7 @@ func TestRegistrySnapshotIsImmutableAndAuditable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resolver.calls != 1 || first.Profile.Environment["LANG"] != "C" || first.Profile.Source.Extensions[0] != ".cpp" {
+	if resolver.calls != 2 || first.Profile.Environment["LANG"] != "C" || first.Profile.Source.Extensions[0] != ".cpp" {
 		t.Fatalf("snapshot = %+v", first)
 	}
 	if first.Audit.CompilerDigest != resolver.digest || first.Audit.RuntimeDigest != resolver.digest || first.Profile.Build.Image != resolver.digest || first.Audit.ProfileID != profile.ID || !imageIDPattern.MatchString(first.Audit.PolicyDigest) {

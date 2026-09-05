@@ -2,4 +2,5 @@
 set -eu
 umask 022
 export TMPDIR=/tmp
-/usr/local/bin/g++ -std=c++20 -O2 -pipe "$@" /sandbox/source/main.cpp -o /sandbox/artifact/main
+export SOURCE_DATE_EPOCH=0
+/usr/local/bin/g++ -std=c++20 -O2 -pipe -static -frandom-seed=judge -ffile-prefix-map=/sandbox=/judge -Wl,--build-id=none "$@" /sandbox/source/main.cpp -o /sandbox/artifact/main

@@ -1,5 +1,5 @@
 profiles:
-  - id: cpp20-v1
+  - id: cpp20-v2
     schema_version: 1
     enabled: true
     source:
@@ -8,11 +8,11 @@ profiles:
       max_files: 1
       max_bytes: 1048576
     build:
-      image: gcoj/judge-cpp20:1.0.0
+      image: gcoj/judge-cpp20:1.1.0-compiler
       program: /opt/judge/build
       args: []
     run:
-      image: gcoj/judge-cpp20:1.0.0
+      image: gcoj/judge-cpp20:1.1.0-runtime
       program: /opt/judge/run
       args: []
     artifact:
@@ -40,7 +40,7 @@ profiles:
       LANG: C
       LC_ALL: C
       TMPDIR: /tmp
-  - id: go-v1
+  - id: go-v2
     schema_version: 1
     enabled: true
     source:
@@ -49,11 +49,11 @@ profiles:
       max_files: 1
       max_bytes: 1048576
     build:
-      image: gcoj/judge-go:1.0.0
+      image: gcoj/judge-go:1.1.0-compiler
       program: /opt/judge/build
       args: []
     run:
-      image: gcoj/judge-go:1.0.0
+      image: gcoj/judge-go:1.1.0-runtime
       program: /opt/judge/run
       args: []
     artifact:

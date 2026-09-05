@@ -9,18 +9,22 @@ Worker 启动时严格校验全部语言 Profile（包括禁用项），然后�
 
 `judge-worker/etc/judge-worker.yaml` 的 `LanguageRegistryFile` 接受注册表 YAML 路径，
 相对路径相对于 Worker 启动目录。环境变量 `JUDGE_LANGUAGE_REGISTRY_FILE` 为空时使用
-编译进 Worker 的 `internal/language/profiles.yaml`，包含 `cpp20-v1` 和 `go-v1`。
+编译进 Worker 的 `internal/language/profiles.yaml`，包含 `cpp20-v2` 和 `go-v2`。
 指定外部文件时完整替换默认表，不合并、不热更新；文件内部不展开环境变量。
 
 先构建并在每台 Worker 的 Docker daemon 中预置镜像：
 
 ```bash
-docker build -t gcoj/judge-cpp20:1.0.0 judge-worker/languages/cpp20
-docker build -t gcoj/judge-go:1.0.0 judge-worker/languages/go
+bash scripts/build-language-images.sh
 ```
 
 Dockerfile 使用固定版本的 gcc / golang 基础镜像；可用 `--build-arg BASE_IMAGE=仓库@sha256:摘要`
-进一步固定构建输入。Compiler 与 Runtime 当前复用同一镜像，后续可以按相同协议拆成两个镜像。
+进一步固定构建输入。Compiler 和 Runtime 分别发布为 `1.1.0-compiler` / `1.1.0-runtime`。
+Runtime 基于 scratch，只包含静态入口，不包含编译器、包管理器或 shell；两个语言均生成静态产物。
+C++ 使用 `-std=c++20 -O2 -static`、固定随机种子、路径映射和 SOURCE_DATE_EPOCH；
+Go 禁用 CGO，使用 `-trimpath -buildvcs=false -mod=readonly -ldflags=-buildid=`。
+相同工具链、架构、Profile 与源码的两次构建必须通过产物 SHA-256 一致性验收。
+v2 是相对 #32 原型 v1 的新策略版本，不覆盖已部署的 v1 定义；仍需要 v1 的部署应保留其外部注册表。
 生产发布应把发布后的 `repository@sha256:...` 写入外部 Profile。
 不要重新绑定已发布的版本标签，不要给已有 Profile ID 更换语义；策略、脚本、编译器变化时，
 发布新的镜像版本和新的 `-vN` Profile ID。
@@ -116,6 +120,7 @@ manifest digest；原始引用单独保留，用于同时追踪部署 manifest �
 go test ./judge-worker/...
 go test -race ./judge-worker/internal/language ./judge-worker/internal/engine
 JUDGE_LANGUAGE_INTEGRATION=1 go test ./judge-worker/internal/engine -run TestLanguageImagesIntegration -v
+JUDGE_LANGUAGE_INTEGRATION=1 go test ./judge-worker/internal/engine -run TestOfficialLanguagePacks -v
 ```
 
 前两组不依赖 Docker，覆盖严格 Schema、镜像约束、策略快照、倍率边界、启动拒绝、
