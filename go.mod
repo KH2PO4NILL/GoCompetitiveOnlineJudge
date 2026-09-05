@@ -2,6 +2,8 @@ module github.com/KH2PO4NILL/GoCompetitiveOnlineJudge
 
 go 1.26.4
 
+replace github.com/apache/rocketmq-clients/golang/v5 => ./third_party/rocketmq-clients
+
 require (
 	github.com/containerd/errdefs v1.0.0
 	github.com/distribution/reference v0.6.0

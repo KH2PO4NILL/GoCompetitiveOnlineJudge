@@ -1,6 +1,6 @@
 # Judge Task 消息队列
 
-本地服务使用固定 RocketMQ 5.1.4、嵌入式 gRPC Proxy 与 Go v5 SDK。
+本地服务使用固定 RocketMQ 5.3.2、嵌入式 gRPC Proxy 与 Go v5 SDK。
 仅监听 localhost，不启用 ACL，不适用于公网部署；生产环境应使用 TLS/ACL。
 
 ```sh
@@ -11,6 +11,8 @@ docker compose --env-file .env --profile init run --rm rocketmq-init
 Proxy 默认地址 `127.0.0.1:18081`，避开 API 常用的 8081。
 同步修改 `proxy.json` 和端口映射才能改变实际监听端口。
 初始化建立 `judge-task`、`judge-task-dead` Topic 和 `judge-workers` Group。
+Broker 必须开启 `timerWheelEnable=true`，否则 v5 SimpleConsumer 的 POP 消费不可用。
+本地 Proxy 同时使用 `transferMsgByHeap=true`，不走外部 Netty Channel 的文件零拷贝路径。
 Broker 存储卷初始化只调整专用卷根目录所有者，不以 root 运行 Broker。
 
 Submit 配置 `SUBMIT_OUTBOX_ENABLED=true`、`ROCKETMQ_ENDPOINT=127.0.0.1:18081`。

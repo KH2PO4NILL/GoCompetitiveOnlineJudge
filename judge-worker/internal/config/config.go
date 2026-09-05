@@ -132,6 +132,7 @@ type ProcessorConf struct {
 }
 
 type Config struct {
+	Consumer             ConsumerConf      `json:",optional" yaml:"Consumer"`
 	Processor            ProcessorConf     `json:",optional" yaml:"Processor"`
 	LanguageRegistryFile string            `json:",optional" yaml:"LanguageRegistryFile"`
 	Worker               WorkerConf        `json:",optional" yaml:"Worker"`
@@ -173,6 +174,13 @@ func Load(path string) (Config, error) {
 		return c, fmt.Errorf("load judge worker config %q: %w", path, err)
 	}
 	c = Config(raw)
+	if value := os.Getenv("JUDGE_CONSUMER_ENABLED"); value != "" {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return c, errors.New("JUDGE_CONSUMER_ENABLED must be a boolean")
+		}
+		c.Consumer.Enabled = enabled
+	}
 	c.ApplyDefaults()
 	if err := c.Validate(); err != nil {
 		return c, fmt.Errorf("validate judge worker config %q: %w", path, err)
@@ -184,6 +192,7 @@ func (c *Config) ApplyDefaults() {
 	if c == nil {
 		return
 	}
+	c.Consumer.defaults()
 	if c.Processor.HeartbeatSeconds == 0 {
 		c.Processor.HeartbeatSeconds = 5
 	}
@@ -359,6 +368,9 @@ func (c Config) Validate() error {
 		errs = append(errs, err)
 	}
 	if err := validateTimeout("Timeouts.ShutdownSeconds", c.Timeouts.ShutdownSeconds, MaxShutdownTimeout); err != nil {
+		errs = append(errs, err)
+	}
+	if err := c.Consumer.validate(); err != nil {
 		errs = append(errs, err)
 	}
 	return errors.Join(errs...)

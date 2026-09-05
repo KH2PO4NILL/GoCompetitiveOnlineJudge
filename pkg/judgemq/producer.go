@@ -46,42 +46,46 @@ func sdkConfig(config Config) *rmq.Config {
 }
 
 type Producer struct {
-	mu       sync.Mutex
-	config   Config
-	producer rmq.Producer
-	closed   bool
+	mu        sync.Mutex
+	config    Config
+	producers map[string]rmq.Producer
+	closed    bool
 }
 
 func NewProducer(config Config) (*Producer, error) {
 	if err := configure(config); err != nil {
 		return nil, err
 	}
-	return &Producer{config: config}, nil
+	return &Producer{config: config, producers: make(map[string]rmq.Producer)}, nil
 }
-func (producer *Producer) client() (rmq.Producer, error) {
+func (producer *Producer) client(topic string) (rmq.Producer, error) {
 	producer.mu.Lock()
 	defer producer.mu.Unlock()
 	if producer.closed {
 		return nil, errors.New("RocketMQ producer closed")
 	}
-	if producer.producer == nil {
-		client, err := rmq.NewProducer(sdkConfig(producer.config), rmq.WithTopics(judgeevent.Topic, judgeevent.DeadTopic))
+	if topic != judgeevent.Topic && topic != judgeevent.DeadTopic {
+		return nil, errors.New("unsupported judge topic")
+	}
+	if producer.producers[topic] == nil {
+		client, err := rmq.NewProducer(sdkConfig(producer.config), rmq.WithTopics(topic))
 		if err != nil {
 			return nil, err
 		}
 		client.SetRequestTimeout(producer.config.Timeout)
 		if err := client.Start(); err != nil {
+			_ = client.GracefulStop()
 			return nil, err
 		}
-		producer.producer = client
+		producer.producers[topic] = client
 	}
-	return producer.producer, nil
+	return producer.producers[topic], nil
 }
 func (producer *Producer) Publish(ctx context.Context, topic, key string, content []byte) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	client, err := producer.client()
+	client, err := producer.client(topic)
 	if err != nil {
 		return err
 	}
@@ -102,8 +106,9 @@ func (producer *Producer) Close() error {
 	producer.mu.Lock()
 	defer producer.mu.Unlock()
 	producer.closed = true
-	if producer.producer != nil {
-		return producer.producer.GracefulStop()
+	var failures []error
+	for _, client := range producer.producers {
+		failures = append(failures, client.GracefulStop())
 	}
-	return nil
+	return errors.Join(failures...)
 }
