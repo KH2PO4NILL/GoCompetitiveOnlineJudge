@@ -21,7 +21,7 @@
 ## 测试数据流程
 
 1. 管理端创建题目并取得当前 revision。
-2. `CreateTestDataUpload` 创建上传记录，返回对象存储预签名 URL 及要求的请求头。
+2. `CreateTestDataUpload` 创建上传记录，返回 `upload_id`、`upload_url` 和 `expires_at`。
 3. 客户端直接向对象存储上传 ZIP；不是把 ZIP 作为普通 JSON 传给 HTTP 网关。
 4. `FinalizeTestDataUpload` 校验所属题目、revision、有效期、长度、SHA-256、清单与 ZIP 安全边界，
    将临时对象复制到服务端拥有的不可变版本 Key 后提交题目新版本。
