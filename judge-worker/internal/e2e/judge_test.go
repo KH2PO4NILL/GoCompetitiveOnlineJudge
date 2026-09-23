@@ -298,6 +298,10 @@ func TestJudgeEndToEndRecovery(t *testing.T) {
 			if err := driver.Stop(shutdown); err != nil {
 				t.Fatal(err)
 			}
+			cleanup, err := docker.Cleanup(ctx)
+			if err != nil || cleanup.Found != 0 {
+				t.Fatalf("sandbox cleanup after %s: found=%d removed=%d failed=%d error=%v", scenario, cleanup.Found, cleanup.Removed, cleanup.Failed, err)
+			}
 			scrape := httptest.NewRecorder()
 			driver.Metrics.ServeHTTP(scrape, httptest.NewRequest("GET", "/metrics", nil))
 			for _, metric := range []string{"judge_consumer_ack_total", "judge_consumer_retry_total", "judge_consumer_inflight 0"} {
@@ -316,7 +320,7 @@ func TestJudgeEndToEndRecovery(t *testing.T) {
 	}
 	cleanup, err := docker.Cleanup(ctx)
 	if err != nil || cleanup.Found != 0 {
-		t.Fatal("sandbox container leaked")
+		t.Fatalf("final sandbox cleanup: found=%d removed=%d failed=%d error=%v", cleanup.Found, cleanup.Removed, cleanup.Failed, err)
 	}
 	entries, err := os.ReadDir(work)
 	if err != nil || len(entries) != 0 {
