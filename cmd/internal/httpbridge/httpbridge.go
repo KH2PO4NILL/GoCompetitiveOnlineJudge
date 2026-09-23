@@ -16,6 +16,14 @@ import (
 
 const authorizationMetadataKey = "authorization"
 
+func ProtectResponse(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		next(w, r)
+	}
+}
+
 // ForwardAuthorization 只把用户 Authorization 传给下游 RPC。
 // 严禁在 HTTP 服务中伪造 x-service-name/x-service-token，避免绕过 RPC 权限边界。
 func ForwardAuthorization(next http.HandlerFunc) http.HandlerFunc {
@@ -101,7 +109,11 @@ func ParseTimestamp(value, field string) (*timestamppb.Timestamp, error) {
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%s must be RFC3339", field)
 	}
-	return timestamppb.New(parsed.UTC()), nil
+	timestamp := timestamppb.New(parsed.UTC())
+	if err := timestamp.CheckValid(); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "%s must be a valid protobuf timestamp", field)
+	}
+	return timestamp, nil
 }
 
 func ParseOptionalTimestamp(value *string, field string) (*timestamppb.Timestamp, error) {
