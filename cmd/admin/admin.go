@@ -13,7 +13,6 @@ import (
 	"github.com/zeromicro/go-zero/core/logx"
 
 	"github.com/zeromicro/go-zero/core/conf"
-	"github.com/zeromicro/go-zero/rest"
 )
 
 var configFile = flag.String("f", "cmd/admin/etc/admin-api.yaml", "the config file")
@@ -25,7 +24,7 @@ func main() {
 	conf.MustLoad(*configFile, &c)
 	logx.AddGlobalFields(logx.Field("service_name", c.Log.ServiceName))
 
-	server := rest.MustNewServer(c.RestConf)
+	server := httpbridge.NewServer(c.RestConf)
 	defer server.Stop()
 	httpbridge.ConfigureErrorHandler()
 	server.Use(httpbridge.ProtectResponse)
