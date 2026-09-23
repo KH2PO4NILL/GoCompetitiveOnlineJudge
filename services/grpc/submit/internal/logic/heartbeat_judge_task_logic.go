@@ -33,6 +33,11 @@ func (l *HeartbeatJudgeTaskLogic) HeartbeatJudgeTask(in *pb.HeartbeatJudgeTaskRe
 	if in == nil || in.SubmissionId <= 0 || in.AttemptId <= 0 || in.CompletedTestCases < 0 {
 		return nil, status.Error(codes.InvalidArgument, "heartbeat request is invalid")
 	}
+	switch in.CurrentStage {
+	case "", "spec", "download", "compile", "run", "done", "report":
+	default:
+		return nil, status.Error(codes.InvalidArgument, "heartbeat stage is invalid")
+	}
 	if int64(in.CompletedTestCases) > int64(runtimeLimits(l.svcCtx).MaxCaseResults) {
 		return nil, status.Error(codes.InvalidArgument, "completed_test_cases exceeds the service limit")
 	}

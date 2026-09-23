@@ -41,6 +41,7 @@ type RateLimitConf struct {
 
 type Config struct {
 	zrpc.RpcServerConf
+	Outbox OutboxConf `json:",optional"`
 
 	AuthRPC        zrpc.RpcClientConf
 	AuthRPCAuth    sharedauth.ServiceClientAuthConf

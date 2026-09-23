@@ -28,12 +28,13 @@ import (
 )
 
 const (
-	managedLabel    = "gcoj.managed"
-	componentLabel  = "gcoj.component"
-	workerLabel     = "gcoj.worker_id"
-	attemptLabel    = "gcoj.attempt_id"
-	submissionLabel = "gcoj.submission_id"
-	componentValue  = "judge-sandbox"
+	managedLabel           = "gcoj.managed"
+	componentLabel         = "gcoj.component"
+	workerLabel            = "gcoj.worker_id"
+	attemptLabel           = "gcoj.attempt_id"
+	submissionLabel        = "gcoj.submission_id"
+	componentValue         = "judge-sandbox"
+	minSupervisorOpenFiles = uint64(64)
 )
 
 type DockerOptions struct {
@@ -73,6 +74,22 @@ type Docker struct {
 	logger      *slog.Logger
 	closeOnce   sync.Once
 	closeErr    error
+}
+
+func (docker *Docker) ResolveImage(ctx context.Context, image string) (string, error) {
+	inspector, ok := docker.client.(interface {
+		ImageInspect(context.Context, string, ...client.ImageInspectOption) (client.ImageInspectResult, error)
+	})
+	if !ok {
+		return "", errors.New("Docker client does not support image inspection")
+	}
+	inspectCtx, cancel := context.WithTimeout(ctx, docker.apiTimeout)
+	defer cancel()
+	result, err := inspector.ImageInspect(inspectCtx, image)
+	if err != nil {
+		return "", fmt.Errorf("inspect preloaded image %q: %w", image, err)
+	}
+	return result.ID, nil
 }
 
 type resourceUsage struct {
@@ -270,39 +287,6 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 	}
 	defer attached.Close()
 
-	// Open the streaming statistics endpoint before starting the container so
-	// Docker can begin collecting as early as its API permits. The one-shot
-	// poller supplements the stream for CPU-limit enforcement.
-	monitorCtx, monitorCancel := context.WithCancel(context.Background())
-	defer monitorCancel()
-	resourceStream, err := docker.openResourceStream(parent, monitorCtx, created.ID)
-	if err != nil {
-		return operationFailure(parent, result, "open sandbox resource statistics", err)
-	}
-	usage := &resourceUsage{}
-	streamDone := make(chan monitorEvent, 1)
-	go docker.monitorResourceStream(monitorCtx, resourceStream.Body, request.Limits.CPUTime, usage, streamDone)
-	streamCh := (<-chan monitorEvent)(streamDone)
-	pollDone := make(chan monitorEvent, 1)
-	// Poll before ContainerStart returns: very short processes can otherwise
-	// finish during the start API call and never expose a running stats endpoint.
-	go docker.pollResources(monitorCtx, created.ID, request.Limits.CPUTime, usage, pollDone)
-	pollCh := (<-chan monitorEvent)(pollDone)
-	monitorsStopped := false
-	stopMonitors := func() bool {
-		if monitorsStopped {
-			return true
-		}
-		monitorCancel()
-		monitorStopCtx, monitorStopCancel := context.WithTimeout(context.Background(), min(ResourceDrainTime, docker.stopTimeout))
-		defer monitorStopCancel()
-		streamStopped := drainMonitor(monitorStopCtx, streamDone)
-		pollStopped := drainMonitor(monitorStopCtx, pollDone)
-		monitorsStopped = streamStopped && pollStopped
-		return monitorsStopped
-	}
-	defer stopMonitors()
-
 	waitCtx, waitCancel := context.WithCancel(context.Background())
 	defer waitCancel()
 	waitResult := docker.client.ContainerWait(waitCtx, created.ID, client.ContainerWaitOptions{
@@ -322,9 +306,11 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 	budget := &outputBudget{limit: request.Limits.OutputBytes}
 	stdout := &boundedBuffer{budget: budget}
 	stderr := &boundedBuffer{budget: budget}
+	protocol := &supervisorOutput{stdout: stdout, stderr: stderr}
+	supervisorErrors := &boundedBuffer{budget: &outputBudget{limit: 4096}}
 	outputDone := make(chan error, 1)
 	go func() {
-		_, err := stdcopy.StdCopy(stdout, stderr, attached.Reader)
+		_, err := stdcopy.StdCopy(protocol, supervisorErrors, attached.Reader)
 		outputDone <- err
 	}()
 	outputCh := (<-chan error)(outputDone)
@@ -341,24 +327,23 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 		_ = attached.CloseWrite()
 	}
 
-	wallRemaining := request.Limits.WallTime - time.Since(startedAt)
-	wallExpired := wallRemaining <= 0
-	if wallExpired {
-		wallRemaining = 0
-	}
-	wallTimer := time.NewTimer(wallRemaining)
+	monitorCtx, monitorCancel := context.WithCancel(context.Background())
+	usage := &resourceUsage{}
+	monitorDone := make(chan monitorEvent, 1)
+	monitorStopped := make(chan struct{})
+	go func() {
+		defer close(monitorStopped)
+		docker.monitorResources(monitorCtx, created.ID, request.Limits.CPUTime, usage, monitorDone)
+	}()
+	monitorCh := (<-chan monitorEvent)(monitorDone)
+
+	wallTimer := time.NewTimer(request.Limits.WallTime)
 	defer wallTimer.Stop()
 
 	var waitResponse container.WaitResponse
 	var forcedReason ExitReason
 	var executionErr error
 	waiting := true
-	if wallExpired {
-		forcedReason = ExitTLE
-		docker.killContainer(created.ID)
-		waitResponse, executionErr = docker.waitAfterKill(waitResult, executionErr)
-		waiting = false
-	}
 	for waiting {
 		select {
 		case response, ok := <-waitResultCh:
@@ -389,21 +374,15 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 			executionErr = fmt.Errorf("wait for sandbox container: %w", err)
 			forcedReason = ExitSandboxError
 			waiting = false
-		case event, ok := <-streamCh:
+		case event, ok := <-monitorCh:
 			if !ok {
-				streamCh = nil
+				monitorCh = nil
 				continue
 			}
-			forcedReason, executionErr = event.reason, event.err
-			docker.killContainer(created.ID)
-			waitResponse, executionErr = docker.waitAfterKill(waitResult, executionErr)
-			waiting = false
-		case event, ok := <-pollCh:
-			if !ok {
-				pollCh = nil
-				continue
+			forcedReason = event.reason
+			if event.err != nil {
+				executionErr = event.err
 			}
-			forcedReason, executionErr = event.reason, event.err
 			docker.killContainer(created.ID)
 			waitResponse, executionErr = docker.waitAfterKill(waitResult, executionErr)
 			waiting = false
@@ -439,21 +418,17 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 		}
 	}
 	result.WallTime = time.Since(startedAt)
-	if !stopMonitors() && executionErr == nil && parent.Err() == nil {
-		forcedReason = ExitSandboxError
-		executionErr = errors.New("sandbox resource monitor did not close")
-	}
-	if request.Stdin != nil {
-		// Close the caller-owned input after execution so a blocked Read is
-		// interrupted. ExecuteRequest requires an io.ReadCloser for this reason.
-		_ = request.Stdin.Close()
+	monitorCancel()
+	<-monitorStopped
+	if closer, ok := request.Stdin.(io.Closer); ok {
+		_ = closer.Close()
 		if stdinDone != nil {
 			select {
 			case <-stdinDone:
 			case <-time.After(docker.stopTimeout):
-				if executionErr == nil && parent.Err() == nil {
+				if executionErr == nil {
 					forcedReason = ExitSandboxError
-					executionErr = errors.New("sandbox input stream did not close")
+					executionErr = errors.New("sandbox stdin stream did not close")
 				}
 			}
 		}
@@ -470,6 +445,7 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 	if !outputCompleted {
 		select {
 		case outputErr := <-outputDone:
+			outputCompleted = true
 			if errors.Is(outputErr, ErrOutputLimit) && forcedReason == "" {
 				forcedReason = ExitOLE
 			} else if outputErr != nil && !errors.Is(outputErr, ErrOutputLimit) && executionErr == nil && forcedReason == "" && parent.Err() == nil {
@@ -489,24 +465,31 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 	result.OutputBytes = budget.bytes()
 	result.CPUTime = durationFromUint64(usage.cpuNanos.Load())
 	result.PeakMemory = int64(min(usage.peakMemory.Load(), uint64(math.MaxInt64)))
-	if forcedReason == "" && result.CPUTime >= request.Limits.CPUTime {
-		forcedReason = ExitTLE
+	if outputCompleted && protocol.finished {
+		result.CPUTime = max(result.CPUTime, durationFromUint64(protocol.cpu))
+		result.PeakMemory = max(result.PeakMemory, int64(min(protocol.memory, uint64(math.MaxInt64))))
+		waitResponse.StatusCode = protocol.exitCode
+		if forcedReason == "" {
+			if protocol.flags&2 != 0 {
+				forcedReason = ExitMLE
+			} else if protocol.flags&1 != 0 || result.CPUTime >= request.Limits.CPUTime {
+				forcedReason = ExitTLE
+			}
+		}
 	}
 
-	inspectCtx, inspectCancel := context.WithTimeout(context.Background(), docker.apiTimeout)
-	inspected, inspectErr := docker.client.ContainerInspect(inspectCtx, created.ID, client.ContainerInspectOptions{})
-	inspectCancel()
+	inspected, inspectErr := docker.inspectExit(created.ID, waitResponse.StatusCode, forcedReason)
 	if inspectErr != nil && executionErr == nil {
 		forcedReason = ExitSandboxError
 		executionErr = fmt.Errorf("inspect sandbox container: %w", inspectErr)
 	}
-	if inspected.Container.State != nil && inspected.Container.State.OOMKilled && result.PeakMemory < request.Limits.MemoryBytes {
-		// Docker removes the cgroup immediately after a short OOM exit, so its
-		// final stats sample may disappear before the client can read memory.peak.
-		// An OOMKilled state proves the configured cgroup limit was reached; use
-		// that limit as the conservative peak instead of returning a misleading
-		// partial sample.
-		result.PeakMemory = request.Limits.MemoryBytes
+	if forcedReason == "" && parent.Err() == nil && executionErr == nil && (!outputCompleted || !protocol.finished) {
+		if inspected.Container.State != nil && inspected.Container.State.OOMKilled {
+			forcedReason = ExitMLE
+		} else {
+			forcedReason = ExitSandboxError
+			executionErr = fmt.Errorf("sandbox exited without trusted final accounting: %s", boundedDiagnostic(string(supervisorErrors.Bytes())))
+		}
 	}
 	if waitResponse.Error != nil && waitResponse.Error.Message != "" && executionErr == nil {
 		forcedReason = ExitSandboxError
@@ -526,21 +509,44 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 	return result, nil
 }
 
+func (docker *Docker) inspectExit(id string, exitCode int64, forced ExitReason) (client.ContainerInspectResult, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), docker.apiTimeout)
+	defer cancel()
+	deadline := time.Now().Add(min(200*time.Millisecond, docker.apiTimeout/2))
+	for {
+		result, err := docker.client.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
+		if err != nil || exitCode != 137 || forced != "" || result.Container.State == nil || result.Container.State.OOMKilled || !time.Now().Before(deadline) {
+			return result, err
+		}
+		timer := time.NewTimer(min(20*time.Millisecond, time.Until(deadline)))
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return result, ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
 func (docker *Docker) createOptions(request ExecuteRequest, mounts []mount.Mount, name string) client.ContainerCreateOptions {
 	pids := request.Limits.PIDs
-	initProcess := true
+	initProcess := false
 	memorySwappiness := int64(0)
 	stopSeconds := max(1, int(docker.stopTimeout/time.Second))
 	tmpfsBytes := min(request.Limits.MemoryBytes/4, int64(64<<20))
 	if tmpfsBytes < 1<<20 {
 		tmpfsBytes = 1 << 20
 	}
+	if request.Limits.TmpfsBytes > 0 {
+		tmpfsBytes = request.Limits.TmpfsBytes
+	}
 	return client.ContainerCreateOptions{
 		Name: name,
 		Config: &container.Config{
 			Image: request.Image, User: docker.user,
-			Entrypoint: []string{request.Program}, Cmd: append([]string(nil), request.Args...),
-			Env: append([]string(nil), request.Env...), WorkingDir: request.WorkingDir,
+			Entrypoint: []string{"/opt/judge/supervisor"},
+			Cmd:        append([]string{strconv.FormatInt(int64(request.Limits.CPUTime), 10), strconv.FormatUint(request.Limits.OpenFiles, 10), request.Program}, request.Args...),
+			Env:        append([]string(nil), request.Env...), WorkingDir: request.WorkingDir,
 			AttachStdin: request.Stdin != nil, OpenStdin: request.Stdin != nil, StdinOnce: request.Stdin != nil,
 			AttachStdout: true, AttachStderr: true, Tty: false, NetworkDisabled: true,
 			Labels: map[string]string{
@@ -554,12 +560,12 @@ func (docker *Docker) createOptions(request ExecuteRequest, mounts []mount.Mount
 				Memory: request.Limits.MemoryBytes, MemorySwap: request.Limits.MemoryBytes,
 				MemorySwappiness: &memorySwappiness, PidsLimit: &pids, NanoCPUs: docker.nanoCPUs,
 				Ulimits: []*container.Ulimit{
-					{Name: "nofile", Soft: int64(request.Limits.OpenFiles), Hard: int64(request.Limits.OpenFiles)},
-					{Name: "nproc", Soft: request.Limits.PIDs, Hard: request.Limits.PIDs},
+					{Name: "nofile", Soft: int64(max(minSupervisorOpenFiles, request.Limits.OpenFiles)), Hard: int64(max(minSupervisorOpenFiles, request.Limits.OpenFiles))},
 				},
 			},
 			NetworkMode: "none", RestartPolicy: container.RestartPolicy{Name: container.RestartPolicyDisabled},
-			AutoRemove: false, Privileged: false, ReadonlyRootfs: true,
+			CgroupnsMode: container.CgroupnsModePrivate,
+			AutoRemove:   false, Privileged: false, ReadonlyRootfs: true,
 			CapDrop: []string{"ALL"}, SecurityOpt: []string{"no-new-privileges:true"},
 			Mounts: mounts, Init: &initProcess, LogConfig: container.LogConfig{Type: "none"},
 			Tmpfs: map[string]string{
@@ -584,56 +590,17 @@ func (docker *Docker) mounts(items []Mount) ([]mount.Mount, error) {
 	return result, nil
 }
 
-func (docker *Docker) openResourceStream(parent, streamCtx context.Context, containerID string) (client.ContainerStatsResult, error) {
-	type response struct {
-		stats client.ContainerStatsResult
-		err   error
-	}
-	opened := make(chan response, 1)
-	go func() {
-		stats, err := docker.client.ContainerStats(streamCtx, containerID, client.ContainerStatsOptions{Stream: true})
-		opened <- response{stats: stats, err: err}
-	}()
-	closeLateResponse := func() {
-		go func() {
-			result := <-opened
-			if result.err == nil && result.stats.Body != nil {
-				_ = result.stats.Body.Close()
-			}
-		}()
-	}
-	timer := time.NewTimer(docker.apiTimeout)
-	defer timer.Stop()
-	select {
-	case result := <-opened:
-		if result.err == nil && result.stats.Body == nil {
-			return client.ContainerStatsResult{}, errors.New("Docker returned an empty resource statistics stream")
-		}
-		return result.stats, result.err
-	case <-parent.Done():
-		closeLateResponse()
-		return client.ContainerStatsResult{}, parent.Err()
-	case <-timer.C:
-		closeLateResponse()
-		return client.ContainerStatsResult{}, context.DeadlineExceeded
-	}
-}
-
-func (docker *Docker) monitorResourceStream(ctx context.Context, body io.ReadCloser, cpuLimit time.Duration, usage *resourceUsage, done chan<- monitorEvent) {
+func (docker *Docker) monitorResources(ctx context.Context, containerID string, cpuLimit time.Duration, usage *resourceUsage, done chan<- monitorEvent) {
 	defer close(done)
-	var closeOnce sync.Once
-	closeBody := func() { closeOnce.Do(func() { _ = body.Close() }) }
-	monitorDone := make(chan struct{})
-	defer close(monitorDone)
-	defer closeBody()
-	go func() {
-		select {
-		case <-ctx.Done():
-			closeBody()
-		case <-monitorDone:
+	stats, err := docker.client.ContainerStats(ctx, containerID, client.ContainerStatsOptions{Stream: true})
+	if err != nil {
+		if ctx.Err() == nil && !cerrdefs.IsNotFound(err) && !cerrdefs.IsConflict(err) {
+			done <- monitorEvent{reason: ExitSandboxError, err: fmt.Errorf("start sandbox resource monitor: %w", err)}
 		}
-	}()
-	decoder := json.NewDecoder(body)
+		return
+	}
+	defer stats.Body.Close()
+	decoder := json.NewDecoder(stats.Body)
 	for {
 		var sample container.StatsResponse
 		if err := decoder.Decode(&sample); err != nil {
@@ -642,89 +609,19 @@ func (docker *Docker) monitorResourceStream(ctx context.Context, body io.ReadClo
 			}
 			return
 		}
-		if updateResourceUsage(&sample, cpuLimit, usage) {
+		cpu := sample.CPUStats.CPUUsage.TotalUsage
+		usage.cpuNanos.Store(cpu)
+		peak := sample.MemoryStats.MaxUsage
+		if sample.MemoryStats.Usage > peak {
+			peak = sample.MemoryStats.Usage
+		}
+		for current := usage.peakMemory.Load(); peak > current && !usage.peakMemory.CompareAndSwap(current, peak); current = usage.peakMemory.Load() {
+		}
+		if cpuLimit > 0 && cpu >= uint64(cpuLimit) {
 			done <- monitorEvent{reason: ExitTLE}
 			return
 		}
 	}
-}
-
-func (docker *Docker) pollResources(ctx context.Context, containerID string, cpuLimit time.Duration, usage *resourceUsage, done chan<- monitorEvent) {
-	defer close(done)
-	interval := resourcePollInterval(cpuLimit)
-	timer := time.NewTimer(0)
-	defer timer.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-timer.C:
-		}
-
-		requestTimeout := min(docker.apiTimeout, max(100*time.Millisecond, interval*4))
-		requestCtx, cancel := context.WithTimeout(ctx, requestTimeout)
-		stats, err := docker.client.ContainerStats(requestCtx, containerID, client.ContainerStatsOptions{Stream: false})
-		if err == nil {
-			if stats.Body == nil {
-				err = errors.New("Docker returned an empty resource statistics response")
-			} else {
-				var sample container.StatsResponse
-				err = json.NewDecoder(stats.Body).Decode(&sample)
-				_ = stats.Body.Close()
-				if err == nil && updateResourceUsage(&sample, cpuLimit, usage) {
-					cancel()
-					done <- monitorEvent{reason: ExitTLE}
-					return
-				}
-			}
-		}
-		if err == nil {
-			cancel()
-			timer.Reset(interval)
-			continue
-		}
-		cancel()
-		if ctx.Err() != nil {
-			return
-		}
-		if cerrdefs.IsNotFound(err) || cerrdefs.IsConflict(err) {
-			timer.Reset(interval)
-			continue
-		}
-		done <- monitorEvent{reason: ExitSandboxError, err: fmt.Errorf("poll sandbox resource statistics: %w", err)}
-		return
-	}
-}
-
-func drainMonitor(ctx context.Context, done <-chan monitorEvent) bool {
-	for {
-		select {
-		case _, ok := <-done:
-			if !ok {
-				return true
-			}
-		case <-ctx.Done():
-			return false
-		}
-	}
-}
-
-func updateResourceUsage(sample *container.StatsResponse, cpuLimit time.Duration, usage *resourceUsage) bool {
-	cpu := sample.CPUStats.CPUUsage.TotalUsage
-	for current := usage.cpuNanos.Load(); cpu > current && !usage.cpuNanos.CompareAndSwap(current, cpu); current = usage.cpuNanos.Load() {
-	}
-	peak := sample.MemoryStats.MaxUsage
-	if sample.MemoryStats.Usage > peak {
-		peak = sample.MemoryStats.Usage
-	}
-	for current := usage.peakMemory.Load(); peak > current && !usage.peakMemory.CompareAndSwap(current, peak); current = usage.peakMemory.Load() {
-	}
-	return cpuLimit > 0 && cpu >= uint64(cpuLimit)
-}
-
-func resourcePollInterval(cpuLimit time.Duration) time.Duration {
-	interval := cpuLimit / 20
-	return min(MaxResourcePoll, max(MinResourcePoll, interval))
 }
 
 func (docker *Docker) waitAfterKill(wait client.ContainerWaitResult, existing error) (container.WaitResponse, error) {

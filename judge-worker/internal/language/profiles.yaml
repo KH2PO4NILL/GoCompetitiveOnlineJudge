@@ -1,0 +1,92 @@
+profiles:
+  - id: cpp20-v3
+    schema_version: 1
+    enabled: true
+    source:
+      entry_file: main.cpp
+      extensions: [.cpp]
+      max_files: 1
+      max_bytes: 1048576
+    build:
+      image: gcoj/judge-cpp20:1.2.0-compiler
+      program: /opt/judge/build
+      args: []
+    run:
+      image: gcoj/judge-cpp20:1.2.0-runtime
+      program: /opt/judge/run
+      args: []
+    artifact:
+      directory: /sandbox/artifact
+      files: [main]
+      max_bytes: 67108864
+    build_limits:
+      cpu_time_ms: 30000
+      wall_time_ms: 60000
+      memory_bytes: 1073741824
+      output_bytes: 1048576
+      pids: 64
+      open_files: 256
+    run_limits:
+      cpu_time_ms: 60000
+      wall_time_ms: 120000
+      memory_bytes: 2147483648
+      output_bytes: 16777216
+      pids: 16
+      open_files: 64
+    time_multiplier: 1
+    memory_multiplier: 1
+    environment_allowlist: [LANG, LC_ALL, TMPDIR]
+    environment:
+      LANG: C
+      LC_ALL: C
+      TMPDIR: /tmp
+  - id: go-v3
+    schema_version: 1
+    enabled: true
+    source:
+      entry_file: main.go
+      extensions: [.go]
+      max_files: 1
+      max_bytes: 1048576
+    build:
+      image: gcoj/judge-go:1.2.0-compiler
+      program: /opt/judge/build
+      args: []
+    run:
+      image: gcoj/judge-go:1.2.0-runtime
+      program: /opt/judge/run
+      args: []
+    artifact:
+      directory: /sandbox/artifact
+      files: [main]
+      max_bytes: 67108864
+    build_limits:
+      cpu_time_ms: 60000
+      wall_time_ms: 120000
+      memory_bytes: 2147483648
+      output_bytes: 1048576
+      tmpfs_bytes: 536870912
+      pids: 128
+      open_files: 256
+    run_limits:
+      cpu_time_ms: 60000
+      wall_time_ms: 120000
+      memory_bytes: 2147483648
+      output_bytes: 16777216
+      pids: 128
+      open_files: 128
+    time_multiplier: 2
+    memory_multiplier: 2
+    environment_allowlist: [LANG, LC_ALL, TMPDIR, GOCACHE, GOPATH, GOPROXY, GOSUMDB, GOTOOLCHAIN, CGO_ENABLED, GOMAXPROCS, GOENV]
+    environment:
+      LANG: C
+      LC_ALL: C
+      TMPDIR: /tmp
+      GOCACHE: /tmp/cache
+      GOPATH: /tmp/go
+      GOPROXY: "off"
+      GOSUMDB: "off"
+      GOTOOLCHAIN: local
+      CGO_ENABLED: "0"
+      GOMAXPROCS: "2"
+      GOENV: "off"

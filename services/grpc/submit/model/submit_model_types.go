@@ -199,6 +199,7 @@ type OutboxEvent struct {
 }
 
 type ClaimOutboxInput struct {
+	EventType    int64
 	WorkerID     string
 	Limit        int
 	LockDuration time.Duration

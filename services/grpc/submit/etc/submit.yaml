@@ -53,7 +53,7 @@ RedisDB:
   DB: 0
 
 Limits:
-  MaxSourceCodeBytes: 4194304
+  MaxSourceCodeBytes: 1048576
   MaxClientRequestBytes: 128
   MaxPageSize: 100
   MaxBatchRejudge: 100
@@ -71,6 +71,22 @@ RateLimit:
   Enabled: true
   WindowSeconds: 60
   MaxSubmissions: 30
+
+Outbox:
+  Enabled: false
+  Endpoint: "${ROCKETMQ_ENDPOINT}"
+  TLS: false
+  ID: submit-outbox
+  BatchSize: 16
+  Concurrency: 4
+  MaxAttempts: 12
+  IntervalMS: 500
+  ClaimSeconds: 60
+  TimeoutSeconds: 5
+  BackoffSeconds: 1
+  MaxBackoffSeconds: 300
+  ShutdownSeconds: 30
+  MetricsListenOn: "127.0.0.1:9101"
 
 Middlewares:
   StatConf:

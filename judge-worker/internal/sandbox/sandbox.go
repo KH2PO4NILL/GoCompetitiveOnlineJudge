@@ -18,14 +18,12 @@ const (
 	MaxStringBytes     = 4096
 	MaxExecutionTime   = 24 * time.Hour
 	MaxMemoryBytes     = int64(64 << 30)
+	MaxTmpfsBytes      = int64(1 << 30)
 	MaxOutputBytes     = int64(256 << 20)
 	MaxPIDLimit        = int64(4096)
 	MaxOpenFiles       = uint64(65536)
 	DefaultNanoCPUs    = int64(1_000_000_000)
 	DefaultStopTimeout = 5 * time.Second
-	MinResourcePoll    = 10 * time.Millisecond
-	MaxResourcePoll    = 50 * time.Millisecond
-	ResourceDrainTime  = 500 * time.Millisecond
 	MaxAPITimeout      = time.Minute
 	MaxStopTimeout     = time.Minute
 )
@@ -53,6 +51,7 @@ type Limits struct {
 	CPUTime     time.Duration
 	WallTime    time.Duration
 	MemoryBytes int64
+	TmpfsBytes  int64
 	OutputBytes int64
 	PIDs        int64
 	OpenFiles   uint64
@@ -74,12 +73,9 @@ type ExecuteRequest struct {
 	Args         []string
 	Env          []string
 	WorkingDir   string
-	// Stdin ownership transfers to Execute once the container starts. Execute
-	// closes it on completion or cancellation so blocked input reads can be
-	// interrupted and reclaimed.
-	Stdin  io.ReadCloser
-	Mounts []Mount
-	Limits Limits
+	Stdin        io.Reader
+	Mounts       []Mount
+	Limits       Limits
 }
 
 type ExecuteResult struct {
@@ -189,6 +185,9 @@ func (limits Limits) Validate() error {
 	}
 	if limits.MemoryBytes <= 0 || limits.MemoryBytes > MaxMemoryBytes {
 		errs = append(errs, fmt.Errorf("MemoryBytes must be between 1 and %d", MaxMemoryBytes))
+	}
+	if limits.TmpfsBytes < 0 || limits.TmpfsBytes > min(MaxTmpfsBytes, limits.MemoryBytes) {
+		errs = append(errs, errors.New("TmpfsBytes must be nonnegative and not exceed memory or 1GiB"))
 	}
 	if limits.OutputBytes <= 0 || limits.OutputBytes > MaxOutputBytes {
 		errs = append(errs, fmt.Errorf("OutputBytes must be between 1 and %d", MaxOutputBytes))

@@ -5,16 +5,26 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/checker"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/config"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/consumer"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/engine"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/language"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/logging"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/processor"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/sandbox"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/testdatacache"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/worker"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/workspace"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgemetrics"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgemq"
 )
 
 type ServiceContext struct {
@@ -23,11 +33,20 @@ type ServiceContext struct {
 	Pool          *worker.Pool
 	TestDataCache *testdatacache.Cache
 	Sandbox       sandbox.Sandbox
+	Languages     language.Registry
+	Engine        *engine.Engine
+	Processor     *processor.Processor
+	closeRPC      func() error
+	Consumer      *consumer.Driver
+	mqConsumer    *judgemq.Consumer
+	mqProducer    *judgemq.Producer
+	metrics       *http.Server
 
 	lifecycleMu sync.Mutex
 	started     bool
 	closed      bool
 	shutdownErr error
+	workspace   *workspace.Workspace
 }
 
 type sandboxFactory func(config.Config, *slog.Logger) (sandbox.Sandbox, error)
@@ -36,13 +55,17 @@ func NewServiceContext(c config.Config) (*ServiceContext, error) {
 	return newServiceContext(c, newDockerSandbox)
 }
 
-func newServiceContext(c config.Config, createSandbox sandboxFactory) (*ServiceContext, error) {
+func newServiceContext(c config.Config, createSandbox sandboxFactory) (_ *ServiceContext, resultErr error) {
 	c.ApplyDefaults()
 	if err := c.Validate(); err != nil {
 		return nil, fmt.Errorf("validate judge worker runtime config: %w", err)
 	}
 	if createSandbox == nil {
 		return nil, errors.New("sandbox factory is required")
+	}
+	profiles, err := language.LoadProfiles(c.LanguageRegistryFile)
+	if err != nil {
+		return nil, fmt.Errorf("load language registry: %w", err)
 	}
 	logger, err := logging.New(c.Log, os.Stdout)
 	if err != nil {
@@ -59,6 +82,15 @@ func newServiceContext(c config.Config, createSandbox sandboxFactory) (*ServiceC
 	if err := validateDisjointRoots(c.TestDataCache.Dir, c.Sandbox.WorkDir); err != nil {
 		return nil, err
 	}
+	work, err := workspace.Open(c.Sandbox.WorkDir, c.Worker.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if resultErr != nil {
+			_ = work.Close()
+		}
+	}()
 	objectStore, err := testdatacache.NewS3Store(c.ObjectStorage)
 	if err != nil {
 		return nil, fmt.Errorf("configure read-only test data object store: %w", err)
@@ -74,6 +106,25 @@ func newServiceContext(c config.Config, createSandbox sandboxFactory) (*ServiceC
 	if err != nil {
 		return nil, fmt.Errorf("configure sandbox: %w", err)
 	}
+	resolver, ok := executor.(language.ImageResolver)
+	if !ok {
+		_ = executor.Close()
+		return nil, errors.New("sandbox must support immutable image resolution")
+	}
+	registry, err := language.NewRegistry(profiles, resolver)
+	if err != nil {
+		_ = executor.Close()
+		return nil, fmt.Errorf("configure language registry: %w", err)
+	}
+	judgeEngine, err := engine.New(registry, executor, work.Dir, logger)
+	if err != nil {
+		_ = executor.Close()
+		return nil, fmt.Errorf("configure judge engine: %w", err)
+	}
+	for _, profile := range profiles {
+		logger.Info("language profile loaded", "profile_id", profile.ID, "schema_version", profile.SchemaVersion,
+			"enabled", profile.Enabled, "compiler_image", profile.Build.Image, "runtime_image", profile.Run.Image)
+	}
 	pool, err := worker.NewPool(
 		c.Worker.Concurrency,
 		c.Worker.QueueCapacity,
@@ -84,9 +135,37 @@ func newServiceContext(c config.Config, createSandbox sandboxFactory) (*ServiceC
 		_ = executor.Close()
 		return nil, fmt.Errorf("configure worker pool: %w", err)
 	}
-	return &ServiceContext{
+	submit, problem, closeRPC, err := processor.NewGateways(c.SubmitRPC.Target, c.ProblemRPC.Target, c.InternalAuth.SubmitToken, c.InternalAuth.ProblemToken, c.RPCTimeout())
+	if err != nil {
+		_ = executor.Close()
+		return nil, fmt.Errorf("configure judge RPC gateways: %w", err)
+	}
+	taskProcessor, err := processor.New(processor.Options{WorkerID: c.Worker.ID, Submit: submit, Problem: problem, Cache: dataCache, Judge: judgeEngine, Logger: logger, Profiles: c.Processor.Profiles, Checker: checker.Mode(c.Processor.Checker), HeartbeatInterval: time.Duration(c.Processor.HeartbeatSeconds) * time.Second, RetryBackoff: time.Duration(c.Processor.RetryBackoffMS) * time.Millisecond, ReportAttempts: c.Processor.ReportAttempts})
+	if err != nil {
+		_ = closeRPC()
+		_ = executor.Close()
+		return nil, fmt.Errorf("configure task processor: %w", err)
+	}
+	result := &ServiceContext{
 		Config: c, Logger: logger, Pool: pool, TestDataCache: dataCache, Sandbox: executor,
-	}, nil
+		Languages: registry, Engine: judgeEngine, Processor: taskProcessor, closeRPC: closeRPC,
+		workspace: work,
+	}
+	if c.Consumer.Enabled {
+		settings := judgemq.Config{Endpoint: c.Consumer.Endpoint, TLS: c.Consumer.TLS, AccessKey: c.Consumer.AccessKey, SecretKey: c.Consumer.SecretKey, Timeout: time.Duration(c.Consumer.TimeoutSeconds) * time.Second}
+		result.mqProducer, err = judgemq.NewProducer(settings)
+		if err == nil {
+			result.mqConsumer, err = judgemq.NewConsumer(settings, "")
+		}
+		if err == nil {
+			result.Consumer, err = consumer.New(result.mqConsumer, result.mqProducer, taskProcessor, pool, consumer.Options{WorkerID: c.Worker.ID, Concurrency: c.Worker.Concurrency, MaxAttempts: c.Consumer.MaxAttempts, Visibility: time.Duration(c.Consumer.VisibilitySeconds) * time.Second, Timeout: settings.Timeout, Backoff: time.Duration(c.Consumer.BackoffSeconds) * time.Second, MaxBackoff: time.Duration(c.Consumer.MaxBackoffSeconds) * time.Second}, logger)
+		}
+		if err != nil {
+			_ = result.Shutdown(context.Background())
+			return nil, errors.New("configure judge consumer failed")
+		}
+	}
+	return result, nil
 }
 
 func newDockerSandbox(c config.Config, logger *slog.Logger) (sandbox.Sandbox, error) {
@@ -130,12 +209,19 @@ func validateDisjointRoots(first, second string) error {
 	return nil
 }
 
-func (s *ServiceContext) Start() error {
+func (s *ServiceContext) Start() (startErr error) {
 	if s == nil || s.Pool == nil || s.TestDataCache == nil || s.Sandbox == nil {
 		return errors.New("judge worker service context is unavailable")
 	}
 	s.lifecycleMu.Lock()
-	defer s.lifecycleMu.Unlock()
+	defer func() {
+		s.lifecycleMu.Unlock()
+		if startErr != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), s.Config.ShutdownTimeout())
+			defer cancel()
+			startErr = errors.Join(startErr, s.Shutdown(ctx))
+		}
+	}()
 	if s.closed {
 		return errors.New("judge worker service context is already closed")
 	}
@@ -147,18 +233,40 @@ func (s *ServiceContext) Start() error {
 	cleanup, err := s.Sandbox.Cleanup(cleanupCtx)
 	cancel()
 	if err != nil {
-		s.closed = true
-		closeErr := s.Sandbox.Close()
-		return errors.Join(fmt.Errorf("clean orphaned sandbox containers: %w", err), closeSandboxError(closeErr))
+		return fmt.Errorf("clean orphaned sandbox containers: %w", err)
 	}
 	s.Logger.Info("sandbox startup cleanup completed",
 		"found", cleanup.Found, "removed", cleanup.Removed, "failed", cleanup.Failed,
 	)
+	if s.workspace != nil {
+		if err := s.workspace.Cleanup(context.Background()); err != nil {
+			return fmt.Errorf("clean orphaned attempt directories: %w", err)
+		}
+	}
 	s.TestDataCache.Start()
 	if err := s.Pool.Start(); err != nil {
-		s.closed = true
-		s.TestDataCache.Close()
-		return errors.Join(err, closeSandboxError(s.Sandbox.Close()))
+		return err
+	}
+	if s.Consumer != nil {
+		if err := s.mqConsumer.Start(); err != nil {
+			return errors.New("start RocketMQ consumer failed")
+		}
+	}
+	if s.Config.Metrics.Enabled {
+		metrics := judgemetrics.New()
+		if s.Consumer != nil {
+			metrics = s.Consumer.Metrics
+		}
+		var err error
+		s.metrics, err = metrics.Listen(s.Config.Metrics.ListenOn, s.Config.Metrics.Path)
+		if err != nil {
+			return errors.New("start judge metrics listener failed")
+		}
+	}
+	if s.Consumer != nil {
+		if err := s.Consumer.Start(); err != nil {
+			return err
+		}
 	}
 	s.started = true
 	return nil
@@ -176,11 +284,21 @@ func (s *ServiceContext) Shutdown(ctx context.Context) error {
 	s.closed = true
 
 	var shutdownErrors []error
-	if s.Pool != nil {
+	if s.Consumer != nil {
+		shutdownErrors = append(shutdownErrors, s.Consumer.Stop(ctx))
+	} else if s.Pool != nil {
 		if err := s.Pool.Shutdown(ctx); err != nil {
 			shutdownErrors = append(shutdownErrors, err)
 		}
+		shutdownErrors = append(shutdownErrors, s.Pool.Wait(context.Background()))
 	}
+	if s.mqConsumer != nil {
+		shutdownErrors = append(shutdownErrors, s.mqConsumer.Close())
+	}
+	if s.mqProducer != nil {
+		shutdownErrors = append(shutdownErrors, s.mqProducer.Close())
+	}
+	shutdownErrors = append(shutdownErrors, judgemetrics.Close(ctx, s.metrics))
 	if s.TestDataCache != nil {
 		s.TestDataCache.Close()
 	}
@@ -189,6 +307,10 @@ func (s *ServiceContext) Shutdown(ctx context.Context) error {
 			shutdownErrors = append(shutdownErrors, fmt.Errorf("close sandbox: %w", err))
 		}
 	}
+	if s.closeRPC != nil {
+		shutdownErrors = append(shutdownErrors, s.closeRPC())
+	}
+	shutdownErrors = append(shutdownErrors, s.workspace.Close())
 	s.shutdownErr = errors.Join(shutdownErrors...)
 	return s.shutdownErr
 }

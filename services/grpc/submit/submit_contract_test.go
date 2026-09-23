@@ -76,10 +76,11 @@ func TestProblemRevisionIsPinnedAndCannotBeOverriddenByRejudge(t *testing.T) {
 func TestQueueEventContainsOnlyTaskLocators(t *testing.T) {
 	fields := fieldNames(messageDescriptor(t, "JudgeTaskEvent"))
 	want := map[protoreflect.Name]protoreflect.FieldNumber{
-		"event_id":      1,
-		"submission_id": 2,
-		"attempt_id":    3,
-		"enqueued_at":   4,
+		"event_id":       1,
+		"submission_id":  2,
+		"attempt_id":     3,
+		"enqueued_at":    4,
+		"schema_version": 5,
 	}
 	if len(fields) != len(want) {
 		t.Fatalf("JudgeTaskEvent has %d fields, want only %d locator fields", len(fields), len(want))

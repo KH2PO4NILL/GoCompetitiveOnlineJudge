@@ -1,0 +1,83 @@
+services:
+  namesrv:
+    image: apache/rocketmq:5.3.2
+    command: sh mqnamesrv
+    environment:
+      JAVA_OPT_EXT: "-Xms128m -Xmx128m -Xmn64m"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ': >/dev/tcp/127.0.0.1/9876'"]
+      interval: 2s
+      timeout: 2s
+      retries: 60
+
+  storage-init:
+    image: apache/rocketmq:5.3.2
+    user: "0:0"
+    entrypoint: ["chown", "3000:3000", "/home/rocketmq/store"]
+    volumes: ["mq:/home/rocketmq/store"]
+
+  broker:
+    image: apache/rocketmq:5.3.2
+    command: sh mqbroker --enable-proxy -n namesrv:9876 -bc /etc/rocketmq/broker.conf -pc /etc/rocketmq/proxy.json
+    depends_on:
+      namesrv:
+        condition: service_healthy
+      storage-init:
+        condition: service_completed_successfully
+    environment:
+      JAVA_OPT_EXT: "-Xms512m -Xmx512m -Xmn256m"
+      JUDGE_E2E_MQ_PORT: "${JUDGE_E2E_MQ_PORT:-28081}"
+    ports: ["127.0.0.1:${JUDGE_E2E_MQ_PORT:-28081}:${JUDGE_E2E_MQ_PORT:-28081}"]
+    volumes:
+      - ../rocketmq/broker.conf:/etc/rocketmq/broker.conf:ro
+      - ${JUDGE_E2E_PROXY_CONFIG}:/etc/rocketmq/proxy.json:ro
+      - mq:/home/rocketmq/store
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c ': >/dev/tcp/127.0.0.1/$$JUDGE_E2E_MQ_PORT'"]
+      interval: 2s
+      timeout: 2s
+      retries: 90
+
+  topics:
+    image: apache/rocketmq:5.3.2
+    profiles: [init]
+    depends_on:
+      broker:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - >-
+        sh mqadmin updateTopic -n namesrv:9876 -b broker:10911 -t judge-task -r 4 -w 4 -a '+message.type=NORMAL' &&
+        sh mqadmin updateTopic -n namesrv:9876 -b broker:10911 -t judge-task-dead -r 1 -w 1 -a '+message.type=NORMAL' &&
+        sh mqadmin updateSubGroup -n namesrv:9876 -b broker:10911 -g judge-workers
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: "${JUDGE_E2E_MYSQL_PASSWORD}"
+    ports: ["127.0.0.1:${JUDGE_E2E_MYSQL_PORT:-23316}:3306"]
+    volumes: ["mysql:/var/lib/mysql"]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 2s
+      timeout: 3s
+      retries: 90
+
+  minio:
+    image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: "${JUDGE_E2E_MINIO_ACCESS_KEY}"
+      MINIO_ROOT_PASSWORD: "${JUDGE_E2E_MINIO_SECRET_KEY}"
+    ports: ["127.0.0.1:${JUDGE_E2E_MINIO_PORT:-29000}:9000"]
+    volumes: ["minio:/data"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+
+volumes:
+  mq:
+  mysql:
+  minio:

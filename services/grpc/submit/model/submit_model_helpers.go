@@ -19,6 +19,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgepolicy"
+
 	drivermysql "github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -29,7 +31,7 @@ const (
 	maxBatchRejudgeSize   = 100
 	maxExpiredLeaseBatch  = 1000
 	maxOutboxClaimBatch   = 500
-	maxSourceCodeBytes    = 4 * 1024 * 1024
+	maxSourceCodeBytes    = judgepolicy.MaxSourceCodeBytes
 	maxCompileOutputBytes = 4 * 1024 * 1024
 	maxJudgeMessageBytes  = 1024 * 1024
 )

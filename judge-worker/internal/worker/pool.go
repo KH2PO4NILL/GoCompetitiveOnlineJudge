@@ -210,6 +210,15 @@ func (p *Pool) Shutdown(ctx context.Context) error {
 	}
 }
 
+func (p *Pool) Wait(ctx context.Context) error {
+	select {
+	case <-p.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (p *Pool) runWorker() {
 	defer p.wg.Done()
 	for {

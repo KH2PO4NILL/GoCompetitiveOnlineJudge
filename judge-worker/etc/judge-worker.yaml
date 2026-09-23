@@ -3,8 +3,19 @@ Worker:
   Concurrency: 4
   QueueCapacity: 128
 
-# These targets are validated now and will be used when RPC orchestration is
-# introduced. This skeleton does not dial either service.
+LanguageRegistryFile: "${JUDGE_LANGUAGE_REGISTRY_FILE}"
+
+Processor:
+  HeartbeatSeconds: 5
+  RetryBackoffMS: 100
+  ReportAttempts: 3
+  Checker: tokens
+  Profiles:
+    cpp20: cpp20-v3
+    cpp: cpp20-v3
+    c++20: cpp20-v3
+    go: go-v3
+
 SubmitRPC:
   Target: "${JUDGE_SUBMIT_RPC_TARGET}"
 ProblemRPC:
@@ -58,8 +69,6 @@ Log:
   Format: "text"
   AddSource: false
 
-# Metrics exposure is reserved for a follow-up Issue; keeping the address and
-# path here makes the future component part of the validated configuration.
 Metrics:
   Enabled: false
   ListenOn: "127.0.0.1:9100"
@@ -69,3 +78,15 @@ Timeouts:
   RPCSeconds: 5
   TaskSeconds: 300
   ShutdownSeconds: 30
+
+Consumer:
+  Enabled: false
+  Endpoint: "${ROCKETMQ_ENDPOINT}"
+  TLS: false
+  AccessKey: "${ROCKETMQ_ACCESS_KEY}"
+  SecretKey: "${ROCKETMQ_SECRET_KEY}"
+  VisibilitySeconds: 60
+  TimeoutSeconds: 5
+  BackoffSeconds: 5
+  MaxBackoffSeconds: 300
+  MaxAttempts: 16

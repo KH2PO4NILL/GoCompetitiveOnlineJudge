@@ -142,7 +142,7 @@ Judge Worker 为异步消费者，不对公网暴露固定端口。
 
 Contest RPC 使用 `ScoreboardFreeze` 配置定期扫描已到封榜时间的 ICPC 比赛，并通过比赛 revision 与事务快照保证多实例竞争下只有一个实例完成封榜。该任务只冻结已有排行榜投影，不负责实时计分；默认扫描间隔 10 秒、批量 100 场、单场超时 5 秒。
 
-评测队列使用 `judge-task` Topic 和 `judge-workers` Consumer Group，以 `submission_id` 作为消息 Key 与消费端幂等键。Worker 在评测结果成功持久化后再确认消息，队列采用“至少一次”投递，并为超出重试上限的任务保留死信消息。
+评测队列使用 `judge-task` Topic 和 `judge-workers` Consumer Group，以 `submission_id` 作为消息路由 Key，以数据库 Attempt 租约和稳定 Report ID 保证业务幂等。Worker 在评测结果成功持久化后再确认消息，队列采用“至少一次”投递，并为超出重试上限的任务保留死信消息。
 
 ## 快速开始
 
@@ -171,7 +171,7 @@ make infra-up
 
 `make infra-env` 会创建权限为 `0600` 的 `.env`，并为 MySQL、Redis、JWT、MinIO 和内部服务调用生成随机密钥。`make infra-up` 会启动 MySQL、Redis、etcd、MinIO，执行数据库迁移并创建测试数据 Bucket。
 
-> RocketMQ 的 Docker Compose 服务与环境变量尚待随 Submit RPC 和 Judge Worker 一起落地，当前 `make infra-up` 不会启动 RocketMQ。
+> RocketMQ NameServer、Broker/Proxy 已接入 Compose。运行 `docker compose --env-file .env up -d --wait rocketmq-namesrv rocketmq-broker`，然后 `docker compose --env-file .env --profile init run --rm rocketmq-init` 创建判题 Topic/Group。Proxy 默认 `127.0.0.1:18081`；配置和可靠性约定见 `infra/rocketmq/README.md`。
 
 若要启用邮件验证码，请在 `.env` 中补充：
 
@@ -430,13 +430,17 @@ make build
 
 ## 扩展 Judge 语言
 
-语言执行器负责定义源文件名、编译命令、运行命令、镜像和资源上限。增加新语言时应：
+完整判题链路、故障恢复及独立 Docker 安全验收见 [Judge Worker 验收](judge-worker/README.md)。
 
-1. 在 `judge-worker` 中实现并注册执行器。
-2. 固定编译器或运行时镜像版本，不使用浮动标签。
-3. 为编译超时、运行超时、内存超限和异常退出补充测试。
-4. 更新题目服务允许的语言列表和管理端选项。
-5. 在隔离环境中验证网络、文件系统、进程数和系统调用限制。
+Judge Worker 使用声明式 Language Profile 和只读 Registry。内置 `cpp20-v3`、`go-v3`，
+也可通过 `JUDGE_LANGUAGE_REGISTRY_FILE` 加载完整的外部注册表；启动时拒绝非法 Profile。
+每个 Attempt 固定镜像内容摘要、资源策略和 Policy Digest，Build/Run 统一调用
+`/opt/judge/build`、`/opt/judge/run`，运行阶段只读挂载 Artifact。
+
+新增语言只需增加版本化 Profile、固定 Compiler/Runtime 镜像、标准入口和语言包测试，
+不修改 Judge Engine 主流程。题目服务允许的语言列表和管理端选项仍需同步维护。
+首次使用前须构建并预置语言镜像；完整 Schema、部署命令、审计规则与测试说明见
+[Language Profile 与镜像协议](judge-worker/languages/README.md)。
 
 ## 贡献
 

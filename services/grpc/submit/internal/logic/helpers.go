@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	infraauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgepolicy"
 	authpb "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/pb"
 	contestpb "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/contest/pb"
 	problempb "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/problem/pb"
@@ -94,7 +95,7 @@ func requireSubmitModel(svcCtx *svc.ServiceContext) (model.SubmitModel, error) {
 
 func runtimeLimits(svcCtx *svc.ServiceContext) config.LimitsConf {
 	limits := config.LimitsConf{
-		MaxSourceCodeBytes: 4 * 1024 * 1024, MaxClientRequestBytes: 128,
+		MaxSourceCodeBytes: judgepolicy.MaxSourceCodeBytes, MaxClientRequestBytes: 128,
 		MaxPageSize: 100, MaxBatchRejudge: 100, MaxCaseResults: 20000,
 		MaxCompileOutputBytes: 4 * 1024 * 1024, MaxJudgeMessageBytes: 1024 * 1024,
 	}
@@ -103,7 +104,7 @@ func runtimeLimits(svcCtx *svc.ServiceContext) config.LimitsConf {
 	}
 	configured := svcCtx.Config.Limits
 	if configured.MaxSourceCodeBytes > 0 {
-		limits.MaxSourceCodeBytes = configured.MaxSourceCodeBytes
+		limits.MaxSourceCodeBytes = min(configured.MaxSourceCodeBytes, judgepolicy.MaxSourceCodeBytes)
 	}
 	if configured.MaxClientRequestBytes > 0 {
 		limits.MaxClientRequestBytes = configured.MaxClientRequestBytes

@@ -1,0 +1,36 @@
+name: Judge acceptance
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go test -race ./...
+      - run: go test -race github.com/apache/rocketmq-clients/golang/v5 -run TestLocal
+      - run: go vet ./...
+  docker-e2e:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: bash scripts/build-language-images.sh
+      - run: JUDGE_E2E_SLOW=1 bash scripts/test-judge-e2e.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: judge-safe-diagnostics
+          path: .run/judge-e2e/
+          include-hidden-files: true
+          retention-days: 7

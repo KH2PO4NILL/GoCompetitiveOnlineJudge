@@ -4,15 +4,13 @@ import (
 	"bufio"
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"io"
 	"log/slog"
 	"net"
 	"slices"
+	"strconv"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -191,8 +189,11 @@ func TestExecuteCollectsOutputAndExitMetadata(t *testing.T) {
 	}
 	api.start = func() {
 		go func() {
-			_ = writeDockerFrame(serverConn, stdcopy.Stdout, []byte("out"))
-			_ = writeDockerFrame(serverConn, stdcopy.Stderr, []byte("err"))
+			_ = writeSupervisorFrame(serverConn, 1, []byte("out"))
+			_ = writeSupervisorFrame(serverConn, 2, []byte("err"))
+			var final [24]byte
+			binary.BigEndian.PutUint32(final[16:20], 7)
+			_ = writeSupervisorFrame(serverConn, 3, final[:])
 			_ = serverConn.Close()
 			resultCh <- container.WaitResponse{StatusCode: 7}
 		}()
@@ -218,281 +219,6 @@ func TestExecuteCollectsOutputAndExitMetadata(t *testing.T) {
 	}
 }
 
-func TestExecuteOpensStatsBeforeStartAndCapturesShortExecutionUsage(t *testing.T) {
-	clientConn, serverConn := net.Pipe()
-	resultCh := make(chan container.WaitResponse, 1)
-	errorCh := make(chan error, 1)
-	streamReader, streamWriter := io.Pipe()
-	defer streamWriter.Close()
-	var streamOpened atomic.Bool
-	api := &executeDockerAPI{
-		attachResult: client.ContainerAttachResult{HijackedResponse: client.HijackedResponse{
-			Conn: clientConn, Reader: bufio.NewReader(clientConn),
-		}},
-		waitResult: client.ContainerWaitResult{Result: resultCh, Error: errorCh},
-		inspectResult: client.ContainerInspectResult{Container: container.InspectResponse{
-			State: &container.State{ExitCode: 0},
-		}},
-		stats: func(_ context.Context, options client.ContainerStatsOptions) (client.ContainerStatsResult, error) {
-			if options.Stream {
-				streamOpened.Store(true)
-				return client.ContainerStatsResult{Body: streamReader}, nil
-			}
-			return statsResult(0, 0, 0), nil
-		},
-	}
-	api.start = func() {
-		if !streamOpened.Load() {
-			t.Fatal("resource statistics stream was not opened before container start")
-		}
-		go func() {
-			_ = json.NewEncoder(streamWriter).Encode(container.StatsResponse{
-				CPUStats:    container.CPUStats{CPUUsage: container.CPUUsage{TotalUsage: uint64(25 * time.Millisecond)}},
-				MemoryStats: container.MemoryStats{Usage: 4096, MaxUsage: 8192},
-			})
-			_ = streamWriter.Close()
-			_ = serverConn.Close()
-			resultCh <- container.WaitResponse{StatusCode: 0}
-		}()
-	}
-
-	docker := testDocker(t, api)
-	request := validExecuteRequest()
-	request.Mounts = nil
-	result, err := docker.Execute(context.Background(), request)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-	if result.Reason != ExitNormal || result.CPUTime != 25*time.Millisecond || result.PeakMemory != 8192 {
-		t.Fatalf("resource result = reason %q CPU %s peak %d", result.Reason, result.CPUTime, result.PeakMemory)
-	}
-}
-
-func TestExecutePollingEnforcesCPUTimeLimit(t *testing.T) {
-	clientConn, serverConn := net.Pipe()
-	resultCh := make(chan container.WaitResponse, 1)
-	errorCh := make(chan error, 1)
-	streamReader, streamWriter := io.Pipe()
-	defer streamWriter.Close()
-	limit := 100 * time.Millisecond
-	api := &executeDockerAPI{
-		attachResult: client.ContainerAttachResult{HijackedResponse: client.HijackedResponse{
-			Conn: clientConn, Reader: bufio.NewReader(clientConn),
-		}},
-		waitResult: client.ContainerWaitResult{Result: resultCh, Error: errorCh},
-		inspectResult: client.ContainerInspectResult{Container: container.InspectResponse{
-			State: &container.State{ExitCode: 137},
-		}},
-		stats: func(_ context.Context, options client.ContainerStatsOptions) (client.ContainerStatsResult, error) {
-			if options.Stream {
-				return client.ContainerStatsResult{Body: streamReader}, nil
-			}
-			return statsResult(uint64(limit+10*time.Millisecond), 2048, 4096), nil
-		},
-	}
-	api.kill = func() {
-		_ = serverConn.Close()
-		resultCh <- container.WaitResponse{StatusCode: 137}
-	}
-
-	docker := testDocker(t, api)
-	request := validExecuteRequest()
-	request.Mounts = nil
-	request.Limits.CPUTime = limit
-	result, err := docker.Execute(context.Background(), request)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-	if result.Reason != ExitTLE || result.CPUTime < limit || !slices.Equal(api.killIDs, []string{"container-1"}) {
-		t.Fatalf("CPU enforcement result = %#v, kills=%#v", result, api.killIDs)
-	}
-}
-
-func TestExecuteCountsContainerStartLatencyTowardWallTime(t *testing.T) {
-	clientConn, serverConn := net.Pipe()
-	resultCh := make(chan container.WaitResponse, 1)
-	errorCh := make(chan error, 1)
-	api := &executeDockerAPI{
-		attachResult: client.ContainerAttachResult{HijackedResponse: client.HijackedResponse{
-			Conn: clientConn, Reader: bufio.NewReader(clientConn),
-		}},
-		waitResult: client.ContainerWaitResult{Result: resultCh, Error: errorCh},
-		inspectResult: client.ContainerInspectResult{Container: container.InspectResponse{
-			State: &container.State{ExitCode: 0},
-		}},
-	}
-	api.start = func() {
-		time.Sleep(20 * time.Millisecond)
-		_ = serverConn.Close()
-		resultCh <- container.WaitResponse{StatusCode: 0}
-	}
-
-	docker := testDocker(t, api)
-	request := validExecuteRequest()
-	request.Mounts = nil
-	request.Limits.CPUTime = 5 * time.Millisecond
-	request.Limits.WallTime = 5 * time.Millisecond
-	result, err := docker.Execute(context.Background(), request)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-	if result.Reason != ExitTLE || result.WallTime < request.Limits.WallTime {
-		t.Fatalf("start latency result = reason %q wall %s", result.Reason, result.WallTime)
-	}
-	if !slices.Equal(api.killIDs, []string{"container-1"}) {
-		t.Fatalf("start latency kills = %#v", api.killIDs)
-	}
-}
-
-func TestExecuteStartFailureStopsResourceMonitors(t *testing.T) {
-	clientConn, serverConn := net.Pipe()
-	defer serverConn.Close()
-	streamBody := newBlockingReadCloser()
-	pollStarted := make(chan struct{})
-	pollFinished := make(chan struct{})
-	var pollStart sync.Once
-	var pollFinish sync.Once
-	api := &executeDockerAPI{
-		attachResult: client.ContainerAttachResult{HijackedResponse: client.HijackedResponse{
-			Conn: clientConn, Reader: bufio.NewReader(clientConn),
-		}},
-		waitResult: client.ContainerWaitResult{Result: make(chan container.WaitResponse), Error: make(chan error)},
-		startErr:   errors.New("start failed"),
-		stats: func(ctx context.Context, options client.ContainerStatsOptions) (client.ContainerStatsResult, error) {
-			if options.Stream {
-				return client.ContainerStatsResult{Body: streamBody}, nil
-			}
-			pollStart.Do(func() { close(pollStarted) })
-			<-ctx.Done()
-			pollFinish.Do(func() { close(pollFinished) })
-			return client.ContainerStatsResult{}, ctx.Err()
-		},
-	}
-	api.start = func() {
-		<-streamBody.started
-		<-pollStarted
-	}
-
-	docker := testDocker(t, api)
-	request := validExecuteRequest()
-	request.Mounts = nil
-	result, err := docker.Execute(context.Background(), request)
-	if err == nil || !strings.Contains(err.Error(), "start failed") {
-		t.Fatalf("Execute() error = %v", err)
-	}
-	if result.Reason != ExitSandboxError {
-		t.Fatalf("result reason = %q", result.Reason)
-	}
-	select {
-	case <-streamBody.finished:
-	default:
-		t.Fatal("stream monitor was not stopped before Execute returned")
-	}
-	select {
-	case <-pollFinished:
-	default:
-		t.Fatal("poll monitor was not stopped before Execute returned")
-	}
-}
-
-func TestExecuteClosesBlockingStdinAfterNormalExit(t *testing.T) {
-	clientConn, serverConn := net.Pipe()
-	resultCh := make(chan container.WaitResponse, 1)
-	errorCh := make(chan error, 1)
-	stdin := newBlockingReadCloser()
-	api := &executeDockerAPI{
-		attachResult: client.ContainerAttachResult{HijackedResponse: client.HijackedResponse{
-			Conn: clientConn, Reader: bufio.NewReader(clientConn),
-		}},
-		waitResult: client.ContainerWaitResult{Result: resultCh, Error: errorCh},
-		inspectResult: client.ContainerInspectResult{Container: container.InspectResponse{
-			State: &container.State{ExitCode: 0},
-		}},
-	}
-	api.start = func() {
-		go func() {
-			<-stdin.started
-			_ = serverConn.Close()
-			resultCh <- container.WaitResponse{StatusCode: 0}
-		}()
-	}
-
-	docker := testDocker(t, api)
-	request := validExecuteRequest()
-	request.Mounts = nil
-	request.Stdin = stdin
-	result, err := docker.Execute(context.Background(), request)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-	if result.Reason != ExitNormal {
-		t.Fatalf("result reason = %q", result.Reason)
-	}
-	select {
-	case <-stdin.closed:
-	default:
-		t.Fatal("blocking stdin was not closed")
-	}
-	select {
-	case <-stdin.finished:
-	default:
-		t.Fatal("stdin copy goroutine did not finish")
-	}
-}
-
-func TestResourcePollIntervalIsBounded(t *testing.T) {
-	for _, test := range []struct {
-		limit time.Duration
-		want  time.Duration
-	}{
-		{limit: time.Millisecond, want: MinResourcePoll},
-		{limit: 400 * time.Millisecond, want: 20 * time.Millisecond},
-		{limit: 10 * time.Second, want: MaxResourcePoll},
-	} {
-		if got := resourcePollInterval(test.limit); got != test.want {
-			t.Errorf("resourcePollInterval(%s) = %s, want %s", test.limit, got, test.want)
-		}
-	}
-}
-
-func statsResult(cpu, usage, peak uint64) client.ContainerStatsResult {
-	encoded, err := json.Marshal(container.StatsResponse{
-		CPUStats:    container.CPUStats{CPUUsage: container.CPUUsage{TotalUsage: cpu}},
-		MemoryStats: container.MemoryStats{Usage: usage, MaxUsage: peak},
-	})
-	if err != nil {
-		panic(err)
-	}
-	return client.ContainerStatsResult{Body: io.NopCloser(strings.NewReader(string(encoded)))}
-}
-
-type blockingReadCloser struct {
-	started  chan struct{}
-	closed   chan struct{}
-	finished chan struct{}
-	start    sync.Once
-	close    sync.Once
-	finish   sync.Once
-}
-
-func newBlockingReadCloser() *blockingReadCloser {
-	return &blockingReadCloser{
-		started: make(chan struct{}), closed: make(chan struct{}), finished: make(chan struct{}),
-	}
-}
-
-func (reader *blockingReadCloser) Read([]byte) (int, error) {
-	reader.start.Do(func() { close(reader.started) })
-	<-reader.closed
-	reader.finish.Do(func() { close(reader.finished) })
-	return 0, io.EOF
-}
-
-func (reader *blockingReadCloser) Close() error {
-	reader.close.Do(func() { close(reader.closed) })
-	return nil
-}
-
 func writeDockerFrame(writer io.Writer, stream stdcopy.StdType, payload []byte) error {
 	var header [8]byte
 	header[0] = byte(stream)
@@ -502,6 +228,14 @@ func writeDockerFrame(writer io.Writer, stream stdcopy.StdType, payload []byte) 
 	}
 	_, err := writer.Write(payload)
 	return err
+}
+
+func writeSupervisorFrame(writer io.Writer, kind byte, payload []byte) error {
+	frame := make([]byte, 5+len(payload))
+	frame[0] = kind
+	binary.BigEndian.PutUint32(frame[1:5], uint32(len(payload)))
+	copy(frame[5:], payload)
+	return writeDockerFrame(writer, stdcopy.Stdout, frame)
 }
 
 func TestExecuteCancellationKillsWaitsAndRemovesContainer(t *testing.T) {
@@ -610,7 +344,7 @@ func TestCreateOptionsAppliesCommandLimitsLabelsAndIsolation(t *testing.T) {
 	if options.Name == "" || options.Config == nil || options.HostConfig == nil {
 		t.Fatalf("incomplete create options: %#v", options)
 	}
-	if !slices.Equal(options.Config.Entrypoint, []string{request.Program}) || !slices.Equal(options.Config.Cmd, request.Args) {
+	if !slices.Equal(options.Config.Entrypoint, []string{"/opt/judge/supervisor"}) || !slices.Equal(options.Config.Cmd, append([]string{strconv.FormatInt(int64(request.Limits.CPUTime), 10), strconv.FormatUint(request.Limits.OpenFiles, 10), request.Program}, request.Args...)) {
 		t.Fatalf("command = entrypoint %#v cmd %#v", options.Config.Entrypoint, options.Config.Cmd)
 	}
 	if options.Config.User != docker.user || options.Config.Tty || !options.Config.NetworkDisabled {
@@ -631,7 +365,7 @@ func TestCreateOptionsAppliesCommandLimitsLabelsAndIsolation(t *testing.T) {
 	if !slices.Equal([]string(host.CapDrop), []string{"ALL"}) || !slices.Contains(host.SecurityOpt, "no-new-privileges:true") {
 		t.Errorf("capabilities/security options = %#v %#v", host.CapDrop, host.SecurityOpt)
 	}
-	if host.RestartPolicy.Name != container.RestartPolicyDisabled || host.LogConfig.Type != "none" || host.Init == nil || !*host.Init {
+	if host.RestartPolicy.Name != container.RestartPolicyDisabled || host.LogConfig.Type != "none" || host.Init == nil || *host.Init || host.CgroupnsMode != container.CgroupnsModePrivate {
 		t.Errorf("lifecycle/log/init options = %#v %#v %#v", host.RestartPolicy, host.LogConfig, host.Init)
 	}
 	if host.Memory != request.Limits.MemoryBytes || host.MemorySwap != request.Limits.MemoryBytes || host.PidsLimit == nil || *host.PidsLimit != request.Limits.PIDs || host.NanoCPUs != docker.nanoCPUs {
@@ -641,7 +375,7 @@ func TestCreateOptionsAppliesCommandLimitsLabelsAndIsolation(t *testing.T) {
 	for _, limit := range host.Ulimits {
 		ulimits[limit.Name] = [2]int64{limit.Soft, limit.Hard}
 	}
-	if ulimits["nofile"] != [2]int64{int64(request.Limits.OpenFiles), int64(request.Limits.OpenFiles)} || ulimits["nproc"] != [2]int64{request.Limits.PIDs, request.Limits.PIDs} {
+	if ulimits["nofile"] != [2]int64{int64(request.Limits.OpenFiles), int64(request.Limits.OpenFiles)} || len(ulimits) != 1 {
 		t.Errorf("ulimits = %#v", ulimits)
 	}
 	if len(host.Mounts) != 1 || host.Mounts[0].Target != "/sandbox/data" || !host.Mounts[0].ReadOnly {
@@ -649,38 +383,6 @@ func TestCreateOptionsAppliesCommandLimitsLabelsAndIsolation(t *testing.T) {
 	}
 	if options.Config.Entrypoint[0] == "sh" || slices.Contains(options.Config.Cmd, "-c") && options.Config.Entrypoint[0] == "sh" {
 		t.Fatal("create options introduced a command shell")
-	}
-}
-
-func TestExecuteReportsMemoryLimitAsPeakAfterOOM(t *testing.T) {
-	clientConn, serverConn := net.Pipe()
-	resultCh := make(chan container.WaitResponse, 1)
-	errorCh := make(chan error, 1)
-	api := &executeDockerAPI{
-		attachResult: client.ContainerAttachResult{HijackedResponse: client.HijackedResponse{
-			Conn: clientConn, Reader: bufio.NewReader(clientConn),
-		}},
-		waitResult: client.ContainerWaitResult{Result: resultCh, Error: errorCh},
-		inspectResult: client.ContainerInspectResult{Container: container.InspectResponse{
-			State: &container.State{ExitCode: 137, OOMKilled: true},
-		}},
-	}
-	api.start = func() {
-		go func() {
-			_ = serverConn.Close()
-			resultCh <- container.WaitResponse{StatusCode: 137}
-		}()
-	}
-
-	docker := testDocker(t, api)
-	request := validExecuteRequest()
-	request.Mounts = nil
-	result, err := docker.Execute(context.Background(), request)
-	if err != nil {
-		t.Fatalf("Execute() error = %v", err)
-	}
-	if result.Reason != ExitMLE || result.PeakMemory != request.Limits.MemoryBytes {
-		t.Fatalf("OOM result = reason %q peak %d, want %d", result.Reason, result.PeakMemory, request.Limits.MemoryBytes)
 	}
 }
 

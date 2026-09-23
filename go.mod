@@ -2,8 +2,11 @@ module github.com/KH2PO4NILL/GoCompetitiveOnlineJudge
 
 go 1.26.4
 
+replace github.com/apache/rocketmq-clients/golang/v5 => ./third_party/rocketmq-clients
+
 require (
 	github.com/containerd/errdefs v1.0.0
+	github.com/distribution/reference v0.6.0
 	github.com/go-playground/validator/v10 v10.30.3
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
@@ -20,16 +23,27 @@ require (
 )
 
 require (
+	contrib.go.opencensus.io/exporter/ocagent v0.7.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
+	github.com/apache/rocketmq-clients/golang/v5 v5.1.4 // indirect
+	github.com/census-instrumentation/opencensus-proto v0.4.1 // indirect
 	github.com/containerd/errdefs/pkg v0.3.0 // indirect
-	github.com/distribution/reference v0.6.0 // indirect
+	github.com/dchest/siphash v1.2.3 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
+	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
+	github.com/golang/mock v1.6.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
+	github.com/natefinch/lumberjack v2.0.0+incompatible // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
+	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
+	github.com/valyala/fastrand v1.1.0 // indirect
+	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
+	google.golang.org/api v0.230.0 // indirect
 )
 
 require (
@@ -101,8 +115,8 @@ require (
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/goleak v1.3.0
 	go.uber.org/mock v0.6.0 // indirect
-	go.uber.org/multierr v1.9.0 // indirect
-	go.uber.org/zap v1.24.0 // indirect
+	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/net v0.57.0 // indirect
