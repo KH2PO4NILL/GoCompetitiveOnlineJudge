@@ -41,11 +41,14 @@ trap 'exit 143' TERM
 "${compose[@]}" --profile init run --rm topics > "$logs/topics.log" 2>&1
 export ROCKETMQ_ENDPOINT="127.0.0.1:$JUDGE_E2E_MQ_PORT"
 export SUBMIT_MODEL_TEST_DSN="root:$JUDGE_E2E_MYSQL_PASSWORD@tcp(127.0.0.1:$JUDGE_E2E_MYSQL_PORT)/?parseTime=true&timeout=5s&readTimeout=10s&writeTimeout=10s"
+export PROBLEM_MODEL_TEST_DSN="$SUBMIT_MODEL_TEST_DSN"
+export CONTEST_MODEL_TEST_DSN="$SUBMIT_MODEL_TEST_DSN"
 export JUDGE_E2E_MINIO_ENDPOINT="http://127.0.0.1:$JUDGE_E2E_MINIO_PORT"
 export JUDGE_E2E=1 JUDGE_E2E_ISOLATED=1
 go test -race github.com/apache/rocketmq-clients/golang/v5 -run TestLocal -count=1 2>&1 | tee "$logs/sdk.log"
 go test -race ./judge-worker/internal/e2e -count=1 -timeout=15m -v 2>&1 | tee "$logs/e2e.log"
-go test -race ./judge-worker ./services/grpc/submit/model ./services/grpc/submit/internal/outbox ./judge-worker/internal/consumer ./judge-worker/internal/processor ./judge-worker/internal/testdatacache ./judge-worker/internal/checker ./pkg/testdatamanifest -count=1 2>&1 | tee "$logs/recovery.log"
+go test -race ./services/grpc/problem/model ./services/grpc/contest/model ./services/grpc/submit/model -count=1 -timeout=5m -v 2>&1 | tee "$logs/models.log"
+go test -race ./judge-worker ./services/grpc/submit/internal/outbox ./judge-worker/internal/consumer ./judge-worker/internal/processor ./judge-worker/internal/testdatacache ./judge-worker/internal/checker ./pkg/testdatamanifest -count=1 2>&1 | tee "$logs/recovery.log"
 JUDGE_MQ_INTEGRATION=1 go test -race ./pkg/judgemq ./services/grpc/submit/internal/outbox -count=1 -v 2>&1 | tee "$logs/mq.log"
 if [[ "${JUDGE_E2E_SLOW:-0}" == 1 ]]; then
   JUDGE_LANGUAGE_INTEGRATION=1 go test ./judge-worker/internal/engine -count=1 -timeout=15m -v 2>&1 | tee "$logs/languages.log"
