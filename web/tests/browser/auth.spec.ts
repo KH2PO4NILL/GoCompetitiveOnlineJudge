@@ -1,0 +1,47 @@
+import { expect, test } from '@playwright/test'
+
+test('real user and admin authentication with rotation and backend permission enforcement', async ({ page, request }) => {
+  test.skip(process.env.GCOJ_AUTH_E2E !== '1', 'requires scripts/test-web-auth.sh isolated MySQL, Redis and Auth RPC')
+  const password = process.env.GCOJ_AUTH_E2E_PASSWORD!
+  await page.goto('/login')
+  await page.getByRole('textbox', { name: '用户名', exact: true }).fill('e2e-user')
+  await page.getByLabel('密码', { exact: true }).fill(password)
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '账号与安全' })).toBeVisible()
+  await page.waitForTimeout(3500)
+  const rotated = page.waitForResponse((response) => response.url().endsWith('/auth/token/refresh') && response.ok())
+  await page.getByRole('textbox', { name: '用户名', exact: true }).fill('e2e-user-updated')
+  await page.getByRole('button', { name: '保存', exact: true }).first().click()
+  await rotated
+  await expect(page.getByText('资料已保存', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '退出 e2e-user-updated' }).click()
+  await expect(page).toHaveURL(/\/login/)
+  await page.getByRole('combobox', { name: '认证方式', exact: true }).selectOption('email-password')
+  await page.getByRole('textbox', { name: '邮箱', exact: true }).fill('e2e-user@example.invalid')
+  await page.getByLabel('密码', { exact: true }).fill(password)
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '账号与安全' })).toBeVisible()
+  await page.getByRole('button', { name: '退出 e2e-user-updated' }).click()
+
+  const login = await request.post(`${process.env.GCOJ_APP_UPSTREAM}/api/v1/auth/login/username`, { data: { username: 'e2e-user-updated', password } })
+  expect(login.status()).toBe(200)
+  const userTokens = (await login.json()).tokens
+  const denied = await request.get(`${process.env.GCOJ_ADMIN_UPSTREAM}/api/v1/admin/users`, { headers: { Authorization: `Bearer ${userTokens.access_token}` } })
+  expect(denied.status()).toBe(403)
+  await request.post(`${process.env.GCOJ_APP_UPSTREAM}/api/v1/auth/logout`, { data: userTokens })
+
+  await page.goto('/admin/login')
+  await page.getByRole('textbox', { name: '用户名', exact: true }).fill('e2e-user-updated')
+  await page.getByLabel('密码', { exact: true }).fill(password)
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page.getByText('此账号没有管理权限', { exact: true })).toBeVisible()
+  await page.getByRole('textbox', { name: '用户名', exact: true }).fill('e2e-admin')
+  await page.getByLabel('密码', { exact: true }).fill(password)
+  await page.getByRole('button', { name: '登录', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '专注于每一次可靠交付。' })).toBeVisible()
+  await page.getByRole('link', { name: '我的账号', exact: true }).click()
+  await expect(page.getByRole('heading', { name: '账号与安全' })).toBeVisible()
+  await page.reload()
+  await expect(page).toHaveURL(/\/admin\/login/)
+  expect(await page.evaluate(() => localStorage.length + sessionStorage.length)).toBe(0)
+})
