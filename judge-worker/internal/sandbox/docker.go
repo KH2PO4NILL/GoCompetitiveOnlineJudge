@@ -10,6 +10,8 @@ import (
 	"io"
 	"log/slog"
 	"math"
+	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -36,14 +38,15 @@ const (
 )
 
 type DockerOptions struct {
-	Endpoint     string
-	WorkerID     string
-	User         string
-	AllowedRoots []AllowedRoot
-	APITimeout   time.Duration
-	StopTimeout  time.Duration
-	NanoCPUs     int64
-	Logger       *slog.Logger
+	Endpoint                string
+	AllowUnrestrictedDaemon bool
+	WorkerID                string
+	User                    string
+	AllowedRoots            []AllowedRoot
+	APITimeout              time.Duration
+	StopTimeout             time.Duration
+	NanoCPUs                int64
+	Logger                  *slog.Logger
 }
 
 type dockerAPI interface {
@@ -100,10 +103,11 @@ type monitorEvent struct {
 }
 
 func NewDocker(options DockerOptions) (*Docker, error) {
-	endpoint := strings.TrimSpace(options.Endpoint)
-	if endpoint == "" {
-		return nil, errors.New("docker endpoint is required")
+	endpoint, err := validateDockerEndpoint(options.Endpoint, options.AllowUnrestrictedDaemon)
+	if err != nil {
+		return nil, err
 	}
+	options.Endpoint = endpoint
 	apiClient, err := client.New(client.WithHost(endpoint), client.WithAPIVersionNegotiation())
 	if err != nil {
 		return nil, fmt.Errorf("create Docker API client: %w", err)
@@ -117,6 +121,9 @@ func NewDocker(options DockerOptions) (*Docker, error) {
 }
 
 func newDockerWithClient(options DockerOptions, apiClient dockerAPI) (*Docker, error) {
+	if _, err := validateDockerEndpoint(options.Endpoint, options.AllowUnrestrictedDaemon); err != nil {
+		return nil, err
+	}
 	if apiClient == nil {
 		return nil, errors.New("Docker API client is required")
 	}
@@ -158,6 +165,45 @@ func newDockerWithClient(options DockerOptions, apiClient dockerAPI) (*Docker, e
 		apiTimeout: options.APITimeout, stopTimeout: options.StopTimeout,
 		nanoCPUs: options.NanoCPUs, logger: options.Logger,
 	}, nil
+}
+
+func validateDockerEndpoint(endpoint string, allowUnrestricted bool) (string, error) {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return "", errors.New("Docker sandbox endpoint is required")
+	}
+	parsed, err := url.Parse(endpoint)
+	if err != nil || parsed.Scheme == "" || parsed.Opaque != "" {
+		return "", errors.New("Docker sandbox endpoint must be a valid unix or https URL")
+	}
+	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", errors.New("Docker sandbox endpoint must not contain credentials, query parameters or fragments")
+	}
+	switch strings.ToLower(parsed.Scheme) {
+	case "unix":
+		if parsed.Host != "" || !filepath.IsAbs(parsed.Path) || filepath.Clean(parsed.Path) == string(filepath.Separator) {
+			return "", errors.New("Docker sandbox unix endpoint must contain an absolute socket path")
+		}
+		cleaned := filepath.Clean(parsed.Path)
+		if !allowUnrestricted && (cleaned == "/var/run/docker.sock" || cleaned == "/run/docker.sock") {
+			return "", errors.New("Docker sandbox must use a restricted API proxy; enable AllowUnrestrictedDaemon only on isolated development hosts")
+		}
+		return "unix://" + cleaned, nil
+	case "https":
+		if strings.TrimSpace(parsed.Hostname()) == "" || (parsed.Port() != "" && !validDockerPort(parsed.Port())) || (parsed.Path != "" && parsed.Path != "/") {
+			return "", errors.New("Docker sandbox HTTPS endpoint must contain a valid host and optional port")
+		}
+		return endpoint, nil
+	case "tcp", "http":
+		return "", errors.New("Docker sandbox endpoint must not use an unauthenticated plaintext transport")
+	default:
+		return "", errors.New("Docker sandbox endpoint must use unix or https")
+	}
+}
+
+func validDockerPort(port string) bool {
+	value, err := strconv.Atoi(port)
+	return err == nil && value >= 1 && value <= 65535
 }
 
 func validDockerUser(value string) bool {
@@ -249,13 +295,13 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 	waitResultCh := waitResult.Result
 	waitErrorCh := waitResult.Error
 
+	startedAt := time.Now()
 	startCtx, startCancel := context.WithTimeout(parent, docker.apiTimeout)
 	_, err = docker.client.ContainerStart(startCtx, created.ID, client.ContainerStartOptions{})
 	startCancel()
 	if err != nil {
 		return operationFailure(parent, result, "start sandbox container", err)
 	}
-	startedAt := time.Now()
 
 	budget := &outputBudget{limit: request.Limits.OutputBytes}
 	stdout := &boundedBuffer{budget: budget}
@@ -269,8 +315,11 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 	}()
 	outputCh := (<-chan error)(outputDone)
 	outputCompleted := false
+	var stdinDone chan struct{}
 	if request.Stdin != nil {
+		stdinDone = make(chan struct{})
 		go func() {
+			defer close(stdinDone)
 			_, _ = io.Copy(attached.Conn, request.Stdin)
 			_ = attached.CloseWrite()
 		}()
@@ -371,6 +420,19 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 	result.WallTime = time.Since(startedAt)
 	monitorCancel()
 	<-monitorStopped
+	if closer, ok := request.Stdin.(io.Closer); ok {
+		_ = closer.Close()
+		if stdinDone != nil {
+			select {
+			case <-stdinDone:
+			case <-time.After(docker.stopTimeout):
+				if executionErr == nil {
+					forcedReason = ExitSandboxError
+					executionErr = errors.New("sandbox stdin stream did not close")
+				}
+			}
+		}
+	}
 	if forcedReason != "" || parent.Err() != nil {
 		// Docker may keep a hijacked attach connection open after a forced
 		// termination. Closing it here unblocks output collection without

@@ -67,19 +67,20 @@ func setExampleEnvironment(t *testing.T) {
 	t.Helper()
 	root := t.TempDir()
 	for key, value := range map[string]string{
-		"JUDGE_WORKER_ID":                 "judge-test",
-		"JUDGE_SUBMIT_RPC_TARGET":         "127.0.0.1:8004",
-		"JUDGE_PROBLEM_RPC_TARGET":        "127.0.0.1:8006",
-		"SUBMIT_INTERNAL_JUDGE_TOKEN":     "submit-test-token",
-		"PROBLEM_INTERNAL_JUDGE_TOKEN":    "problem-test-token",
-		"JUDGE_TEST_DATA_CACHE_DIR":       filepath.Join(root, "cache"),
-		"JUDGE_OBJECT_STORAGE_ENDPOINT":   "http://127.0.0.1:9000",
-		"JUDGE_OBJECT_STORAGE_REGION":     "us-east-1",
-		"JUDGE_OBJECT_STORAGE_BUCKET":     "problem-test-data",
-		"JUDGE_OBJECT_STORAGE_ACCESS_KEY": "read-only-access",
-		"JUDGE_OBJECT_STORAGE_SECRET_KEY": "read-only-secret",
-		"JUDGE_SANDBOX_WORK_DIR":          filepath.Join(root, "work"),
-		"JUDGE_DOCKER_ENDPOINT":           config.DefaultDockerEndpoint,
+		"JUDGE_WORKER_ID":                        "judge-test",
+		"JUDGE_SUBMIT_RPC_TARGET":                "127.0.0.1:8004",
+		"JUDGE_PROBLEM_RPC_TARGET":               "127.0.0.1:8006",
+		"SUBMIT_INTERNAL_JUDGE_TOKEN":            "submit-test-token",
+		"PROBLEM_INTERNAL_JUDGE_TOKEN":           "problem-test-token",
+		"JUDGE_TEST_DATA_CACHE_DIR":              filepath.Join(root, "cache"),
+		"JUDGE_OBJECT_STORAGE_ENDPOINT":          "http://127.0.0.1:9000",
+		"JUDGE_OBJECT_STORAGE_REGION":            "us-east-1",
+		"JUDGE_OBJECT_STORAGE_BUCKET":            "problem-test-data",
+		"JUDGE_OBJECT_STORAGE_ACCESS_KEY":        "read-only-access",
+		"JUDGE_OBJECT_STORAGE_SECRET_KEY":        "read-only-secret",
+		"JUDGE_SANDBOX_WORK_DIR":                 filepath.Join(root, "work"),
+		"JUDGE_DOCKER_ENDPOINT":                  config.DefaultDockerEndpoint,
+		"JUDGE_DOCKER_ALLOW_UNRESTRICTED_DAEMON": "false",
 	} {
 		t.Setenv(key, value)
 	}

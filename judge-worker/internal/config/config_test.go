@@ -175,6 +175,50 @@ func TestValidateRejectsUnsafeDockerRuntimeOptions(t *testing.T) {
 	}
 }
 
+func TestValidateDockerEndpointSecurityPolicy(t *testing.T) {
+	for _, endpoint := range []string{
+		"unix:///var/run/docker.sock",
+		"unix:///run/docker.sock",
+		"tcp://127.0.0.1:2375",
+		"http://127.0.0.1:2375",
+		"https://docker.internal:2376/version",
+	} {
+		t.Run("reject "+endpoint, func(t *testing.T) {
+			c := validConfig(t)
+			c.ApplyDefaults()
+			c.Sandbox.Docker.Endpoint = endpoint
+			if err := c.Validate(); err == nil || !strings.Contains(err.Error(), "Sandbox.Docker.Endpoint") {
+				t.Fatalf("Validate() error = %v for endpoint %q", err, endpoint)
+			}
+		})
+	}
+
+	for _, endpoint := range []string{
+		"unix:///var/run/gcoj-docker-proxy.sock",
+		"unix:///tmp/restricted-docker.sock",
+		"https://docker.internal:2376",
+	} {
+		t.Run("accept "+endpoint, func(t *testing.T) {
+			c := validConfig(t)
+			c.ApplyDefaults()
+			c.Sandbox.Docker.Endpoint = endpoint
+			if err := c.Validate(); err != nil {
+				t.Fatalf("Validate() error = %v for endpoint %q", err, endpoint)
+			}
+		})
+	}
+
+	t.Run("explicit development override", func(t *testing.T) {
+		c := validConfig(t)
+		c.ApplyDefaults()
+		c.Sandbox.Docker.Endpoint = "unix:///var/run/docker.sock"
+		c.Sandbox.Docker.AllowUnrestrictedDaemon = true
+		if err := c.Validate(); err != nil {
+			t.Fatalf("Validate() error = %v", err)
+		}
+	})
+}
+
 func TestValidateRejectsIncompleteDockerEndpoints(t *testing.T) {
 	for _, endpoint := range []string{
 		"unix://",

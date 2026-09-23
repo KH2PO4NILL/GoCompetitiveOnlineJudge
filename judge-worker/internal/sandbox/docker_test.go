@@ -49,7 +49,7 @@ func (f *fakeDockerAPI) ContainerStart(context.Context, string, client.Container
 	panic("unexpected ContainerStart")
 }
 func (f *fakeDockerAPI) ContainerStats(context.Context, string, client.ContainerStatsOptions) (client.ContainerStatsResult, error) {
-	return client.ContainerStatsResult{Body: io.NopCloser(strings.NewReader(""))}, nil
+	return client.ContainerStatsResult{Body: io.NopCloser(strings.NewReader("{}"))}, nil
 }
 func (f *fakeDockerAPI) ContainerInspect(context.Context, string, client.ContainerInspectOptions) (client.ContainerInspectResult, error) {
 	panic("unexpected ContainerInspect")
@@ -81,7 +81,9 @@ type executeDockerAPI struct {
 	waitOptions   client.ContainerWaitOptions
 	inspectResult client.ContainerInspectResult
 	start         func()
+	startErr      error
 	kill          func()
+	stats         func(context.Context, client.ContainerStatsOptions) (client.ContainerStatsResult, error)
 }
 
 func (f *executeDockerAPI) ContainerCreate(ctx context.Context, options client.ContainerCreateOptions) (client.ContainerCreateResult, error) {
@@ -102,10 +104,13 @@ func (f *executeDockerAPI) ContainerStart(context.Context, string, client.Contai
 	if f.start != nil {
 		f.start()
 	}
-	return client.ContainerStartResult{}, nil
+	return client.ContainerStartResult{}, f.startErr
 }
-func (f *executeDockerAPI) ContainerStats(context.Context, string, client.ContainerStatsOptions) (client.ContainerStatsResult, error) {
-	return client.ContainerStatsResult{Body: io.NopCloser(strings.NewReader(""))}, nil
+func (f *executeDockerAPI) ContainerStats(ctx context.Context, _ string, options client.ContainerStatsOptions) (client.ContainerStatsResult, error) {
+	if f.stats != nil {
+		return f.stats(ctx, options)
+	}
+	return client.ContainerStatsResult{Body: io.NopCloser(strings.NewReader("{}"))}, nil
 }
 func (f *executeDockerAPI) ContainerInspect(context.Context, string, client.ContainerInspectOptions) (client.ContainerInspectResult, error) {
 	return f.inspectResult, nil
@@ -267,12 +272,50 @@ func TestExecuteCancellationKillsWaitsAndRemovesContainer(t *testing.T) {
 	}
 }
 
+func TestNewDockerRejectsUnsafeEndpoints(t *testing.T) {
+	root := t.TempDir()
+	base := DockerOptions{
+		WorkerID: "worker-1", User: "65532:65532",
+		AllowedRoots: []AllowedRoot{{Path: root}},
+	}
+	for _, endpoint := range []string{
+		"unix:///var/run/docker.sock",
+		"unix:///run/docker.sock",
+		"tcp://127.0.0.1:2375",
+		"http://127.0.0.1:2375",
+		"https://127.0.0.1:2376/version",
+	} {
+		t.Run(endpoint, func(t *testing.T) {
+			options := base
+			options.Endpoint = endpoint
+			if _, err := newDockerWithClient(options, &fakeDockerAPI{}); err == nil {
+				t.Fatalf("unsafe endpoint %q was accepted", endpoint)
+			}
+		})
+	}
+
+	for _, options := range []DockerOptions{
+		{Endpoint: "unix:///var/run/gcoj-docker-proxy.sock"},
+		{Endpoint: "https://docker.internal:2376"},
+		{Endpoint: "unix:///var/run/docker.sock", AllowUnrestrictedDaemon: true},
+	} {
+		options.WorkerID = base.WorkerID
+		options.User = base.User
+		options.AllowedRoots = base.AllowedRoots
+		if docker, err := newDockerWithClient(options, &fakeDockerAPI{}); err != nil {
+			t.Errorf("safe/explicit endpoint %q rejected: %v", options.Endpoint, err)
+		} else {
+			_ = docker.Close()
+		}
+	}
+}
+
 func TestNewDockerValidatesSecurityInputs(t *testing.T) {
 	root := t.TempDir()
 	for _, user := range []string{"", "root", "0", "00", "0:1000", "user", "1000:", "1000:group"} {
 		t.Run(user, func(t *testing.T) {
 			_, err := newDockerWithClient(DockerOptions{
-				Endpoint: "unix:///var/run/docker.sock", WorkerID: "worker-1", User: user,
+				Endpoint: "unix:///var/run/docker.sock", AllowUnrestrictedDaemon: true, WorkerID: "worker-1", User: user,
 				AllowedRoots: []AllowedRoot{{Path: root}},
 			}, &fakeDockerAPI{})
 			if err == nil {
@@ -281,7 +324,7 @@ func TestNewDockerValidatesSecurityInputs(t *testing.T) {
 		})
 	}
 	if _, err := newDockerWithClient(DockerOptions{
-		Endpoint: "unix:///var/run/docker.sock", WorkerID: "worker-1", User: "65532:65532",
+		Endpoint: "unix:///var/run/docker.sock", AllowUnrestrictedDaemon: true, WorkerID: "worker-1", User: "65532:65532",
 		AllowedRoots: []AllowedRoot{{Path: root}}, NanoCPUs: 64*DefaultNanoCPUs + 1,
 	}, &fakeDockerAPI{}); err == nil {
 		t.Fatal("excessive NanoCPUs was accepted")
@@ -294,7 +337,7 @@ func TestCreateOptionsAppliesCommandLimitsLabelsAndIsolation(t *testing.T) {
 		stopTimeout: 5 * time.Second, logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 	request := validExecuteRequest()
-	request.Stdin = strings.NewReader("input")
+	request.Stdin = io.NopCloser(strings.NewReader("input"))
 	binds := []mount.Mount{{Type: mount.TypeBind, Source: "/host/data", Target: "/sandbox/data", ReadOnly: true}}
 	options := docker.createOptions(request, binds, "gcoj-worker-1-attempt-1-random")
 
@@ -419,7 +462,7 @@ func TestDockerCloseIsIdempotent(t *testing.T) {
 func testDocker(t *testing.T, api dockerAPI) *Docker {
 	t.Helper()
 	docker, err := newDockerWithClient(DockerOptions{
-		Endpoint: "unix:///var/run/docker.sock", WorkerID: "worker-1", User: "65532:65532",
+		Endpoint: "unix:///var/run/docker.sock", AllowUnrestrictedDaemon: true, WorkerID: "worker-1", User: "65532:65532",
 		AllowedRoots: []AllowedRoot{{Path: t.TempDir(), Writable: true}},
 		APITimeout:   100 * time.Millisecond, StopTimeout: 100 * time.Millisecond,
 	}, api)
