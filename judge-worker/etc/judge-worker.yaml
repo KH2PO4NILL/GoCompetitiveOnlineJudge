@@ -38,13 +38,20 @@ ObjectStorage:
   UsePathStyle: true
   RequestTimeoutSeconds: 60
 
-# The endpoint and work directory are configuration entry points only. Docker
-# and sandbox execution are intentionally not started by this Issue.
+# Docker images are provisioned by operators and must be pinned by digest or
+# immutable version. The worker never pulls images from an untrusted request.
 Sandbox:
   Driver: "docker"
   WorkDir: "${JUDGE_SANDBOX_WORK_DIR}"
   Docker:
     Endpoint: "${JUDGE_DOCKER_ENDPOINT}"
+    # Production should use a Unix-socket API proxy that only exposes the
+    # container lifecycle operations needed by the sandbox.
+    AllowUnrestrictedDaemon: ${JUDGE_DOCKER_ALLOW_UNRESTRICTED_DAEMON}
+    User: "65532:65532"
+    APITimeoutSeconds: 10
+    StopTimeoutSeconds: 5
+    NanoCPUs: 1000000000
 
 Log:
   Level: "info"
