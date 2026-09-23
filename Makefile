@@ -8,6 +8,7 @@ COMPOSE ?= docker compose
 RUNTIME_DIR ?= .run
 DEV_SERVICES ?= ./scripts/dev-services.sh
 DEV_ENV ?= ./scripts/dev-env.sh
+DEV_WORKER ?= ./scripts/dev-worker.sh
 TEST_COUNT ?= 1
 
 API_SERVICES := admin app
@@ -25,6 +26,7 @@ PROTOBUF_INCLUDE ?= $(shell $(GO) list -m -f '{{.Dir}}/third_party' github.com/g
 	infra-env env-check infra-up infra-migrate infra-down infra-reset infra-logs infra-ps \
 	mysql-shell redis-shell \
 	run-auth run-problem run-contest run-submit run-app run-admin run-judge \
+	worker-build worker-run worker-status \
 	services-build services-start services-stop services-restart services-status services-logs services-up \
 	connectivity-infra connectivity-services connectivity smoke \
 	up down restart stop dev-up dev-down
@@ -47,7 +49,10 @@ help:
 		'  services-restart Restart all managed HTTP and gRPC services' \
 		'  services-status  Show service PID and listening-port status' \
 		'  services-logs    Follow logs under $(RUNTIME_DIR)/logs' \
-		'  run-judge        Run the standalone Judge Worker skeleton in the foreground' \
+		'  worker-build     Build the standalone Judge Worker without starting infrastructure' \
+		'  worker-run       Build/run Worker in foreground; Ctrl-C gracefully drains tasks' \
+		'  worker-status    Check Worker consumer readiness (not merely an open port)' \
+		'  run-judge        Alias for worker-run' \
 		'' \
 		'Tests and checks:' \
 		'  test             Run all Go tests once (DB integration tests skip without DSNs)' \
@@ -228,11 +233,16 @@ run-admin: infra-up
 	@set -a; . ./.env; set +a; \
 	"$(GO)" run ./cmd/admin -f cmd/admin/etc/admin-api.yaml
 
-run-judge:
-	@test -f .env || { echo 'error: .env does not exist; run make infra-env or copy .env.example' >&2; exit 1; }
-	@"$(DEV_ENV)" sync
-	@set -a; . ./.env; set +a; \
-	"$(GO)" run ./judge-worker -f judge-worker/etc/judge-worker.yaml
+run-judge: worker-run
+
+worker-build:
+	@GO="$(GO)" RUNTIME_DIR="$(abspath $(RUNTIME_DIR))" bash "$(DEV_WORKER)" build
+
+worker-run: worker-build
+	@RUNTIME_DIR="$(abspath $(RUNTIME_DIR))" bash "$(DEV_WORKER)" run
+
+worker-status:
+	@RUNTIME_DIR="$(abspath $(RUNTIME_DIR))" bash "$(DEV_WORKER)" status
 
 services-build: tools-services infra-env
 	@GO="$(GO)" RUNTIME_DIR="$(abspath $(RUNTIME_DIR))" "$(DEV_SERVICES)" build

@@ -183,6 +183,16 @@ func Load(path string) (Config, error) {
 		}
 		c.Consumer.Enabled = enabled
 	}
+	if value := os.Getenv("JUDGE_METRICS_ENABLED"); value != "" {
+		enabled, err := strconv.ParseBool(value)
+		if err != nil {
+			return c, errors.New("JUDGE_METRICS_ENABLED must be a boolean")
+		}
+		c.Metrics.Enabled = enabled
+	}
+	if value := os.Getenv("JUDGE_METRICS_LISTEN_ON"); value != "" {
+		c.Metrics.ListenOn = value
+	}
 	c.ApplyDefaults()
 	if err := c.Validate(); err != nil {
 		return c, fmt.Errorf("validate judge worker config %q: %w", path, err)
