@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/processor"
@@ -41,6 +42,16 @@ type Driver struct {
 	cancel            context.CancelFunc
 	done              chan struct{}
 	slots             chan struct{}
+	receiveReady      atomic.Bool
+}
+
+func (driver *Driver) Ready() bool {
+	if driver == nil {
+		return false
+	}
+	driver.mu.Lock()
+	defer driver.mu.Unlock()
+	return driver.started && !driver.stopping && driver.receiveReady.Load()
 }
 
 func New(receiver judgemq.Receiver, sender judgemq.Sender, taskProcessor Processor, pool *worker.Pool, options Options, logger *slog.Logger) (*Driver, error) {
@@ -93,6 +104,7 @@ func (driver *Driver) Stop(ctx context.Context) error {
 
 func (driver *Driver) receive(ctx context.Context) {
 	defer close(driver.done)
+	defer driver.receiveReady.Store(false)
 	for {
 		select {
 		case <-ctx.Done():
@@ -104,6 +116,7 @@ func (driver *Driver) receive(ctx context.Context) {
 			return
 		}
 		messages, err := driver.receiver.Receive(ctx, 1, driver.options.Visibility)
+		driver.receiveReady.Store(err == nil && (len(messages) == 0 || len(messages) == 1 && messages[0] != nil))
 		if err != nil || len(messages) != 1 || messages[0] == nil {
 			<-driver.slots
 			if err != nil {

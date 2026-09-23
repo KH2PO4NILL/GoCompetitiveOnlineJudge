@@ -13,6 +13,7 @@ import (
 	"time"
 
 	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgemetrics"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -568,8 +569,8 @@ func validateLog(c LogConf) error {
 }
 
 func validateMetrics(c MetricsConf) error {
-	if !strings.HasPrefix(c.Path, "/") || strings.ContainsAny(c.Path, "\r\n\t ") {
-		return errors.New("Metrics.Path must be an absolute HTTP path without whitespace")
+	if err := judgemetrics.ValidatePath(c.Path); err != nil {
+		return fmt.Errorf("Metrics.Path: %w", err)
 	}
 	if _, _, err := net.SplitHostPort(strings.TrimSpace(c.ListenOn)); err != nil {
 		return fmt.Errorf("Metrics.ListenOn must be a host:port address: %w", err)

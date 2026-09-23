@@ -7,6 +7,7 @@ import (
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/pkg/judgeevent"
 	rmq "github.com/apache/rocketmq-clients/golang/v5"
+	v2 "github.com/apache/rocketmq-clients/golang/v5/protocol/v2"
 )
 
 type Delivery struct {
@@ -50,6 +51,10 @@ func (consumer *Consumer) Close() error { return consumer.client.GracefulStop() 
 func (consumer *Consumer) Receive(ctx context.Context, maximum int32, invisible time.Duration) ([]*Delivery, error) {
 	views, err := consumer.client.Receive(ctx, maximum, invisible)
 	if err != nil {
+		var rpcError *rmq.ErrRpcStatus
+		if errors.As(err, &rpcError) && rpcError.GetCode() == int32(v2.Code_MESSAGE_NOT_FOUND) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	if len(views) > int(maximum) {
@@ -57,6 +62,9 @@ func (consumer *Consumer) Receive(ctx context.Context, maximum int32, invisible 
 	}
 	deliveries := make([]*Delivery, 0, len(views))
 	for _, view := range views {
+		if view == nil {
+			return nil, errors.New("broker returned an invalid message view")
+		}
 		deliveries = append(deliveries, &Delivery{ID: view.GetMessageId(), Keys: view.GetKeys(), Body: view.GetBody(), Attempt: view.GetDeliveryAttempt(), Born: view.GetBornTimestamp(), receipt: view})
 	}
 	return deliveries, nil
