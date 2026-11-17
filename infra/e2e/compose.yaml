@@ -64,7 +64,12 @@ services:
       retries: 90
 
   minio:
-    image: quay.io/minio/minio@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    image: gcoj/judge-e2e-minio:2025-10-15
+    build:
+      context: ./minio
+      args:
+        GOPROXY: "${JUDGE_E2E_GOPROXY:-https://proxy.golang.org,direct}"
+    pull_policy: build
     command: server /data
     environment:
       MINIO_ROOT_USER: "${JUDGE_E2E_MINIO_ACCESS_KEY}"
@@ -72,7 +77,7 @@ services:
     ports: ["127.0.0.1:${JUDGE_E2E_MINIO_PORT:-29000}:9000"]
     volumes: ["minio:/data"]
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/live"]
+      test: ["CMD", "/healthcheck"]
       interval: 2s
       timeout: 3s
       retries: 60
