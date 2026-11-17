@@ -46,7 +46,7 @@ func TestForcedShutdownCleansDockerIntegration(t *testing.T) {
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	workerID := "shutdown-" + uuid.NewString()
-	executor, err := sandbox.NewDocker(sandbox.DockerOptions{Endpoint: endpoint, WorkerID: workerID, User: "65532:65532", AllowedRoots: []sandbox.AllowedRoot{{Path: root, Writable: true}}, Logger: logger})
+	executor, err := sandbox.NewDocker(sandbox.DockerOptions{AllowUnrestrictedDaemon: os.Getenv("JUDGE_E2E_ISOLATED") == "1", Endpoint: endpoint, WorkerID: workerID, User: "65532:65532", AllowedRoots: []sandbox.AllowedRoot{{Path: root, Writable: true}}, Logger: logger})
 	if err != nil {
 		t.Fatal(err)
 	}

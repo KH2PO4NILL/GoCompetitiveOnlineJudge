@@ -92,6 +92,11 @@ bash scripts/test-judge-e2e.sh
 JUDGE_E2E_SLOW=1 bash scripts/test-judge-e2e.sh
 ```
 
+该脚本仅用于隔离的 Linux 测试主机，并显式设置 `JUDGE_E2E_ISOLATED=1`，让所有 Docker 测试通过 `AllowUnrestrictedDaemon` 连接测试 daemon；生产 Worker 的受限 API Proxy 默认值不变。不使用 Socket 别名绕过检查。单独运行 Engine、Sandbox 或 Consumer Docker 测试时，也需显式设置 `JUDGE_E2E_ISOLATED=1`，或通过 `JUDGE_DOCKER_ENDPOINT` 指向受限代理。
+
+Engine 以幂等关闭器包装真实测试点输入文件：Sandbox 取消时可关闭输入流来终止复制，Engine 返回时仍统一释放文件，底层文件仅关闭一次。Lease recovery worker 在旧实例完全退出后才允许新的 Start，退出通知通道由 goroutine 捕获的局部变量持有。
+
+
 脚本不会读取开发 `.env`，不会重启/消费已有业务服务；每次新建独立 Compose project、
 随机凭据、MySQL 数据库、MinIO Bucket/对象以及 MQ 消费状态。
 默认独立端口为 MQ 28081、MySQL 23316、MinIO 29000；有冲突时可设置

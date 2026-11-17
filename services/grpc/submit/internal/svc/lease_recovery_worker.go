@@ -61,8 +61,9 @@ func (w *LeaseRecoveryWorker) Start() {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	w.cancel = cancel
-	w.done = make(chan struct{})
-	go w.run(ctx)
+	done := make(chan struct{})
+	w.done = done
+	go w.run(ctx, done)
 }
 
 func (w *LeaseRecoveryWorker) Stop() error {
@@ -71,18 +72,18 @@ func (w *LeaseRecoveryWorker) Stop() error {
 	}
 	w.mu.Lock()
 	cancel, done := w.cancel, w.done
-	w.cancel, w.done = nil, nil
-	w.mu.Unlock()
+	defer w.mu.Unlock()
 	if cancel == nil {
 		return nil
 	}
 	cancel()
 	<-done
+	w.cancel, w.done = nil, nil
 	return nil
 }
 
-func (w *LeaseRecoveryWorker) run(ctx context.Context) {
-	defer close(w.done)
+func (w *LeaseRecoveryWorker) run(ctx context.Context, done chan struct{}) {
+	defer close(done)
 	w.runAndLog(ctx)
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()

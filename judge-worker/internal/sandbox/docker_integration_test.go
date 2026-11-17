@@ -34,8 +34,8 @@ func TestDockerSandboxIntegration(t *testing.T) {
 	if err := os.WriteFile(hostSecret, []byte("host-secret-sentinel"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	docker, err := NewDocker(DockerOptions{
-		Endpoint: endpoint, AllowUnrestrictedDaemon: true,
+	docker, err := NewDocker(DockerOptions{AllowUnrestrictedDaemon: os.Getenv("JUDGE_E2E_ISOLATED") == "1",
+		Endpoint: endpoint,
 		WorkerID: "sandbox-" + uuid.NewString(), User: "65532:65532",
 		AllowedRoots: []AllowedRoot{{Path: root, Writable: true}},
 		APITimeout:   10 * time.Second, StopTimeout: 3 * time.Second,

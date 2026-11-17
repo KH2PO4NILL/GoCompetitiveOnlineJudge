@@ -73,9 +73,11 @@ type ExecuteRequest struct {
 	Args         []string
 	Env          []string
 	WorkingDir   string
-	Stdin        io.Reader
-	Mounts       []Mount
-	Limits       Limits
+	// Execute may close Stdin to unblock streaming during cancellation. Callers
+	// sharing cleanup must use an idempotent io.Closer.
+	Stdin  io.Reader
+	Mounts []Mount
+	Limits Limits
 }
 
 type ExecuteResult struct {

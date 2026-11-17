@@ -161,7 +161,7 @@ func TestJudgeEndToEndRecovery(t *testing.T) {
 	if dockerEndpoint == "" {
 		dockerEndpoint = "unix:///var/run/docker.sock"
 	}
-	docker, err := sandbox.NewDocker(sandbox.DockerOptions{Endpoint: dockerEndpoint, WorkerID: "e2e-" + uuid.NewString(), User: "65532:65532", AllowedRoots: []sandbox.AllowedRoot{{Path: work, Writable: true}}, Logger: logger})
+	docker, err := sandbox.NewDocker(sandbox.DockerOptions{AllowUnrestrictedDaemon: os.Getenv("JUDGE_E2E_ISOLATED") == "1", Endpoint: dockerEndpoint, WorkerID: "e2e-" + uuid.NewString(), User: "65532:65532", AllowedRoots: []sandbox.AllowedRoot{{Path: work, Writable: true}}, Logger: logger})
 	if err != nil {
 		t.Fatal(err)
 	}

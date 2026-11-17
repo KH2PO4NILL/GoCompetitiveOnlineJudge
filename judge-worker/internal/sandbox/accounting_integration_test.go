@@ -20,7 +20,11 @@ func accountingSandbox(t *testing.T) (*Docker, ExecuteRequest, string) {
 	if output, err := exec.Command("cc", "-static", "-O2", "testdata/accounting.c", "-o", helper).CombinedOutput(); err != nil {
 		t.Fatalf("build: %v %s", err, output)
 	}
-	executor, err := NewDocker(DockerOptions{Endpoint: "unix:///var/run/docker.sock", WorkerID: "review-" + uuid.NewString(), User: "65532:65532", AllowedRoots: []AllowedRoot{{Path: root, Writable: true}}})
+	endpoint := os.Getenv("JUDGE_DOCKER_ENDPOINT")
+	if endpoint == "" {
+		endpoint = "unix:///var/run/docker.sock"
+	}
+	executor, err := NewDocker(DockerOptions{AllowUnrestrictedDaemon: os.Getenv("JUDGE_E2E_ISOLATED") == "1", Endpoint: endpoint, WorkerID: "review-" + uuid.NewString(), User: "65532:65532", AllowedRoots: []AllowedRoot{{Path: root, Writable: true}}})
 	if err != nil {
 		t.Fatal(err)
 	}
