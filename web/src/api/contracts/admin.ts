@@ -125,6 +125,10 @@ export type AdminUpdateUserReq = {
   user_id: Int64
   role?: string
   status?: string
+  username?: string
+  email?: string
+  new_password?: string
+  school_id?: Int64
 }
 
 export type AdminUpdateUserResp = {

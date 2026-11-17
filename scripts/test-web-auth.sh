@@ -45,6 +45,7 @@ redis_port=$(docker port "$project-redis" 6379/tcp | cut -d: -f2)
 export GCOJ_AUTH_E2E=1 GCOJ_AUTH_E2E_RUNTIME="$runtime"
 export GCOJ_AUTH_E2E_DSN="root:$MYSQL_ROOT_PASSWORD@tcp(127.0.0.1:$mysql_port)/auth_e2e?parseTime=true&timeout=5s&readTimeout=10s&writeTimeout=10s"
 export GCOJ_AUTH_E2E_REDIS="127.0.0.1:$redis_port"
+AUTH_MODEL_TEST_DSN="$GCOJ_AUTH_E2E_DSN" go test -race ./services/grpc/auth/... -count=1 -timeout=5m
 go run ./scripts/webauth
 read -r auth_port app_port admin_port < "$runtime/ports"
 for service in auth app admin; do
@@ -70,4 +71,4 @@ done
 export GCOJ_APP_UPSTREAM="http://127.0.0.1:$app_port" GCOJ_ADMIN_UPSTREAM="http://127.0.0.1:$admin_port"
 export GCOJ_E2E_OUTPUT_DIR="$runtime/browser"
 cd web
-npm run test:browser
+npm run test:browser -- "$@"

@@ -1,0 +1,144 @@
+/* ---------- 面板 ---------- */
+.panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); min-width: 0;
+}
+.panel-head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--space-3);
+  padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); flex-wrap: wrap;
+}
+.panel-head h2, .panel-head h3 { margin: 0; }
+.panel-body { padding: var(--space-4); }
+.panel-body + .panel-body { border-top: 1px solid var(--border); }
+
+.page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; margin-bottom: var(--space-5); }
+.page-head h1 { margin: 0; overflow-wrap: anywhere; }
+.page-head .actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+.breadcrumb { display: flex; gap: var(--space-2); align-items: center; font-size: var(--text-xs); color: var(--muted); margin-bottom: var(--space-3); overflow-wrap: anywhere; }
+.breadcrumb .sep { color: var(--faint); }
+
+/* ---------- 徽章 ---------- */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 1px 8px; border-radius: 999px; font-size: var(--text-xs); font-weight: 500;
+  border: 1px solid transparent; white-space: nowrap; line-height: 1.6;
+}
+.badge-neutral { color: var(--ink-secondary); background: var(--pending-subtle); border-color: var(--border); }
+.badge-success { color: var(--success); background: var(--success-subtle); border-color: #cde8d8; }
+.badge-danger { color: var(--danger); background: var(--danger-subtle); border-color: #f0cfcb; }
+.badge-warning { color: var(--warning); background: var(--warning-subtle); border-color: #ecdcb8; }
+.badge-accent { color: var(--accent); background: var(--accent-subtle); border-color: var(--accent-border); }
+.badge-muted { color: var(--muted); background: var(--surface); border-color: var(--border); }
+
+/* 判题状态：不只靠颜色区分——运行中带脉动指示点 */
+.badge .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.badge-running .dot { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.8); } }
+
+.tag {
+  display: inline-block; padding: 0 7px; border-radius: var(--radius-sm);
+  background: var(--surface-sunken); border: 1px solid var(--border);
+  color: var(--ink-secondary); font-size: var(--text-xs); overflow-wrap: anywhere;
+}
+.tag-list { display: flex; flex-wrap: wrap; gap: var(--space-1); }
+
+/* ---------- 反馈块 ---------- */
+.notice {
+  display: flex; gap: var(--space-2); align-items: flex-start;
+  padding: var(--space-3) var(--space-4); border-radius: var(--radius);
+  font-size: var(--text-sm); border: 1px solid var(--border);
+  background: var(--surface-sunken); color: var(--ink-secondary); overflow-wrap: anywhere;
+}
+.notice-success { background: var(--success-subtle); border-color: #cde8d8; color: var(--success); }
+.notice-error { background: var(--danger-subtle); border-color: #f0cfcb; color: var(--danger); }
+.notice-warning { background: var(--warning-subtle); border-color: #ecdcb8; color: var(--warning); }
+
+.state-block { padding: var(--space-6) var(--space-4); text-align: center; color: var(--muted); font-size: var(--text-sm); display: grid; gap: var(--space-3); justify-items: center; }
+.state-block.error { color: var(--danger); }
+.spinner {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid var(--border-strong); border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- 分页 ---------- */
+.pager { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); font-size: var(--text-sm); color: var(--muted); flex-wrap: wrap; }
+.pager .pager-controls { display: flex; align-items: center; gap: var(--space-2); }
+.pager .page-indicator { font-family: var(--font-mono); font-size: var(--text-xs); }
+
+/* ---------- 筛选栏 ---------- */
+.filter-bar { display: flex; gap: var(--space-3); align-items: flex-end; flex-wrap: wrap; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); }
+.filter-bar .field { margin-bottom: 0; flex: 0 1 180px; }
+.filter-bar .field.grow { flex: 1 1 220px; }
+.filter-bar .field > input, .filter-bar .field > select { font-size: var(--text-xs); padding: 5px 8px; }
+
+/* ---------- 确认对话框 ---------- */
+.dialog-backdrop {
+  position: fixed; inset: 0; z-index: 50; background: rgba(28, 33, 40, 0.4);
+  display: grid; place-items: center; padding: var(--space-4);
+}
+.dialog {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  max-width: 440px; width: 100%; padding: var(--space-5); display: grid; gap: var(--space-3);
+  box-shadow: 0 8px 32px rgba(28, 33, 40, 0.16); max-height: calc(100vh - 32px); overflow-y: auto;
+}
+.dialog h2 { margin: 0; font-size: var(--text-md); }
+.dialog .dialog-message { font-size: var(--text-sm); color: var(--ink-secondary); overflow-wrap: anywhere; margin: 0; }
+.dialog .dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+
+/* ---------- 代码编辑器 ---------- */
+.code-editor { display: grid; border: 1px solid var(--border-strong); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+.code-toolbar {
+  display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3); background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border); font-size: var(--text-xs); color: var(--muted);
+}
+.code-toolbar select { width: auto; padding: 3px 24px 3px 8px; font-size: var(--text-xs); font-family: var(--font-mono); }
+.code-toolbar .spacer { flex: 1; }
+.code-area {
+  display: block; width: 100%; border: 0; border-radius: 0; background: var(--surface);
+  padding: var(--space-3) var(--space-4); min-height: 380px; resize: vertical;
+  font-family: var(--font-mono); font-size: var(--text-sm); line-height: 1.7; tab-size: 4;
+  white-space: pre; overflow: auto;
+}
+.code-area:focus { outline: none; box-shadow: inset 0 0 0 2px var(--accent-border); }
+.code-status {
+  display: flex; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap;
+  padding: var(--space-1) var(--space-3); border-top: 1px solid var(--border);
+  background: var(--surface-sunken); font-size: var(--text-xs); color: var(--muted);
+  font-family: var(--font-mono);
+}
+
+/* ---------- Markdown 渲染 ---------- */
+.markdown-body { font-size: var(--text-base); line-height: 1.75; overflow-wrap: anywhere; min-width: 0; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3 { margin: var(--space-5) 0 var(--space-3); }
+.markdown-body h1 { font-size: var(--text-lg); }
+.markdown-body h2 { font-size: var(--text-md); }
+.markdown-body p { margin: 0 0 var(--space-3); }
+.markdown-body ul, .markdown-body ol { margin: 0 0 var(--space-3); padding-left: var(--space-5); }
+.markdown-body code { background: var(--surface-code); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 1px 5px; font-size: 0.92em; }
+.markdown-body pre { background: var(--surface-code); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--space-3); margin: 0 0 var(--space-3); }
+.markdown-body pre code { background: none; border: 0; padding: 0; }
+.markdown-body blockquote { margin: 0 0 var(--space-3); padding: var(--space-1) var(--space-3); border-left: 3px solid var(--border-strong); color: var(--muted); }
+.markdown-body table { margin-bottom: var(--space-3); }
+.markdown-body table th, .markdown-body table td { border: 1px solid var(--border); }
+.markdown-body .katex-display { overflow-x: auto; overflow-y: hidden; padding: var(--space-1) 0; }
+
+/* ---------- 键值列表 ---------- */
+.kv-list { margin: 0; font-size: var(--text-sm); }
+.kv-list > div { display: flex; justify-content: space-between; gap: var(--space-4); padding: 7px 0; border-bottom: 1px solid var(--border); }
+.kv-list > div:last-child { border-bottom: 0; }
+.kv-list dt { color: var(--muted); flex-shrink: 0; }
+.kv-list dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+
+/* ---------- 样例 ---------- */
+.sample-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--space-3); }
+.sample-box { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; min-width: 0; }
+.sample-box h4 { margin: 0; padding: 6px 12px; background: var(--surface-sunken); border-bottom: 1px solid var(--border); font-size: var(--text-xs); font-weight: 500; color: var(--muted); }
+.sample-box pre { margin: 0; padding: var(--space-3); font-size: var(--text-sm); background: var(--surface); }
+
+/* ---------- 进度条（上传等） ---------- */
+.progress { height: 6px; border-radius: 3px; background: var(--pending-subtle); overflow: hidden; }
+.progress > div { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.2s ease; }
