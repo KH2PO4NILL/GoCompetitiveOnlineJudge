@@ -478,7 +478,7 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 		}
 	}
 
-	inspected, inspectErr := docker.inspectExit(created.ID, waitResponse.StatusCode, forcedReason)
+	inspected, inspectErr := docker.inspectExit(created.ID, waitResponse.StatusCode, forcedReason, outputCompleted && protocol.finished)
 	if inspectErr != nil && executionErr == nil {
 		forcedReason = ExitSandboxError
 		executionErr = fmt.Errorf("inspect sandbox container: %w", inspectErr)
@@ -488,7 +488,7 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 			forcedReason = ExitMLE
 		} else {
 			forcedReason = ExitSandboxError
-			executionErr = fmt.Errorf("sandbox exited without trusted final accounting: %s", boundedDiagnostic(string(supervisorErrors.Bytes())))
+			executionErr = fmt.Errorf("sandbox exited without trusted final accounting (exit=%d): %s", waitResponse.StatusCode, boundedDiagnostic(string(supervisorErrors.Bytes())))
 		}
 	}
 	if waitResponse.Error != nil && waitResponse.Error.Message != "" && executionErr == nil {
@@ -509,13 +509,16 @@ func (docker *Docker) Execute(parent context.Context, request ExecuteRequest) (r
 	return result, nil
 }
 
-func (docker *Docker) inspectExit(id string, exitCode int64, forced ExitReason) (client.ContainerInspectResult, error) {
+func (docker *Docker) inspectExit(id string, exitCode int64, forced ExitReason, trustedAccounting bool) (client.ContainerInspectResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), docker.apiTimeout)
 	defer cancel()
-	deadline := time.Now().Add(min(200*time.Millisecond, docker.apiTimeout/2))
+	// ContainerWait can precede Docker's OOM event processing, particularly on
+	// cgroup-v2 hosts. Only wait for this trusted daemon evidence when the
+	// supervisor was killed before it could emit its accounting frame.
+	deadline := time.Now().Add(min(2*time.Second, docker.apiTimeout/2))
 	for {
 		result, err := docker.client.ContainerInspect(ctx, id, client.ContainerInspectOptions{})
-		if err != nil || exitCode != 137 || forced != "" || result.Container.State == nil || result.Container.State.OOMKilled || !time.Now().Before(deadline) {
+		if err != nil || exitCode != 137 || forced != "" || trustedAccounting || result.Container.State == nil || result.Container.State.OOMKilled || !time.Now().Before(deadline) {
 			return result, err
 		}
 		timer := time.NewTimer(min(20*time.Millisecond, time.Until(deadline)))
