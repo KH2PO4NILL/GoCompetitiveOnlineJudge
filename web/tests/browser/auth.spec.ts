@@ -150,7 +150,7 @@ test('真实三种登录、过期刷新、业务错误和账户切换（隔离�
     await page.reload()
     await expect(page.getByRole('link', { name, exact: true })).toBeVisible()
     await page.getByRole('button', { name: '退出', exact: true }).click()
-    await expect(page.getByRole('link', { name: '登录 / 注册' })).toBeVisible()
+    await expect(page.getByRole('banner').getByRole('link', { name: '登录 / 注册' })).toBeVisible()
   }
 })
 

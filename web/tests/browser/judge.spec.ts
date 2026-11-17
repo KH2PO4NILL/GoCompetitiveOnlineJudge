@@ -68,7 +68,7 @@ test('不复用跨语言的提交幂等键，切换题目与退出后不泄漏�
   await expect.poll(() => requests.length).toBe(2)
   expect(requests[1].client_request_id).not.toBe(requests[0].client_request_id)
   await page.getByRole('button', { name: '退出', exact: true }).click()
-  await page.getByRole('link', { name: '登录 / 注册' }).click()
+  await page.getByRole('banner').getByRole('link', { name: '登录 / 注册' }).click()
   await page.route('**/api/v1/auth/login/username', (route) => fulfillJson(route, { tokens, user: { ...user, user_id: 8, username: 'bob' } }))
   await page.getByLabel('用户名 *').fill('bob')
   await page.getByLabel('密码 *').fill('secret')
