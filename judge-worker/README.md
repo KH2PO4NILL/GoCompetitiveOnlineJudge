@@ -94,6 +94,8 @@ JUDGE_E2E_SLOW=1 bash scripts/test-judge-e2e.sh
 
 MinIO 测试镜像从官方固定版本源码构建（`infra/e2e/minio`），避免依赖已不可公开拉取的分发镜像；首次构建需要下载 Go 模块，可通过 `JUDGE_E2E_GOPROXY` 配置模块代理，默认使用官方 Go 模块源。该脚本仅用于隔离的 Linux 测试主机，并显式设置 `JUDGE_E2E_ISOLATED=1`，让所有 Docker 测试通过 `AllowUnrestrictedDaemon` 连接测试 daemon；生产 Worker 的受限 API Proxy 默认值不变。不使用 Socket 别名绕过检查。单独运行 Engine、Sandbox 或 Consumer Docker 测试时，也需显式设置 `JUDGE_E2E_ISOLATED=1`，或通过 `JUDGE_DOCKER_ENDPOINT` 指向受限代理。
 
+故障恢复条件的等待预算为 90 秒，覆盖三轮 15 秒可见期、30 秒任务和通信开销；失败也会有界停止 Worker 并清理该场景的测试缓存。
+
 Engine 以幂等关闭器包装真实测试点输入文件：Sandbox 取消时可关闭输入流来终止复制，Engine 返回时仍统一释放文件，底层文件仅关闭一次。Lease recovery worker 在旧实例完全退出后才允许新的 Start，退出通知通道由 goroutine 捕获的局部变量持有。
 
 

@@ -99,6 +99,15 @@ func (receiver *lostAck) Receive(ctx context.Context, maximum int32, visibility 
 	return messages, err
 }
 
+const (
+	e2eVisibility  = 15 * time.Second
+	e2eTaskTimeout = 30 * time.Second
+	e2eMQTimeout   = 5 * time.Second
+	// Fault recovery can cross broker visibility windows before compiling on a
+	// cold host. Bound the whole condition by three windows, a task, and RPCs.
+	e2eConvergenceTimeout = 3*e2eVisibility + e2eTaskTimeout + 3*e2eMQTimeout
+)
+
 func TestJudgeEndToEndRecovery(t *testing.T) {
 	if os.Getenv("JUDGE_E2E") != "1" {
 		t.Skip("run scripts/test-judge-e2e.sh with isolated infrastructure")
@@ -179,7 +188,7 @@ func TestJudgeEndToEndRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	settings := judgemq.Config{Endpoint: os.Getenv("ROCKETMQ_ENDPOINT"), Timeout: 5 * time.Second}
+	settings := judgemq.Config{Endpoint: os.Getenv("ROCKETMQ_ENDPOINT"), Timeout: e2eMQTimeout}
 	mqConsumer, err := judgemq.NewConsumer(settings, judgeevent.Group)
 	if err != nil {
 		t.Fatal(err)
@@ -209,12 +218,17 @@ func TestJudgeEndToEndRecovery(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer cache.Close()
+			defer func() {
+				cache.Close()
+				if err := os.RemoveAll(cacheDir); err != nil {
+					t.Error("test cache cleanup failed")
+				}
+			}()
 			taskProcessor, err := processor.New(processor.Options{WorkerID: "e2e-worker", Submit: submit, Problem: problemGateway, Cache: cache, Judge: judgeEngine, Logger: logger, Profiles: map[string]string{"go": "go-v3", "cpp20": "cpp20-v3"}, Checker: checker.Exact, HeartbeatInterval: 100 * time.Millisecond, RetryBackoff: 20 * time.Millisecond, ReportAttempts: 3})
 			if err != nil {
 				t.Fatal(err)
 			}
-			pool, err := worker.NewPool(2, 2, 30*time.Second, nil)
+			pool, err := worker.NewPool(2, 2, e2eTaskTimeout, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -232,11 +246,17 @@ func TestJudgeEndToEndRecovery(t *testing.T) {
 			problem.fail.Store(scenario == "problem_unavailable")
 			failStorage.Store(scenario == "minio_unavailable")
 			executor.fail.Store(scenario == "docker_unavailable")
-			driver, err := consumer.New(receiver, sender, taskProcessor, pool, consumer.Options{WorkerID: "e2e-worker", Concurrency: 2, MaxAttempts: 16, Visibility: 15 * time.Second, Timeout: 5 * time.Second, Backoff: time.Second, MaxBackoff: 2 * time.Second}, logger)
+			driver, err := consumer.New(receiver, sender, taskProcessor, pool, consumer.Options{WorkerID: "e2e-worker", Concurrency: 2, MaxAttempts: 16, Visibility: e2eVisibility, Timeout: e2eMQTimeout, Backoff: time.Second, MaxBackoff: 2 * time.Second}, logger)
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer driver.Stop(context.Background())
+			defer func() {
+				shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				if err := driver.Stop(shutdown); err != nil {
+					t.Error("scenario shutdown failed", err)
+				}
+			}()
 			probes, err := driver.Metrics.ListenWithProbes("127.0.0.1:0", "/metrics", driver.Ready)
 			if err != nil {
 				t.Fatal(err)
@@ -256,6 +276,17 @@ func TestJudgeEndToEndRecovery(t *testing.T) {
 				t.Fatal(err)
 			}
 			submission := created.Submission
+			t.Cleanup(func() {
+				if !t.Failed() {
+					return
+				}
+				diagnosticCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				state, err := harness.Model.GetSubmission(diagnosticCtx, submission.SubmissionID)
+				if err == nil {
+					t.Logf("recovery state: submission=%d status=%d attempts=%d current_attempt=%d received=%d retries=%g ack=%g", state.SubmissionID, state.Status, state.AttemptCount, state.CurrentAttemptID, receiver.received.Load(), driver.Metrics.Get("judge_consumer_retry_total"), driver.Metrics.Get("judge_consumer_ack_total"))
+				}
+			})
 			if scenario == "oversized_legacy_source" {
 				if err := harness.DB.Table("submissions").Where("id = ?", submission.SubmissionID).Update("source_code", strings.Repeat("x", 4<<20)).Error; err != nil {
 					t.Fatal(err)
@@ -366,7 +397,7 @@ func assertProbeStatus(t *testing.T, server *http.Server, path string, want int)
 
 func await(t *testing.T, ctx context.Context, condition func() bool) {
 	t.Helper()
-	deadline := time.NewTimer(40 * time.Second)
+	deadline := time.NewTimer(e2eConvergenceTimeout)
 	defer deadline.Stop()
 	for !condition() {
 		select {
