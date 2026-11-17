@@ -123,9 +123,13 @@ type GetUserResp struct {
 }
 
 type AdminUpdateUserReq struct {
-	UserID int64   `path:"user_id"`
-	Role   *string `json:"role,optional"`
-	Status *string `json:"status,optional"`
+	UserID      int64   `path:"user_id"`
+	Role        *string `json:"role,optional"`
+	Status      *string `json:"status,optional"`
+	Username    *string `json:"username,optional"`
+	Email       *string `json:"email,optional"`
+	NewPassword *string `json:"new_password,optional"`
+	SchoolID    *int64  `json:"school_id,optional"`
 }
 
 type AdminUpdateUserResp struct {

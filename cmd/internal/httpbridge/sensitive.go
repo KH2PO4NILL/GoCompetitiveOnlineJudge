@@ -28,6 +28,7 @@ func RegisterSensitiveRPCMethods() {
 			authpb.AuthService_ChangePassword_FullMethodName,
 			authpb.AuthService_ResetPassword_FullMethodName,
 			authpb.UserService_ChangeEmail_FullMethodName,
+			authpb.UserService_AdminUpdateUser_FullMethodName,
 			problempb.ProblemService_CreateProblem_FullMethodName,
 			problempb.ProblemService_GetProblemForEdit_FullMethodName,
 			problempb.ProblemService_UpdateProblem_FullMethodName,

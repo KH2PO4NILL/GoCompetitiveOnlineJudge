@@ -2,6 +2,7 @@ package httpbridge
 
 import (
 	"context"
+	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
 	"net/http"
 	"strings"
 	"time"
@@ -59,8 +60,12 @@ type ErrorResponse struct {
 func ConfigureErrorHandler() {
 	httpx.SetErrorHandlerCtx(func(_ context.Context, err error) (int, any) {
 		if grpcStatus, ok := status.FromError(err); ok {
+			code := sharedauth.AuthenticationReason(grpcStatus)
+			if code == "" {
+				code = strings.ToLower(grpcStatus.Code().String())
+			}
 			return grpcCodeToHTTP(grpcStatus.Code()), ErrorResponse{
-				Code: strings.ToLower(grpcStatus.Code().String()), Message: grpcStatus.Message(),
+				Code: code, Message: grpcStatus.Message(),
 			}
 		}
 		return http.StatusBadRequest, ErrorResponse{Code: "bad_request", Message: err.Error()}

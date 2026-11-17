@@ -2,6 +2,7 @@ package authservicelogic
 
 import (
 	"context"
+	"database/sql"
 	"strings"
 	"time"
 
@@ -45,7 +46,7 @@ func (l *EmailCodeLoginLogic) EmailCodeLogin(in *pb.EmailCodeLoginReq) (*pb.Logi
 		return nil, status.Error(codes.InvalidArgument, "verification code must contain 6 digits")
 	}
 
-	user, err := l.svcCtx.UsersModel.FindOneByEmail(l.ctx, email)
+	user, err := l.svcCtx.UsersModel.FindForAuthenticationByEmail(l.ctx, email)
 	if err != nil {
 		l.Errorf("find user by email: %v", err)
 		return nil, status.Error(codes.Internal, "login failed")
@@ -76,6 +77,10 @@ func (l *EmailCodeLoginLogic) EmailCodeLogin(in *pb.EmailCodeLoginReq) (*pb.Logi
 		return nil, status.Error(codes.Internal, "登录失败")
 	}
 
+	browserToken, browserHash, err := token.GenerateRefreshToken()
+	if err != nil {
+		return nil, status.Error(codes.Internal, "登录失败")
+	}
 	schoolID := int64(0)
 	if user.SchoolId.Valid {
 		schoolID = user.SchoolId.Int64
@@ -83,19 +88,20 @@ func (l *EmailCodeLoginLogic) EmailCodeLogin(in *pb.EmailCodeLoginReq) (*pb.Logi
 
 	clientInfo := loginClientInfo(l.ctx)
 	session := &model.UserSessions{
-		UserId:           user.Id,
-		RefreshTokenHash: refreshTokenHash,
-		DeviceId:         clientInfo.deviceID,
-		DeviceName:       clientInfo.deviceName,
-		IpAddress:        clientInfo.ipAddress,
-		UserAgent:        clientInfo.userAgent,
-		ExpiresAt:        time.Now().UTC().Add(refreshTTL),
+		UserId:             user.Id,
+		RefreshTokenHash:   refreshTokenHash,
+		BrowserSessionHash: sql.NullString{String: browserHash, Valid: true},
+		DeviceId:           clientInfo.deviceID,
+		DeviceName:         clientInfo.deviceName,
+		IpAddress:          clientInfo.ipAddress,
+		UserAgent:          clientInfo.userAgent,
+		ExpiresAt:          time.Now().UTC().Add(refreshTTL),
 	}
 
 	var accessToken string
 	var accessExpiresAt time.Time
 	err = l.svcCtx.DB.WithContext(l.ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(session).Error; err != nil {
+		if err := model.NewUserSessionsModel(tx).Create(l.ctx, session, user); err != nil {
 			return err
 		}
 
@@ -121,9 +127,10 @@ func (l *EmailCodeLoginLogic) EmailCodeLogin(in *pb.EmailCodeLoginReq) (*pb.Logi
 
 	return &pb.LoginResp{
 		Tokens: &pb.TokenPair{
-			AccessToken:  accessToken,
-			RefreshToken: refreshToken,
-			ExpiresIn:    expiresIn,
+			AccessToken:         accessToken,
+			RefreshToken:        refreshToken,
+			BrowserSessionToken: browserToken,
+			ExpiresIn:           expiresIn,
 		},
 		User: &pb.UserInfo{
 			UserId:   user.Id,

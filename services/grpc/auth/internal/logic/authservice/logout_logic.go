@@ -36,6 +36,15 @@ func NewLogoutLogic(ctx context.Context, svcCtx *svc.ServiceContext) *LogoutLogi
 }
 
 func (l *LogoutLogic) Logout(in *pb.LogoutReq) (*pb.EmptyResp, error) {
+	if in != nil && in.BrowserSessionToken != "" {
+		if len(in.BrowserSessionToken) > 512 {
+			return nil, status.Error(codes.Unauthenticated, "退出令牌无效")
+		}
+		if err := model.NewUserSessionsModel(l.svcCtx.DB).RevokeByBrowserHash(l.ctx, token.HashRefreshToken(in.BrowserSessionToken), time.Now().UTC()); err != nil {
+			return nil, status.Error(codes.Internal, "退出登录失败")
+		}
+		return &pb.EmptyResp{}, nil
+	}
 	principal, ok := sharedauth.PrincipalFromContext(l.ctx)
 	if ok {
 		if err := l.revokeLogoutSession(principal.SessionID, principal.UserID); err != nil {
@@ -46,6 +55,7 @@ func (l *LogoutLogic) Logout(in *pb.LogoutReq) (*pb.EmptyResp, error) {
 	if in == nil {
 		return nil, status.Error(codes.Unauthenticated, "用户未登录")
 	}
+
 	rawAccessToken := strings.TrimSpace(in.AccessToken)
 	rawRefreshToken := strings.TrimSpace(in.RefreshToken)
 	if rawAccessToken != "" {
@@ -67,18 +77,12 @@ func (l *LogoutLogic) Logout(in *pb.LogoutReq) (*pb.EmptyResp, error) {
 	refreshHash := token.HashRefreshToken(rawRefreshToken)
 
 	now := time.Now().UTC()
-	result := l.svcCtx.DB.WithContext(l.ctx).
-		Model(&model.UserSessions{}).
-		Where("refresh_token_hash = ? AND revoked_at IS NULL", refreshHash).
-		Updates(map[string]any{
-			"revoked_at":     now,
-			"revoked_reason": "logout",
-		})
-	if result.Error != nil {
-		l.Errorf("revoke session by refresh token during logout: %v", result.Error)
+	affected, revokeErr := model.NewUserSessionsModel(l.svcCtx.DB).RevokeByRefreshHash(l.ctx, refreshHash, "logout", now)
+	if revokeErr != nil {
+		l.Errorf("revoke session by refresh token during logout: %v", revokeErr)
 		return nil, status.Error(codes.Internal, "退出登录失败")
 	}
-	if result.RowsAffected == 0 {
+	if affected == 0 {
 		// Refresh Token 可能已经轮换。若它属于当前 Token family，则仍撤销对应 Session。
 		usedSessionID, err := l.svcCtx.Redis.Get(l.ctx, rediskey.UsedRefreshToken(refreshHash)).Result()
 		if err == nil {
@@ -97,18 +101,9 @@ func (l *LogoutLogic) Logout(in *pb.LogoutReq) (*pb.EmptyResp, error) {
 }
 
 func (l *LogoutLogic) revokeLogoutSession(sessionID, userID int64) error {
-	query := l.svcCtx.DB.WithContext(l.ctx).
-		Model(&model.UserSessions{}).
-		Where("id = ? AND revoked_at IS NULL", sessionID)
-	if userID > 0 {
-		query = query.Where("user_id = ?", userID)
-	}
-	result := query.Updates(map[string]any{
-		"revoked_at":     time.Now().UTC(),
-		"revoked_reason": "logout",
-	})
-	if result.Error != nil {
-		l.Errorf("revoke session %d during logout: %v", sessionID, result.Error)
+	_, revokeErr := model.NewUserSessionsModel(l.svcCtx.DB).RevokeByID(l.ctx, sessionID, userID, "logout", time.Now().UTC())
+	if revokeErr != nil {
+		l.Errorf("revoke session %d during logout: %v", sessionID, revokeErr)
 		return status.Error(codes.Internal, "退出登录失败")
 	}
 	return nil

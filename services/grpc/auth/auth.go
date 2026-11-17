@@ -37,6 +37,7 @@ func main() {
 		}
 	}()
 
+	zrpc.DontLogContentForMethod(pb.UserService_AdminUpdateUser_FullMethodName)
 	s := zrpc.MustNewServer(c.RpcServerConf, func(grpcServer *grpc.Server) {
 		pb.RegisterAuthServiceServer(grpcServer, authserviceServer.NewAuthServiceServer(svcCtx))
 		pb.RegisterUserServiceServer(grpcServer, userserviceServer.NewUserServiceServer(svcCtx))

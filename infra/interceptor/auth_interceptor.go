@@ -337,9 +337,13 @@ func accessTokenFromContext(ctx context.Context) (token string, present bool, er
 func authenticationError(err error) error {
 	switch status.Code(err) {
 	case codes.Unauthenticated:
-		return status.Error(codes.Unauthenticated, "access token is invalid or expired")
+		reason := AuthenticationReason(status.Convert(err))
+		if reason == "" {
+			reason = "access_token_invalid"
+		}
+		return AuthenticationError(codes.Unauthenticated, reason, "access token is invalid or expired")
 	case codes.PermissionDenied:
-		return status.Error(codes.PermissionDenied, "user account is unavailable")
+		return AuthenticationError(codes.PermissionDenied, "account_unavailable", "user account is unavailable")
 	case codes.Canceled:
 		return status.Error(codes.Canceled, "authentication was canceled")
 	case codes.DeadlineExceeded, codes.Unavailable:

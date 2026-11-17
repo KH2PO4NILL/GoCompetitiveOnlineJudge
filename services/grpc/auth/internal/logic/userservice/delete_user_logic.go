@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/internal/svc"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/services/grpc/auth/model"
@@ -87,30 +86,7 @@ func (l *DeleteUserLogic) DeleteUser(in *pb.DeleteUserReq) (*pb.EmptyResp, error
 			return errDeleteTargetTooHigh
 		}
 
-		now := time.Now().UTC()
-		tombstoneUsername, tombstoneEmail, err := deletedUserTombstone()
-		if err != nil {
-			return err
-		}
-		// 软删除时匿名化登录标识，既减少已删除账号的隐私残留，也释放邮箱和用户名供重新注册。
-		if err := tx.Model(&model.Users{}).
-			Where("id = ? AND deleted_at IS NULL", target.Id).
-			Updates(map[string]any{
-				"username":   tombstoneUsername,
-				"email":      tombstoneEmail,
-				"deleted_at": now,
-				"status":     int64(pb.UserStatus_USER_STATUS_DELETED),
-			}).Error; err != nil {
-			return err
-		}
-
-		// 删除账号必须撤销所有设备 Session，使现有 Access Token 和 Refresh Token 立即失效。
-		return tx.Model(&model.UserSessions{}).
-			Where("user_id = ? AND revoked_at IS NULL", target.Id).
-			Updates(map[string]any{
-				"revoked_at":     now,
-				"revoked_reason": "user_deleted",
-			}).Error
+		return model.NewUsersModel(tx).SoftDeleteAndAnonymize(l.ctx, target.Id)
 	})
 	if err != nil {
 		switch {

@@ -3,6 +3,7 @@ package authservicelogic
 import (
 	"context"
 	"errors"
+	sharedauth "github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/infra/interceptor"
 	"strconv"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 var (
@@ -47,7 +47,7 @@ func (l *RefreshTokenLogic) RefreshToken(in *pb.RefreshTokenReq) (*pb.RefreshTok
 	rawRefreshToken := in.RefreshToken
 	// Refresh Token 是随机生成的短字符串，限制输入长度可以避免恶意超长请求进入数据库查询。
 	if rawRefreshToken == "" || len(rawRefreshToken) > 512 {
-		return nil, status.Error(codes.Unauthenticated, "刷新令牌无效或已过期")
+		return nil, sharedauth.AuthenticationError(codes.Unauthenticated, "refresh_token_invalid", "刷新令牌无效或已过期")
 	}
 
 	refreshTTL := time.Duration(l.svcCtx.Config.Token.RefreshExpireSeconds) * time.Second
@@ -67,41 +67,27 @@ func (l *RefreshTokenLogic) RefreshToken(in *pb.RefreshTokenReq) (*pb.RefreshTok
 	var accessToken string
 	var accessExpiresAt time.Time
 	var rotatedSessionID int64
+	var previousRefreshHash string
+	var browserToken string
+	if in.BrowserSession {
+		browserToken = rawRefreshToken
+	}
 	err = l.svcCtx.DB.WithContext(l.ctx).Transaction(func(tx *gorm.DB) error {
-		var session model.UserSessions
-		// 对 Session 加行锁，确保两个并发请求不能同时使用同一个旧 Refresh Token。
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("refresh_token_hash = ?", currentRefreshTokenHash).
-			Take(&session).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return errRefreshTokenInvalid
-		}
-		if err != nil {
-			return err
-		}
-
 		now := time.Now().UTC()
-		// 被撤销或已经过期的 Session 不能再签发任何新 Token。
-		if session.RevokedAt.Valid || !session.ExpiresAt.After(now) {
+		sessions := model.NewUserSessionsModel(tx)
+		lookup := sessions.LockRefresh
+		if in.BrowserSession {
+			lookup = sessions.LockBrowserSession
+		}
+		session, user, err := lookup(l.ctx, currentRefreshTokenHash, now)
+		if errors.Is(err, model.ErrNotFound) {
 			return errRefreshTokenInvalid
 		}
-		if !token.VerifyRefreshToken(rawRefreshToken, session.RefreshTokenHash) {
-			return errRefreshTokenInvalid
-		}
-
-		var user model.Users
-		err = tx.Select("id", "role", "status", "school_id").
-			Where("id = ? AND deleted_at IS NULL", session.UserId).
-			Take(&user).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+		if errors.Is(err, model.ErrConflict) {
 			return errRefreshAccountNotUsable
 		}
 		if err != nil {
 			return err
-		}
-		// 每次刷新都读取用户的最新权限和状态，避免继续使用登录时的旧角色信息。
-		if pb.UserStatus(user.Status) != pb.UserStatus_USER_STATUS_NORMAL {
-			return errRefreshAccountNotUsable
 		}
 
 		schoolID := int64(0)
@@ -110,24 +96,15 @@ func (l *RefreshTokenLogic) RefreshToken(in *pb.RefreshTokenReq) (*pb.RefreshTok
 		}
 
 		// Refresh Token 必须单次使用：成功后原哈希会被新哈希替换，旧 Token 随即失效。
-		result := tx.Model(&model.UserSessions{}).
-			Where(
-				"id = ? AND refresh_token_hash = ? AND revoked_at IS NULL",
-				session.Id,
-				currentRefreshTokenHash,
-			).
-			Updates(map[string]any{
-				"refresh_token_hash": newRefreshTokenHash,
-				"last_used_at":       now,
-				"expires_at":         now.Add(refreshTTL),
-			})
-		if result.Error != nil {
-			return result.Error
+		if err := sessions.Rotate(l.ctx, session.Id, session.RefreshTokenHash, newRefreshTokenHash, now, now.Add(refreshTTL)); err != nil {
+			if errors.Is(err, model.ErrConflict) {
+				return errRefreshTokenInvalid
+			}
+			return err
 		}
-		if result.RowsAffected != 1 {
-			return errRefreshTokenInvalid
-		}
+
 		rotatedSessionID = session.Id
+		previousRefreshHash = session.RefreshTokenHash
 
 		var tokenErr error
 		accessToken, accessExpiresAt, tokenErr = l.svcCtx.Token.GenerateAccessToken(token.AccessTokenInput{
@@ -142,10 +119,12 @@ func (l *RefreshTokenLogic) RefreshToken(in *pb.RefreshTokenReq) (*pb.RefreshTok
 	if err != nil {
 		switch {
 		case errors.Is(err, errRefreshTokenInvalid):
-			l.revokeReplayedRefreshToken(currentRefreshTokenHash)
-			return nil, status.Error(codes.Unauthenticated, "刷新令牌无效或已过期")
+			if !in.BrowserSession {
+				l.revokeReplayedRefreshToken(currentRefreshTokenHash)
+			}
+			return nil, sharedauth.AuthenticationError(codes.Unauthenticated, "refresh_token_invalid", "刷新令牌无效或已过期")
 		case errors.Is(err, errRefreshAccountNotUsable):
-			return nil, status.Error(codes.PermissionDenied, "用户账户不可用")
+			return nil, sharedauth.AuthenticationError(codes.PermissionDenied, "account_unavailable", "用户账户不可用")
 		default:
 			l.Errorf("rotate refresh token: %v", err)
 			return nil, status.Error(codes.Internal, "刷新令牌失败")
@@ -158,7 +137,7 @@ func (l *RefreshTokenLogic) RefreshToken(in *pb.RefreshTokenReq) (*pb.RefreshTok
 	defer cancel()
 	if err := l.svcCtx.Redis.Set(
 		historyCtx,
-		rediskey.UsedRefreshToken(currentRefreshTokenHash),
+		rediskey.UsedRefreshToken(previousRefreshHash),
 		strconv.FormatInt(rotatedSessionID, 10),
 		refreshTTL,
 	).Err(); err != nil {
@@ -173,9 +152,10 @@ func (l *RefreshTokenLogic) RefreshToken(in *pb.RefreshTokenReq) (*pb.RefreshTok
 
 	return &pb.RefreshTokenResp{
 		Tokens: &pb.TokenPair{
-			AccessToken:  accessToken,
-			RefreshToken: newRefreshToken,
-			ExpiresIn:    expiresIn,
+			AccessToken:         accessToken,
+			RefreshToken:        newRefreshToken,
+			BrowserSessionToken: browserToken,
+			ExpiresIn:           expiresIn,
 		},
 	}, nil
 }
@@ -196,18 +176,12 @@ func (l *RefreshTokenLogic) revokeReplayedRefreshToken(refreshTokenHash string) 
 		return
 	}
 
-	result := l.svcCtx.DB.WithContext(l.ctx).
-		Model(&model.UserSessions{}).
-		Where("id = ? AND revoked_at IS NULL", sessionID).
-		Updates(map[string]any{
-			"revoked_at":     time.Now().UTC(),
-			"revoked_reason": "refresh_token_reuse",
-		})
-	if result.Error != nil {
-		l.Errorf("revoke replayed refresh token session %d: %v", sessionID, result.Error)
+	affected, revokeErr := model.NewUserSessionsModel(l.svcCtx.DB).RevokeByID(l.ctx, sessionID, 0, "refresh_token_reuse", time.Now().UTC())
+	if revokeErr != nil {
+		l.Errorf("revoke replayed refresh token session %d: %v", sessionID, revokeErr)
 		return
 	}
-	if result.RowsAffected > 0 {
+	if affected > 0 {
 		l.Errorf("detected refresh token replay and revoked session %d", sessionID)
 	}
 }

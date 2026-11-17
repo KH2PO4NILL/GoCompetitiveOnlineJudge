@@ -23,13 +23,13 @@ func AdminUpdateUserHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 		)
 
 		if err := httpx.Parse(r, in); err != nil {
-			logx.WithContext(ctx).Errorf("parse params failed: %v", err)
+			logx.WithContext(ctx).Error("parse admin user update params failed")
 			httpx.Error(w, err)
 			return
 		}
 
 		if err := svcCtx.Validator.Struct(in); err != nil {
-			logx.WithContext(ctx).Errorf("validate params failed: %v", err)
+			logx.WithContext(ctx).Error("validate admin user update params failed")
 			httpx.Error(w, err)
 			return
 		}

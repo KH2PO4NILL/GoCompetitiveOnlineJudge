@@ -95,12 +95,7 @@ func (l *UpdateProfileLogic) UpdateProfile(in *pb.UpdateProfileReq) (*pb.UpdateP
 			// school_id 属于 Access Token 的授权声明。资料修改后撤销全部 Session，
 			// 避免旧 Token 在过期前继续携带原学校权限；客户端需要重新登录。
 			now := time.Now().UTC()
-			if err := tx.Model(&model.UserSessions{}).
-				Where("user_id = ? AND revoked_at IS NULL", actor.Id).
-				Updates(map[string]any{
-					"revoked_at":     now,
-					"revoked_reason": "school_changed",
-				}).Error; err != nil {
+			if err := model.NewUserSessionsModel(tx).RevokeAll(l.ctx, actor.Id, 0, "school_changed", now); err != nil {
 				return err
 			}
 		}

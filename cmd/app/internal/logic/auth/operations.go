@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/cmd/internal/httpbridge"
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/cmd/app/internal/mapper"
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/cmd/app/internal/svc"
@@ -14,6 +15,7 @@ func usernameLogin(ctx context.Context, svcCtx *svc.ServiceContext, req *types.U
 	if err != nil {
 		return nil, err
 	}
+	httpbridge.CaptureBrowserSession(ctx, response.GetTokens().GetBrowserSessionToken())
 	return mapper.Login(response)
 }
 
@@ -22,6 +24,7 @@ func emailPasswordLogin(ctx context.Context, svcCtx *svc.ServiceContext, req *ty
 	if err != nil {
 		return nil, err
 	}
+	httpbridge.CaptureBrowserSession(ctx, response.GetTokens().GetBrowserSessionToken())
 	return mapper.Login(response)
 }
 
@@ -30,6 +33,7 @@ func emailCodeLogin(ctx context.Context, svcCtx *svc.ServiceContext, req *types.
 	if err != nil {
 		return nil, err
 	}
+	httpbridge.CaptureBrowserSession(ctx, response.GetTokens().GetBrowserSessionToken())
 	return mapper.Login(response)
 }
 
@@ -66,13 +70,14 @@ func sendEmailCode(ctx context.Context, svcCtx *svc.ServiceContext, req *types.S
 }
 
 func refreshToken(ctx context.Context, svcCtx *svc.ServiceContext, req *types.RefreshTokenReq) (*types.RefreshTokenResp, error) {
-	response, err := svcCtx.Auth.RefreshToken(ctx, &pb.RefreshTokenReq{RefreshToken: req.RefreshToken})
+	response, err := svcCtx.Auth.RefreshToken(ctx, &pb.RefreshTokenReq{RefreshToken: req.RefreshToken, BrowserSession: httpbridge.UsesBrowserSession(ctx)})
 	if err != nil {
 		return nil, err
 	}
 	if response == nil {
 		return nil, mapper.InvalidRPCResponse("refresh response")
 	}
+	httpbridge.CaptureBrowserSession(ctx, response.GetTokens().GetBrowserSessionToken())
 	tokens, err := mapper.TokenPair(response.Tokens)
 	if err != nil {
 		return nil, err
@@ -81,7 +86,12 @@ func refreshToken(ctx context.Context, svcCtx *svc.ServiceContext, req *types.Re
 }
 
 func logout(ctx context.Context, svcCtx *svc.ServiceContext, req *types.LogoutReq) (*types.EmptyResp, error) {
-	_, err := svcCtx.Auth.Logout(ctx, &pb.LogoutReq{AccessToken: req.AccessToken, RefreshToken: req.RefreshToken})
+	input := &pb.LogoutReq{AccessToken: req.AccessToken, RefreshToken: req.RefreshToken}
+	if httpbridge.UsesBrowserSession(ctx) {
+		input.BrowserSessionToken = req.RefreshToken
+		input.RefreshToken = ""
+	}
+	_, err := svcCtx.Auth.Logout(ctx, input)
 	if err != nil {
 		return nil, err
 	}
