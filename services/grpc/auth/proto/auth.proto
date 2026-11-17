@@ -51,6 +51,8 @@ message TokenPair {
     string access_token = 1;
     string refresh_token = 2;
     int64 expires_in = 3;
+    // Separate reusable browser credential; gateways place it only in HttpOnly cookies.
+    string browser_session_token = 4;
 }
 
 //////////////////// 登录、注册与令牌 ////////////////////
@@ -108,6 +110,7 @@ message ValidateTokenResp {
 
 message RefreshTokenReq {
     string refresh_token = 1;
+    bool browser_session = 2;
 }
 
 message RefreshTokenResp {
@@ -117,6 +120,7 @@ message RefreshTokenResp {
 message LogoutReq {
     string access_token = 1;
     string refresh_token = 2;
+    string browser_session_token = 3;
 }
 
 message ChangePasswordReq {
@@ -185,6 +189,11 @@ message AdminUpdateUserReq {
     int64 user_id = 1;
     optional UserRole role = 2;
     optional UserStatus status = 3;
+    // 仅超级管理员可修改普通用户的账户资料和密码。
+    optional string username = 4;
+    optional string email = 5;
+    optional string new_password = 6;
+    optional int64 school_id = 7;
 }
 
 message AdminUpdateUserResp {

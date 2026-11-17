@@ -52,7 +52,7 @@ func (l *ResetPasswordLogic) ResetPassword(in *pb.ResetPasswordReq) (*pb.EmptyRe
 		return nil, status.Error(codes.InvalidArgument, "新密码必须包含至少 6 个字符且不能超过 72 字节")
 	}
 
-	user, err := l.svcCtx.UsersModel.FindOneByEmail(l.ctx, email)
+	user, err := l.svcCtx.UsersModel.FindForAuthenticationByEmail(l.ctx, email)
 	if err != nil {
 		l.Errorf("find user before resetting password: %v", err)
 		return nil, status.Error(codes.Internal, "重置密码失败")
@@ -103,12 +103,7 @@ func (l *ResetPasswordLogic) ResetPassword(in *pb.ResetPasswordReq) (*pb.EmptyRe
 		}
 
 		// 密码重置属于高风险操作，必须撤销该账号所有设备的 Session，使旧 Token 全部失效。
-		return tx.Model(&model.UserSessions{}).
-			Where("user_id = ? AND revoked_at IS NULL", user.Id).
-			Updates(map[string]any{
-				"revoked_at":     now,
-				"revoked_reason": "password_reset",
-			}).Error
+		return model.NewUserSessionsModel(tx).RevokeAll(l.ctx, user.Id, 0, "password_reset", now)
 	})
 	if err != nil {
 		if errors.Is(err, errResetPasswordConflict) {

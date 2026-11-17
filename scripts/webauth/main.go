@@ -1,12 +1,18 @@
 package main
 
 import (
+	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"golang.org/x/crypto/bcrypt"
@@ -37,13 +43,23 @@ func prepare() error {
 	if err := database.QueryRow("SELECT DATABASE()").Scan(&databaseName); err != nil || databaseName != "auth_e2e" {
 		return fmt.Errorf("fixture database must be auth_e2e")
 	}
-	for _, migration := range []string{"001_create_user.sql", "002_create_school.sql", "003_create_user_sessions.sql"} {
+	for _, migration := range []string{"001_create_user.sql", "002_create_school.sql", "003_create_user_sessions.sql", "004_add_school_reference.sql", "005_add_browser_session_credential.sql"} {
 		contents, err := os.ReadFile(filepath.Join("services/grpc/auth/migrations", migration))
 		if err != nil {
 			return err
 		}
-		if _, err := database.Exec(string(contents)); err != nil {
-			return err
+		var statements []string
+		for _, line := range strings.Split(string(contents), "\n") {
+			if !strings.HasPrefix(strings.TrimSpace(line), "--") {
+				statements = append(statements, line)
+			}
+		}
+		for _, statement := range strings.Split(strings.Join(statements, "\n"), ";") {
+			if strings.TrimSpace(statement) != "" {
+				if _, err := database.Exec(statement); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -53,10 +69,16 @@ func prepare() error {
 	for _, account := range []struct {
 		username string
 		role     int
-	}{{"e2e-user", 1}, {"e2e-admin", 2}} {
+	}{{"e2e-user", 1}, {"e2e-admin", 2}, {"e2e-super", 3}, {"e2e-code", 1}, {"e2e-target", 1}} {
 		if _, err := database.Exec("INSERT INTO users (username, email, password_hash, role, status) VALUES (?, ?, ?, ?, 1)", account.username, account.username+"@example.invalid", string(hash), account.role); err != nil {
 			return err
 		}
+	}
+	rdb := redis.NewClient(&redis.Options{Addr: os.Getenv("GCOJ_AUTH_E2E_REDIS")})
+	defer rdb.Close()
+	digest := sha256.Sum256([]byte("e2e-code@example.invalid"))
+	if err := rdb.Set(context.Background(), "auth:email_code:login:"+hex.EncodeToString(digest[:]), "482913", time.Hour).Err(); err != nil {
+		return err
 	}
 	authPort, err := availablePort()
 	if err != nil {

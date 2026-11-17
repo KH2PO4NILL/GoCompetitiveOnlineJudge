@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/judge-worker/internal/checker"
@@ -168,8 +169,9 @@ func (engine *Engine) Judge(ctx context.Context, input JudgeInput) (outcome Outc
 		if err != nil {
 			return outcome, err
 		}
-		actual, runErr := attempt.Run(ctx, inputFile)
-		closeErr := inputFile.Close()
+		stdin := &onceReadCloser{ReadCloser: inputFile}
+		actual, runErr := attempt.Run(ctx, stdin)
+		closeErr := stdin.Close()
 		result := &outcome.Cases[index]
 		result.Verdict = ExecutionVerdict(actual.Execution)
 		result.TimeMS = (actual.Execution.CPUTime + time.Millisecond - 1).Milliseconds()
@@ -272,4 +274,17 @@ func boundedDiagnostic(parts ...[]byte) string {
 		_, _ = io.CopyN(&output, bytes.NewReader(part), int64((1<<20)-output.Len()))
 	}
 	return strings.ToValidUTF8(output.String(), "?")
+}
+
+// Both the sandbox cancellation path and the engine own cleanup. Close the
+// underlying file once and preserve genuine close errors for the caller.
+type onceReadCloser struct {
+	io.ReadCloser
+	once sync.Once
+	err  error
+}
+
+func (r *onceReadCloser) Close() error {
+	r.once.Do(func() { r.err = r.ReadCloser.Close() })
+	return r.err
 }

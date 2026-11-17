@@ -72,7 +72,7 @@ func (l *ChangeEmailLogic) ChangeEmail(in *pb.ChangeEmailReq) (*pb.ChangeEmailRe
 		return nil, status.Error(codes.Unavailable, "验证码服务暂时不可用")
 	}
 	if !matched {
-		return nil, status.Error(codes.Unauthenticated, "验证码错误或已过期")
+		return nil, status.Error(codes.InvalidArgument, "验证码错误或已过期")
 	}
 
 	var updatedUser model.Users

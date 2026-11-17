@@ -4,7 +4,7 @@ GoCompetitiveOnlineJudge 是一个采用安全隔离评测架构的在线评测�
 
 项目基于 go-zero 拆分 HTTP 网关与 gRPC 服务，通过 etcd 完成服务发现，使用 MySQL 持久化业务数据、Redis 承载缓存与限流、RocketMQ 分发异步评测任务、MinIO/S3 保存测试数据，并通过可水平扩展的 Judge Worker 执行用户代码。
 
-浏览器前端位于 [web/](web/README.md)；`cmd/app` 和 `cmd/admin` 是 HTTP API，不是页面工程。
+浏览器前端使用 Vue 3、TypeScript、Vite、Vue Router、TanStack Vue Query 与 Pinia，位于 [web/](web/README.md)；`cmd/app` 和 `cmd/admin` 是 HTTP API，不是页面工程。
 本文描述仓库中的实现和开发入口，**不代表整个项目已达到生产交付或完整浏览器业务闭环验收标准**。
 真实验证范围及剩余事项见 [审查记录](docs/audit/2026-09-06-results.md)和 [Worker 后端增量验收](docs/audit/2026-09-06-backend.md)。
 
@@ -39,7 +39,8 @@ HTTP 响应默认 `Cache-Control: no-store`，Token、源码与预签名地址�
 - JWT Access Token、Refresh Token 轮换与会话注销
 - 注册、找回密码、修改邮箱和个人资料维护
 - 普通用户、管理员和超级管理员三级角色
-- 用户禁用、封禁和软删除
+- 用户禁用、封禁和匿名化软删除；超级管理员可修改普通用户账户资料并重置密码
+- 用户端与管理端独立的 HttpOnly 刷新会话 Cookie、页面刷新恢复与明确的会话失效反馈
 - HTTP、gRPC 与内部服务调用的分层鉴权
 
 ### 题目管理
@@ -562,3 +563,23 @@ Judge Worker 使用声明式 Language Profile 和只读 Registry。内置 `cpp20
 - `docs/<name>`：文档更新
 
 提交安全漏洞时，请避免在公开 Issue 中披露可直接利用的细节，优先联系维护者进行私下处理。
+
+## Vue 前端开发与验证
+
+`make up` 启动后端和 Vue 开发服务，并验证页面与 API 代理；默认页面为 `http://127.0.0.1:5173`。
+`make web-start` / `web-stop` / `web-restart` / `web-status` 单独管理前端，`make smoke-web` 检查页面和两端 API 代理。
+可通过 `WEB_PORT` 设置端口。`make down` 停止托管前端和后端并保留基础设施数据。
+
+```bash
+cd web
+npm ci
+npm run check
+npm run test:browser
+```
+
+前端目录与会话、精确 int64、编辑冲突、非幂等请求和 Markdown 安全边界见 [Web README](web/README.md)。
+`bash scripts/test-web-auth.sh` 使用临时 MySQL/Redis 与真实 Auth/HTTP 服务验证认证及管理员账户修改，自动清理临时数据。
+
+2026-11-17 的本地验收已通过完整 `JUDGE_E2E_SLOW=1 bash scripts/test-judge-e2e.sh`：
+九个恢复场景、C++20/Go 的 AC/WA/CE/RE/TLE/MLE/OLE 矩阵、真实 MQ 和沙箱安全/资源/停机清理均通过。
+普通测试仍默认跳过依赖真实基础设施的测试；GitHub Actions 的 Docker 作业需要手动触发。

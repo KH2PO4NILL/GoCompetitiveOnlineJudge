@@ -2,7 +2,6 @@ package authenticator
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"time"
 
@@ -35,54 +34,32 @@ func New(parser accessTokenParser, db *gorm.DB) *Authenticator {
 	return &Authenticator{parser: parser, db: db}
 }
 
-type validatedAccessTokenState struct {
-	UserID           int64         `gorm:"column:user_id"`
-	Role             int64         `gorm:"column:user_role"`
-	Status           int64         `gorm:"column:user_status"`
-	SchoolID         sql.NullInt64 `gorm:"column:school_id"`
-	SessionExpiresAt time.Time     `gorm:"column:session_expires_at"`
-	SessionRevokedAt sql.NullTime  `gorm:"column:session_revoked_at"`
-}
-
 func (a *Authenticator) Authenticate(ctx context.Context, rawAccessToken string) (sharedauth.Principal, error) {
 	if a == nil || a.parser == nil || a.db == nil {
 		return sharedauth.Principal{}, status.Error(codes.Unavailable, "鉴权服务暂时不可用")
 	}
 	if rawAccessToken == "" || len(rawAccessToken) > maxAccessTokenLength {
-		return sharedauth.Principal{}, status.Error(codes.Unauthenticated, "访问令牌无效或已过期")
+		return sharedauth.Principal{}, sharedauth.AuthenticationError(codes.Unauthenticated, "access_token_invalid", "访问令牌无效或已过期")
 	}
 
 	claims, err := a.parser.ParseAccessToken(rawAccessToken)
 	if err != nil {
-		return sharedauth.Principal{}, status.Error(codes.Unauthenticated, "访问令牌无效或已过期")
+		return sharedauth.Principal{}, sharedauth.AuthenticationError(codes.Unauthenticated, "access_token_invalid", "访问令牌无效或已过期")
 	}
 
-	var state validatedAccessTokenState
-	err = a.db.WithContext(ctx).
-		Model(&model.UserSessions{}).
-		Select(`
-			user_sessions.user_id AS user_id,
-			user_sessions.expires_at AS session_expires_at,
-			user_sessions.revoked_at AS session_revoked_at,
-			users.role AS user_role,
-			users.status AS user_status,
-			users.school_id AS school_id
-		`).
-		Joins("JOIN users ON users.id = user_sessions.user_id AND users.deleted_at IS NULL").
-		Where("user_sessions.id = ? AND user_sessions.user_id = ?", claims.SessionID, claims.UserID).
-		Take(&state).Error
+	state, err := model.NewUserSessionsModel(a.db).AccessState(ctx, claims.SessionID, claims.UserID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return sharedauth.Principal{}, status.Error(codes.Unauthenticated, "访问令牌对应的登录会话无效或已过期")
+		return sharedauth.Principal{}, sharedauth.AuthenticationError(codes.Unauthenticated, "session_invalid", "登录会话已失效，请重新登录")
 	}
 	if err != nil {
 		logx.WithContext(ctx).Errorf("validate access token session %d for user %d: %v", claims.SessionID, claims.UserID, err)
 		return sharedauth.Principal{}, status.Error(codes.Unavailable, "鉴权服务暂时不可用")
 	}
 	if state.SessionRevokedAt.Valid || !state.SessionExpiresAt.After(time.Now().UTC()) {
-		return sharedauth.Principal{}, status.Error(codes.Unauthenticated, "访问令牌对应的登录会话无效或已过期")
+		return sharedauth.Principal{}, sharedauth.AuthenticationError(codes.Unauthenticated, "session_invalid", "登录会话已失效，请重新登录")
 	}
 	if pb.UserStatus(state.Status) != pb.UserStatus_USER_STATUS_NORMAL {
-		return sharedauth.Principal{}, status.Error(codes.PermissionDenied, "用户账户不可用")
+		return sharedauth.Principal{}, sharedauth.AuthenticationError(codes.PermissionDenied, "account_unavailable", "用户账户不可用")
 	}
 	role := pb.UserRole(state.Role)
 	switch role {

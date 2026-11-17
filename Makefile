@@ -10,6 +10,9 @@ DEV_SERVICES ?= ./scripts/dev-services.sh
 DEV_ENV ?= ./scripts/dev-env.sh
 DEV_WORKER ?= ./scripts/dev-worker.sh
 TEST_COUNT ?= 1
+DEV_WEB ?= ./scripts/dev-web.sh
+WEB_PORT ?= 5173
+NODE ?= node
 
 API_SERVICES := admin app
 RPC_ROOT := services/grpc
@@ -29,7 +32,7 @@ PROTOBUF_INCLUDE ?= $(shell $(GO) list -m -f '{{.Dir}}/third_party' github.com/g
 	worker-build worker-run worker-status \
 	services-build services-start services-stop services-restart services-status services-logs services-up \
 	connectivity-infra connectivity-services connectivity smoke \
-	up down restart stop dev-up dev-down
+	up down restart stop dev-up dev-down web-start web-stop web-restart web-status smoke-web test-web
 
 help:
 	@printf '%s\n' \
@@ -277,7 +280,9 @@ smoke: infra-env
 up:
 	@$(MAKE) infra-up
 	@$(MAKE) services-restart
+	@$(MAKE) web-start
 	@$(MAKE) smoke
+	@$(MAKE) smoke-web
 
 services-up: up
 dev-up: up
@@ -286,6 +291,7 @@ restart: up
 stop: services-stop
 
 down:
+	@$(MAKE) web-stop
 	@$(MAKE) services-stop
 	@$(MAKE) infra-down
 
@@ -382,3 +388,10 @@ tidy:
 
 clean: services-stop
 	rm -rf bin coverage.out "$(RUNTIME_DIR)"
+
+web-start web-stop web-restart web-status:
+	@RUNTIME_DIR="$(abspath $(RUNTIME_DIR))" WEB_PORT="$(WEB_PORT)" "$(DEV_WEB)" $(patsubst web-%,%,$@)
+smoke-web:
+	@WEB_PORT="$(WEB_PORT)" $(NODE) scripts/smoke-web.mjs
+test-web:
+	cd web && npm run check && npm run test:browser

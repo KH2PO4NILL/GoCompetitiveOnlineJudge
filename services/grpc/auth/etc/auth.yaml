@@ -24,6 +24,7 @@ Middlewares:
     - /auth.AuthService/Logout
     - /auth.AuthService/ChangePassword
     - /auth.AuthService/ResetPassword
+    - /auth.UserService/AdminUpdateUser
     - /auth.UserService/ChangeEmail
 
 Mysql:

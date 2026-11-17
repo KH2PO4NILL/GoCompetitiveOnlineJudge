@@ -375,12 +375,14 @@ func (x *AuthClaims) GetSchoolId() int64 {
 }
 
 type TokenPair struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccessToken   string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
-	RefreshToken  string                 `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
-	ExpiresIn     int64                  `protobuf:"varint,3,opt,name=expires_in,json=expiresIn,proto3" json:"expires_in,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	AccessToken  string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	RefreshToken string                 `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	ExpiresIn    int64                  `protobuf:"varint,3,opt,name=expires_in,json=expiresIn,proto3" json:"expires_in,omitempty"`
+	// Separate reusable browser credential; gateways place it only in HttpOnly cookies.
+	BrowserSessionToken string `protobuf:"bytes,4,opt,name=browser_session_token,json=browserSessionToken,proto3" json:"browser_session_token,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *TokenPair) Reset() {
@@ -432,6 +434,13 @@ func (x *TokenPair) GetExpiresIn() int64 {
 		return x.ExpiresIn
 	}
 	return 0
+}
+
+func (x *TokenPair) GetBrowserSessionToken() string {
+	if x != nil {
+		return x.BrowserSessionToken
+	}
+	return ""
 }
 
 type UsernameLoginReq struct {
@@ -956,10 +965,11 @@ func (x *ValidateTokenResp) GetClaims() *AuthClaims {
 }
 
 type RefreshTokenReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	RefreshToken  string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	RefreshToken   string                 `protobuf:"bytes,1,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	BrowserSession bool                   `protobuf:"varint,2,opt,name=browser_session,json=browserSession,proto3" json:"browser_session,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *RefreshTokenReq) Reset() {
@@ -997,6 +1007,13 @@ func (x *RefreshTokenReq) GetRefreshToken() string {
 		return x.RefreshToken
 	}
 	return ""
+}
+
+func (x *RefreshTokenReq) GetBrowserSession() bool {
+	if x != nil {
+		return x.BrowserSession
+	}
+	return false
 }
 
 type RefreshTokenResp struct {
@@ -1044,11 +1061,12 @@ func (x *RefreshTokenResp) GetTokens() *TokenPair {
 }
 
 type LogoutReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	AccessToken   string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
-	RefreshToken  string                 `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState `protogen:"open.v1"`
+	AccessToken         string                 `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	RefreshToken        string                 `protobuf:"bytes,2,opt,name=refresh_token,json=refreshToken,proto3" json:"refresh_token,omitempty"`
+	BrowserSessionToken string                 `protobuf:"bytes,3,opt,name=browser_session_token,json=browserSessionToken,proto3" json:"browser_session_token,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *LogoutReq) Reset() {
@@ -1091,6 +1109,13 @@ func (x *LogoutReq) GetAccessToken() string {
 func (x *LogoutReq) GetRefreshToken() string {
 	if x != nil {
 		return x.RefreshToken
+	}
+	return ""
+}
+
+func (x *LogoutReq) GetBrowserSessionToken() string {
+	if x != nil {
+		return x.BrowserSessionToken
 	}
 	return ""
 }
@@ -1707,10 +1732,15 @@ func (x *ChangeEmailResp) GetUser() *UserInfo {
 
 // 管理员接口与普通用户资料修改分离，服务端必须再次校验管理员权限。
 type AdminUpdateUserReq struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UserId        int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
-	Role          *UserRole              `protobuf:"varint,2,opt,name=role,proto3,enum=auth.UserRole,oneof" json:"role,omitempty"`
-	Status        *UserStatus            `protobuf:"varint,3,opt,name=status,proto3,enum=auth.UserStatus,oneof" json:"status,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	UserId int64                  `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Role   *UserRole              `protobuf:"varint,2,opt,name=role,proto3,enum=auth.UserRole,oneof" json:"role,omitempty"`
+	Status *UserStatus            `protobuf:"varint,3,opt,name=status,proto3,enum=auth.UserStatus,oneof" json:"status,omitempty"`
+	// 仅超级管理员可修改普通用户的账户资料和密码。
+	Username      *string `protobuf:"bytes,4,opt,name=username,proto3,oneof" json:"username,omitempty"`
+	Email         *string `protobuf:"bytes,5,opt,name=email,proto3,oneof" json:"email,omitempty"`
+	NewPassword   *string `protobuf:"bytes,6,opt,name=new_password,json=newPassword,proto3,oneof" json:"new_password,omitempty"`
+	SchoolId      *int64  `protobuf:"varint,7,opt,name=school_id,json=schoolId,proto3,oneof" json:"school_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1764,6 +1794,34 @@ func (x *AdminUpdateUserReq) GetStatus() UserStatus {
 		return *x.Status
 	}
 	return UserStatus_USER_STATUS_UNSPECIFIED
+}
+
+func (x *AdminUpdateUserReq) GetUsername() string {
+	if x != nil && x.Username != nil {
+		return *x.Username
+	}
+	return ""
+}
+
+func (x *AdminUpdateUserReq) GetEmail() string {
+	if x != nil && x.Email != nil {
+		return *x.Email
+	}
+	return ""
+}
+
+func (x *AdminUpdateUserReq) GetNewPassword() string {
+	if x != nil && x.NewPassword != nil {
+		return *x.NewPassword
+	}
+	return ""
+}
+
+func (x *AdminUpdateUserReq) GetSchoolId() int64 {
+	if x != nil && x.SchoolId != nil {
+		return *x.SchoolId
+	}
+	return 0
 }
 
 type AdminUpdateUserResp struct {
@@ -1873,12 +1931,13 @@ const file_proto_auth_proto_rawDesc = "" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12\"\n" +
 	"\x04role\x18\x02 \x01(\x0e2\x0e.auth.UserRoleR\x04role\x12(\n" +
 	"\x06status\x18\x03 \x01(\x0e2\x10.auth.UserStatusR\x06status\x12\x1b\n" +
-	"\tschool_id\x18\x04 \x01(\x03R\bschoolId\"r\n" +
+	"\tschool_id\x18\x04 \x01(\x03R\bschoolId\"\xa6\x01\n" +
 	"\tTokenPair\x12!\n" +
 	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12#\n" +
 	"\rrefresh_token\x18\x02 \x01(\tR\frefreshToken\x12\x1d\n" +
 	"\n" +
-	"expires_in\x18\x03 \x01(\x03R\texpiresIn\"J\n" +
+	"expires_in\x18\x03 \x01(\x03R\texpiresIn\x122\n" +
+	"\x15browser_session_token\x18\x04 \x01(\tR\x13browserSessionToken\"J\n" +
 	"\x10UsernameLoginReq\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\"I\n" +
@@ -1910,14 +1969,16 @@ const file_proto_auth_proto_rawDesc = "" +
 	"\x10ValidateTokenReq\x12!\n" +
 	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\"=\n" +
 	"\x11ValidateTokenResp\x12(\n" +
-	"\x06claims\x18\x01 \x01(\v2\x10.auth.AuthClaimsR\x06claims\"6\n" +
+	"\x06claims\x18\x01 \x01(\v2\x10.auth.AuthClaimsR\x06claims\"_\n" +
 	"\x0fRefreshTokenReq\x12#\n" +
-	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\";\n" +
+	"\rrefresh_token\x18\x01 \x01(\tR\frefreshToken\x12'\n" +
+	"\x0fbrowser_session\x18\x02 \x01(\bR\x0ebrowserSession\";\n" +
 	"\x10RefreshTokenResp\x12'\n" +
-	"\x06tokens\x18\x01 \x01(\v2\x0f.auth.TokenPairR\x06tokens\"S\n" +
+	"\x06tokens\x18\x01 \x01(\v2\x0f.auth.TokenPairR\x06tokens\"\x87\x01\n" +
 	"\tLogoutReq\x12!\n" +
 	"\faccess_token\x18\x01 \x01(\tR\vaccessToken\x12#\n" +
-	"\rrefresh_token\x18\x02 \x01(\tR\frefreshToken\"a\n" +
+	"\rrefresh_token\x18\x02 \x01(\tR\frefreshToken\x122\n" +
+	"\x15browser_session_token\x18\x03 \x01(\tR\x13browserSessionToken\"a\n" +
 	"\x11ChangePasswordReq\x12)\n" +
 	"\x10current_password\x18\x01 \x01(\tR\x0fcurrentPassword\x12!\n" +
 	"\fnew_password\x18\x02 \x01(\tR\vnewPassword\"_\n" +
@@ -1954,13 +2015,22 @@ const file_proto_auth_proto_rawDesc = "" +
 	"\tnew_email\x18\x01 \x01(\tR\bnewEmail\x12\x12\n" +
 	"\x04code\x18\x02 \x01(\tR\x04code\"5\n" +
 	"\x0fChangeEmailResp\x12\"\n" +
-	"\x04user\x18\x01 \x01(\v2\x0e.auth.UserInfoR\x04user\"\x99\x01\n" +
+	"\x04user\x18\x01 \x01(\v2\x0e.auth.UserInfoR\x04user\"\xd5\x02\n" +
 	"\x12AdminUpdateUserReq\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\x03R\x06userId\x12'\n" +
 	"\x04role\x18\x02 \x01(\x0e2\x0e.auth.UserRoleH\x00R\x04role\x88\x01\x01\x12-\n" +
-	"\x06status\x18\x03 \x01(\x0e2\x10.auth.UserStatusH\x01R\x06status\x88\x01\x01B\a\n" +
+	"\x06status\x18\x03 \x01(\x0e2\x10.auth.UserStatusH\x01R\x06status\x88\x01\x01\x12\x1f\n" +
+	"\busername\x18\x04 \x01(\tH\x02R\busername\x88\x01\x01\x12\x19\n" +
+	"\x05email\x18\x05 \x01(\tH\x03R\x05email\x88\x01\x01\x12&\n" +
+	"\fnew_password\x18\x06 \x01(\tH\x04R\vnewPassword\x88\x01\x01\x12 \n" +
+	"\tschool_id\x18\a \x01(\x03H\x05R\bschoolId\x88\x01\x01B\a\n" +
 	"\x05_roleB\t\n" +
-	"\a_status\"9\n" +
+	"\a_statusB\v\n" +
+	"\t_usernameB\b\n" +
+	"\x06_emailB\x0f\n" +
+	"\r_new_passwordB\f\n" +
+	"\n" +
+	"_school_id\"9\n" +
 	"\x13AdminUpdateUserResp\x12\"\n" +
 	"\x04user\x18\x01 \x01(\v2\x0e.auth.UserInfoR\x04user\"(\n" +
 	"\rDeleteUserReq\x12\x17\n" +

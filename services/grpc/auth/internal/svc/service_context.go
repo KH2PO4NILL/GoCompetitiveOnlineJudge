@@ -173,7 +173,5 @@ func (s *ServiceContext) startSessionCleanup() {
 func (s *ServiceContext) cleanupSessions(ctx context.Context, revokedRetention time.Duration) error {
 	now := time.Now().UTC()
 	revokedBefore := now.Add(-revokedRetention)
-	return s.DB.WithContext(ctx).
-		Where("expires_at <= ? OR (revoked_at IS NOT NULL AND revoked_at <= ?)", now, revokedBefore).
-		Delete(&model.UserSessions{}).Error
+	return model.NewUserSessionsModel(s.DB).Cleanup(ctx, now, revokedBefore)
 }

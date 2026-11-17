@@ -62,7 +62,7 @@ func (l *UsernameLoginLogic) UsernameLogin(in *pb.UsernameLoginReq) (*pb.LoginRe
 		return nil, status.Error(codes.ResourceExhausted, "登录尝试过于频繁，请稍后再试")
 	}
 
-	user, err := l.svcCtx.UsersModel.FindOneByUsername(l.ctx, username)
+	user, err := l.svcCtx.UsersModel.FindForAuthenticationByUsername(l.ctx, username)
 	if err != nil {
 		l.Errorf("find user by username: %v", err)
 		return nil, status.Error(codes.Internal, "login failed")
@@ -101,24 +101,29 @@ func (l *UsernameLoginLogic) UsernameLogin(in *pb.UsernameLoginReq) (*pb.LoginRe
 		return nil, status.Error(codes.Internal, "登录失败")
 	}
 
+	browserToken, browserHash, err := token.GenerateRefreshToken()
+	if err != nil {
+		return nil, status.Error(codes.Internal, "登录失败")
+	}
 	schoolID := int64(0)
 	if user.SchoolId.Valid {
 		schoolID = user.SchoolId.Int64
 	}
 	session := &model.UserSessions{
-		UserId:           user.Id,
-		RefreshTokenHash: refreshTokenHash,
-		DeviceId:         clientInfo.deviceID,
-		DeviceName:       clientInfo.deviceName,
-		IpAddress:        clientInfo.ipAddress,
-		UserAgent:        clientInfo.userAgent,
-		ExpiresAt:        time.Now().UTC().Add(refreshTTL),
+		UserId:             user.Id,
+		RefreshTokenHash:   refreshTokenHash,
+		BrowserSessionHash: sql.NullString{String: browserHash, Valid: true},
+		DeviceId:           clientInfo.deviceID,
+		DeviceName:         clientInfo.deviceName,
+		IpAddress:          clientInfo.ipAddress,
+		UserAgent:          clientInfo.userAgent,
+		ExpiresAt:          time.Now().UTC().Add(refreshTTL),
 	}
 
 	var accessToken string
 	var accessExpiresAt time.Time
 	err = l.svcCtx.DB.WithContext(l.ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(session).Error; err != nil {
+		if err := model.NewUserSessionsModel(tx).Create(l.ctx, session, user); err != nil {
 			return err
 		}
 
@@ -144,9 +149,10 @@ func (l *UsernameLoginLogic) UsernameLogin(in *pb.UsernameLoginReq) (*pb.LoginRe
 
 	return &pb.LoginResp{
 		Tokens: &pb.TokenPair{
-			AccessToken:  accessToken,
-			RefreshToken: refreshToken,
-			ExpiresIn:    expiresIn,
+			AccessToken:         accessToken,
+			RefreshToken:        refreshToken,
+			BrowserSessionToken: browserToken,
+			ExpiresIn:           expiresIn,
 		},
 		User: &pb.UserInfo{
 			UserId:   user.Id,

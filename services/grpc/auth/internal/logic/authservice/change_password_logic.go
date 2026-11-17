@@ -97,12 +97,7 @@ func (l *ChangePasswordLogic) ChangePassword(in *pb.ChangePasswordReq) (*pb.Empt
 			return errPasswordUpdateConflict
 		}
 
-		return tx.Model(&model.UserSessions{}).
-			Where("user_id = ? AND id <> ? AND revoked_at IS NULL", principal.UserID, principal.SessionID).
-			Updates(map[string]any{
-				"revoked_at":     now,
-				"revoked_reason": "password_changed",
-			}).Error
+		return model.NewUserSessionsModel(tx).RevokeAll(l.ctx, principal.UserID, principal.SessionID, "password_changed", now)
 	})
 	if err != nil {
 		if errors.Is(err, errPasswordUpdateConflict) {

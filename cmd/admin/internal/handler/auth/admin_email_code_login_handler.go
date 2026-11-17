@@ -5,6 +5,7 @@ package auth
 import (
 	"github.com/zeromicro/go-zero/core/logx"
 
+	"github.com/KH2PO4NILL/GoCompetitiveOnlineJudge/cmd/internal/httpbridge"
 	"net/http"
 
 	"github.com/zeromicro/go-zero/rest/httpx"
@@ -17,9 +18,13 @@ import (
 func AdminEmailCodeLoginHandler(svcCtx *svc.ServiceContext) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		if err := httpbridge.CheckBrowserSession(r); err != nil {
+			httpx.Error(w, err)
+			return
+		}
 		var (
 			in  = new(types.EmailCodeLoginReq)
-			ctx = r.Context()
+			ctx = httpbridge.WithBrowserSession(r.Context(), w, r)
 		)
 
 		if err := httpx.Parse(r, in); err != nil {

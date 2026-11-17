@@ -79,3 +79,20 @@ make rpc-auth
 [审查记录](../../../docs/audit/2026-09-06-results.md)。
 
 相关入口：[App HTTP](../../../cmd/app/README.md) · [Admin HTTP](../../../cmd/admin/README.md)。
+
+## 数据层和浏览器会话边界
+
+`UsersModel` 不再嵌入生成的通用 CRUD。普通读取使用 `FindActiveByID`、`ListActiveUsers`，不加载密码哈希；只有显式认证读取可以加载凭据。`PasswordHash` 和刷新哈希均禁止 JSON 序列化。删除调用 `SoftDeleteAndAnonymize`，在同一事务内匿名化身份、清除凭据与学校、标记删除并撤销会话。
+
+`UserSessionsModel` 集中创建、加锁读取、原子轮换、撤销、有效性查询和清理；事务中统一先锁用户再锁会话。登录创建时复查已验证的账户快照，防止并发重置密码后仍创建有效会话。`SchoolsModel` 仅暴露字段白名单修改与停用；可空字段通过 `sql.NullString` 显式清空。`004_add_school_reference.sql` 先修复历史悬空引用，再添加 `ON DELETE SET NULL` 外键；启动不使用 `AutoMigrate`。
+
+Auth 通过 gRPC ErrorInfo 提供 `access_token_invalid`、`refresh_token_invalid`、`session_invalid`、`account_unavailable`，共享拦截器保留这些原因，HTTP 网关映射到 JSON `code`。验证码校验错误属于 InvalidArgument，不触发会话失效。
+
+浏览器 HTTP 请求通过 `X-GCOJ-Browser-Session: 1` 显式使用同源 HttpOnly 刷新 Cookie；App/Admin 使用不同名称和路径。Cookie 持有独立的随机浏览器凭据，其哈希存于 `005_add_browser_session_credential.sql` 新增的列；恢复时仍轮换一次性的 API Refresh Token，浏览器凭据直到会话过期或撤销才失效，从而允许导航打断响应及并发恢复。该凭据仅在 RPC 返回，HTTP DTO 不包含它。Refresh RPC 与普通 API 客户端仍使用原有 Token DTO。超级管理员账户修改在事务内重新锁定操作者和目标，验证最新角色/状态后更新并撤销目标全部会话；日志只包含编号和操作类型，RPC 不记录请求内容。
+
+```bash
+AUTH_MODEL_TEST_DSN='root:password@tcp(127.0.0.1:3306)/?parseTime=true' go test -race ./services/grpc/auth/...
+bash scripts/test-web-auth.sh
+```
+
+MySQL 测试总是创建并删除独立数据库，依次执行全部 migration，并覆盖权限边界、并发权限变化、事务回滚、软删除、字段清空、学校外键和刷新单次轮换。

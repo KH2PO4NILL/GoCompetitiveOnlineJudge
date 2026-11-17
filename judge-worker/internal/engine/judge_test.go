@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,13 +18,19 @@ import (
 
 type judgingSandbox struct {
 	*fakeSandbox
-	results []sandbox.ExecuteResult
-	cancel  context.CancelFunc
+	results    []sandbox.ExecuteResult
+	cancel     context.CancelFunc
+	closeStdin bool
 }
 
 func (executor *judgingSandbox) Execute(ctx context.Context, request sandbox.ExecuteRequest) (sandbox.ExecuteResult, error) {
 	if request.Program == "/opt/judge/build" {
 		return executor.fakeSandbox.Execute(ctx, request)
+	}
+	if executor.closeStdin {
+		if err := request.Stdin.(io.Closer).Close(); err != nil {
+			return sandbox.ExecuteResult{}, err
+		}
 	}
 	executor.requests = append(executor.requests, request)
 	if executor.cancel != nil {
@@ -117,5 +124,14 @@ func TestVerdictsAndPrecedence(t *testing.T) {
 		if got := Aggregate([]CaseResult{{Verdict: test.first}, {Verdict: test.second}}); got != test.want {
 			t.Fatal(got)
 		}
+	}
+}
+
+func TestJudgeSandboxClosesRealFileStdin(t *testing.T) {
+	engine, executor, input := judgeFixture(t)
+	executor.closeStdin = true
+	outcome, err := engine.Judge(context.Background(), input)
+	if err != nil || outcome.Verdict != WA || outcome.Cases[0].Verdict != AC || len(executor.requests) != 3 {
+		t.Fatalf("real file stdin cleanup: %+v, %v", outcome, err)
 	}
 }

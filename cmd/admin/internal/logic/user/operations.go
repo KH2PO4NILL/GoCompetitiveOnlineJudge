@@ -65,6 +65,7 @@ func adminUpdateUser(ctx context.Context, svcCtx *svc.ServiceContext, req *types
 	}
 	response, err := svcCtx.Users.AdminUpdateUser(ctx, &pb.AdminUpdateUserReq{
 		UserId: req.UserID, Role: role, Status: statusValue,
+		Username: req.Username, Email: req.Email, NewPassword: req.NewPassword, SchoolId: req.SchoolID,
 	})
 	if err != nil {
 		return nil, err
